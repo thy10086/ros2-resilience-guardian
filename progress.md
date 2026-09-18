@@ -10,3 +10,6 @@
 - 2026-09-18: WSL2 validation passed: `9 passed`; both ROS 2 packages built.
 - 2026-09-18: Real dashboard process served `/api/health`, `/api/state`, and
   the HTML page on a local test port.
+- 2026-09-18: Created the public GitHub repository and published `main` through
+  the GitHub API because the local Git HTTPS transport timed out.
+- 2026-09-18: Verified the remote tree has 39 blob files and includes `.env`.

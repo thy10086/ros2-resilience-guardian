@@ -7,7 +7,7 @@
 - [complete] Add read-only web dashboard and ROS 2 state bridge.
 - [complete] Add dashboard launch/entry points and documentation.
 - [complete] Build, test, and verify browser/API behavior.
-- [pending] Authenticate with SSH or a user-provided GitHub token and push `main`.
+- [complete] Authenticate with a user-provided GitHub token and publish `main`.
 
 ## Design decision
 
@@ -15,3 +15,8 @@ Use a standard-library Python HTTP server inside `guardian_core`. It subscribes 
 the existing ROS 2 state topics and exposes `/api/state`; a static HTML/CSS/JS
 dashboard polls that endpoint. This keeps the laptop deployment lightweight and
 avoids adding a Node/FastAPI dependency while preserving a clear upgrade path.
+
+## Delivery
+
+The public repository is `https://github.com/thy10086/ros2-resilience-guardian`.
+The `main` branch contains the complete local tree, including the tracked `.env`.
