@@ -17,4 +17,14 @@ def generate_launch_description():
                 "default_speed_limit": 0.35,
             }],
         ),
+        Node(
+            package="guardian_core",
+            executable="guardian_dashboard",
+            name="guardian_dashboard",
+            output="screen",
+            parameters=[{
+                "host": "127.0.0.1",
+                "port": 8080,
+            }],
+        ),
     ])

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ROS 2 Resilience Guardian</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">ROS 2 SECURITY OPERATIONS</p>
+        <h1>Resilience Guardian</h1>
+        <p class="subtitle">面向室内移动机器人的任务感知安全防护驾驶舱</p>
+      </div>
+      <div id="connection" class="connection pending">连接中</div>
+    </header>
+
+    <section class="hero-grid">
+      <article class="card state-card" id="state-card">
+        <div class="card-label">安全状态</div>
+        <div class="state-row"><span id="safety-state">STARTING</span><span id="mission-badge" class="badge">任务锁定</span></div>
+        <p id="safety-reason" class="muted">等待 Guardian ROS 2 状态</p>
+        <div class="speed"><span>当前速度上限</span><strong><span id="speed-limit">0.00</span> m/s</strong></div>
+      </article>
+      <article class="card risk-card">
+        <div class="card-label">动态风险评分</div>
+        <div class="risk-score"><span id="risk-score">0</span><small>/ 100</small></div>
+        <div class="meter"><span id="risk-meter"></span></div>
+        <div class="metric-row"><span>ψ <b id="psi">0.000</b></span><span>δ <b id="delta">false</b></span><span>γ <b id="gamma">false</b></span></div>
+      </article>
+    </section>
+
+    <section class="content-grid">
+      <article class="card">
+        <div class="section-title"><h2>攻击面与关键组件</h2><span id="risk-state" class="pill">STARTING</span></div>
+        <div class="chips" id="active-components"><span class="empty">暂无活动组件</span></div>
+        <div class="sub-label">关键组件</div>
+        <div class="chips critical" id="critical-components"><span class="empty">暂无关键组件</span></div>
+        <p id="risk-reason" class="muted">等待风险评估</p>
+      </article>
+      <article class="card">
+        <div class="section-title"><h2>当前缓解方案</h2><span id="plan-id" class="mono">—</span></div>
+        <div class="action" id="mitigation-action">NONE</div>
+        <div class="sub-label">作用组件</div>
+        <div class="chips" id="mitigation-components"><span class="empty">暂无</span></div>
+        <p id="mitigation-reason" class="muted">尚未生成缓解方案</p>
+      </article>
+    </section>
+
+    <section class="card timeline-card">
+      <div class="section-title"><h2>安全事件时间线</h2><span id="last-updated" class="muted">尚无更新</span></div>
+      <div id="timeline" class="timeline"><div class="empty">等待 ROS 2 消息</div></div>
+    </section>
+    <footer>只读监控面板 · 状态来源：/guardian/risk_state、/guardian/mitigation_command、/guardian/safety_status</footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
