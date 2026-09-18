@@ -14,3 +14,4 @@
   the GitHub API because the local Git HTTPS transport timed out.
 - 2026-09-18: Verified the remote tree has 39 blob files and includes `.env`.
 - 2026-09-18: Added and ran deterministic innovation experiments; all four experiment groups passed.
+- 2026-09-18: Added detailed experiment rationale and the staged cross-layer fusion plan; updated HANDOFF.md in the same change.

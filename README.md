@@ -75,6 +75,8 @@ ros2 launch guardian_core guardian.launch.py
 ```bash
 python3 experiments/run_innovation_experiments.py
 ```
+
+跨层融合扩展的实验设计见 [docs/fusion_experiment_plan.md](docs/fusion_experiment_plan.md)。其中明确区分了当前已实现验证和下一阶段待实现模块。
 ## Current implementation status
 
 Implemented in this repository:

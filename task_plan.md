@@ -25,3 +25,4 @@ The `main` branch contains the complete local tree, including the tracked `.env`
 
 - [complete] Add deterministic experiments for zero-trust event verification, stale-plan replacement, safety-state gating, dashboard state aggregation, and audit logging.
 - [complete] Record evidence and limitations in `docs/innovation_validation.md` and `HANDOFF.md`.
+- [complete] Add detailed explanations for current experiments and a staged cross-layer fusion experiment plan.
