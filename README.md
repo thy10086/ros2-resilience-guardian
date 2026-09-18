@@ -69,6 +69,12 @@ ros2 launch guardian_core guardian.launch.py
 `safety_status` 输出边界驱动实际控制器。
 
 详细设计见 [docs/design.md](docs/design.md)，实验和指标见 [docs/experiments.md](docs/experiments.md)。
+
+创新功能验证见 [docs/innovation_validation.md](docs/innovation_validation.md)，可直接运行：
+
+```bash
+python3 experiments/run_innovation_experiments.py
+```
 ## Current implementation status
 
 Implemented in this repository:
