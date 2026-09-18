@@ -17,6 +17,11 @@
 - `RiskEngine` 计算论文兼容的 `delta`、`psi`、`gamma`，并输出受边界约束的运行时风险分数。
 - `MitigationPlanner` 根据当前攻击集合动态重规划隔离、降级和安全停车动作。
 - `SafetySupervisor` 使用明确的 `NORMAL`、`DEGRADED`、`CONTAINING`、`RESUMABLE`、`SAFE_STOP` 状态决定速度上限、任务是否允许继续和停车原因。
+- `SecurityGraph` 沿 ROS 2 节点—话题—执行器路径传播有界风险，并标记受影响的关键节点。
+- `TemporalPolicyMonitor` 检查来源、未来时间、过期、重放、最小周期和最大间隔策略。
+- `EvidenceFusion` 将事件可信度、来源信任、时序违规、图风险、任务关键性和物理不一致融合为 `ALLOW`、`CONTAIN` 或 `SAFE_STOP`，同时返回原因。
+- `SafetyEnvelopeController` 根据融合风险、可用距离和传感器新鲜度计算速度上限和停车状态。
+- `RecoveryGate` 要求无活动攻击、图稳定、传感器新鲜、策略有效、命令清空和驻留时间完成后才允许恢复。
 
 ### 2.2 ROS 2 集成
 
@@ -56,7 +61,12 @@
 | `ros2_ws/src/guardian_core/guardian_core/dashboard_state.py` | 驾驶舱线程安全状态缓存 |
 | `ros2_ws/src/guardian_core/guardian_core/frontend/` | HTML、CSS、JavaScript 页面 |
 | `experiments/run_guardian_scenario.py` | 离线多波攻击场景 |
-| `experiments/run_innovation_experiments.py` | 零信任、重新规划、状态机和审计验证 |
+| `experiments/run_innovation_experiments.py` | 零信任、重新规划、状态机、审计和跨层融合验证 |
+| `ros2_ws/src/guardian_core/guardian_core/graph_model.py` | ROS 2 数据路径风险传播 |
+| `ros2_ws/src/guardian_core/guardian_core/policy_monitor.py` | 运行时来源和时序规则 |
+| `ros2_ws/src/guardian_core/guardian_core/evidence_fusion.py` | 多源证据融合和解释 |
+| `ros2_ws/src/guardian_core/guardian_core/safety_envelope.py` | 风险与制动距离约束的速度上限 |
+| `ros2_ws/src/guardian_core/guardian_core/recovery_gate.py` | 多条件恢复门控 |
 | `docs/fusion_experiment_plan.md` | 图传播、时序规则、证据融合和安全速度的后续实验设计 |
 | `docs/innovation_validation.md` | 当前创新实验的结果、原理和判定过程 |
 | `tests/` | 核心引擎和驾驶舱状态缓存测试 |
@@ -102,12 +112,13 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 ## 5. 已执行的验证
 
 - Windows Python 语法编译和 `DashboardState` 状态缓存 smoke test 通过。
-- WSL2 中 `python3 -m pytest -q` 通过，当前结果为 `9 passed`。
+- WSL2 中 `python3 -m pytest -q` 通过，当前结果为 `15 passed`。
 - ROS 2 Jazzy `colcon build --symlink-install` 成功构建 `guardian_interfaces` 和 `guardian_core`。
 - 真实 `guardian_dashboard` 进程已验证 `/api/health`、`/api/state` 和 HTML 页面可访问。
 - 已确认 `.env` 被 Git 跟踪，远程 GitHub 树中也存在 `.env`。
 - 创新层验证报告见 `docs/innovation_validation.md`；脚本输出保存在被忽略的 `experiments/results/innovation_validation.json`。
-- 跨层融合实验计划见 `docs/fusion_experiment_plan.md`；图传播、时序规则、安全速度包络和恢复门控仍属于待实现范围。
+- `python3 experiments/run_innovation_experiments.py` 通过 5 组实验；跨层融合报告见 `docs/innovation_validation.md`。
+- 纯 Python 图传播、时序规则、证据融合、安全速度包络和恢复门控已经实现并通过单元测试；它们仍未接入真实 ROS 2 live graph、`guardian_node`、SROS 2/DDS 权限或 Webots 底盘。
 
 ## 6. GitHub 发布状态
 
@@ -179,3 +190,9 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 
 - 改动：补充当前四类实验的原理和逐步判定过程，新增跨层融合实验计划，覆盖 ROS 2 图传播、时序规则、多源证据融合、安全速度包络和恢复门控。
 - 验证：文档明确区分已实现功能与待实现研究模块；现有实验脚本和 ROS 2 构建结果保持不变。
+
+### 2026-09-18 — `feat: add cross-layer fusion safety core`
+
+- 改动：新增 `SecurityGraph`、`TemporalPolicyMonitor`、`EvidenceFusion`、`SafetyEnvelopeController` 和 `RecoveryGate`；将五层安全链路加入确定性创新实验；补充纯 Python 到 ROS 2 适配的边界说明。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/{graph_model,policy_monitor,evidence_fusion,safety_envelope,recovery_gate}.py`、`tests/test_fusion_layers.py`、`experiments/run_innovation_experiments.py`、`docs/innovation_validation.md`、`docs/fusion_implementation_plan.md`、`README.md`、`progress.md`、`task_plan.md`。
+- 验证：跨层实验 1 组通过；创新实验共 5 组通过；WSL2 `python3 -m pytest -q` 为 `15 passed`，并覆盖未知权重、非法风险阈值和非法时间戳边界；ROS 2 live graph、Webots 控制和 SROS 2 仍未宣称完成。

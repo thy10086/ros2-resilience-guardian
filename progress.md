@@ -15,3 +15,5 @@
 - 2026-09-18: Verified the remote tree has 39 blob files and includes `.env`.
 - 2026-09-18: Added and ran deterministic innovation experiments; all four experiment groups passed.
 - 2026-09-18: Added detailed experiment rationale and the staged cross-layer fusion plan; updated HANDOFF.md in the same change.
+- 2026-09-18: Implemented pure Python cross-layer fusion modules: graph risk propagation, temporal policy monitoring, evidence fusion, safety speed envelope, and recovery gate.
+- 2026-09-18: Added a fifth deterministic innovation experiment covering the full cross-layer path; WSL2 validation passed with `15 passed` and the innovation suite passed all 5 groups.

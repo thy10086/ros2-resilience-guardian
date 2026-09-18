@@ -19,12 +19,22 @@ from guardian_core import (  # noqa: E402
     AttackEvent,
     AttackRegistry,
     AuditLogger,
+    EvidenceBundle,
+    EvidenceFusion,
     EventVerifier,
+    GraphEdge,
+    GraphNode,
     GuardianConfig,
     MitigationPlanner,
+    RecoveryEvidence,
+    RecoveryGate,
     RiskEngine,
+    SafetyEnvelopeController,
+    SecurityGraph,
     SafetyState,
     SafetySupervisor,
+    TemporalPolicyMonitor,
+    TopicPolicy,
     VerificationCode,
 )
 from guardian_core.dashboard_state import DashboardState  # noqa: E402
@@ -256,12 +266,112 @@ def experiment_dashboard_and_audit() -> dict[str, object]:
     }
 
 
+def experiment_cross_layer_fusion() -> dict[str, object]:
+    """Validate the new cross-layer safety path without a live ROS graph.
+
+    The experiment keeps each layer observable so a later ROS 2 adapter can
+    replace the deterministic inputs one at a time: graph topology, temporal
+    policy violations, evidence fusion, speed envelope and recovery gate.
+    """
+    graph = SecurityGraph(
+        [
+            GraphNode("nav", "node", criticality=0.4),
+            GraphNode("cmd_vel", "topic", criticality=0.7),
+            GraphNode("base", "actuator", criticality=1.0),
+        ],
+        [
+            GraphEdge("nav", "cmd_vel", weight=0.9),
+            GraphEdge("cmd_vel", "base", weight=0.8),
+        ],
+    )
+    graph_assessment = graph.propagate({"nav": 0.9})
+
+    policy_monitor = TemporalPolicyMonitor(
+        [TopicPolicy("/cmd_vel", "nav", min_period_sec=0.05, max_gap_sec=0.5, max_age_sec=0.2)]
+    )
+    valid = policy_monitor.observe("/cmd_vel", "nav", 10.0, 1, 10.0)
+    untrusted = policy_monitor.observe("/cmd_vel", "spoofed_nav", 10.1, 2, 10.1)
+    replay = policy_monitor.observe("/cmd_vel", "nav", 10.1, 1, 10.1)
+    stale = policy_monitor.observe("/cmd_vel", "nav", 10.1, 2, 10.6)
+    violation_codes = {
+        "valid": [item.code for item in valid],
+        "untrusted": [item.code for item in untrusted],
+        "replay": [item.code for item in replay],
+        "stale": [item.code for item in stale],
+    }
+
+    fusion = EvidenceFusion()
+    fused = fusion.evaluate(
+        EvidenceBundle(
+            event_confidence=0.9,
+            source_trust=0.9,
+            temporal_violation=0.7,
+            graph_risk=graph_assessment.risk_by_node["base"],
+            mission_criticality=0.9,
+            physical_inconsistency=0.0,
+        )
+    )
+    envelope = SafetyEnvelopeController(default_speed_limit=0.35, braking_acceleration=0.8)
+    clear_speed = envelope.compute(risk=0.05, free_distance=2.0, sensor_fresh=True)
+    contained_speed = envelope.compute(risk=fused.score, free_distance=2.0, sensor_fresh=True)
+    stale_sensor = envelope.compute(risk=fused.score, free_distance=2.0, sensor_fresh=False)
+
+    recovery = RecoveryGate()
+    blocked_recovery = recovery.evaluate(
+        RecoveryEvidence(True, False, True, True, True, True)
+    )
+    allowed_recovery = recovery.evaluate(
+        RecoveryEvidence(True, True, True, True, True, True)
+    )
+
+    evidence = {
+        "graph": {
+            "risk_by_node": dict(graph_assessment.risk_by_node),
+            "critical_nodes": sorted(graph_assessment.critical_nodes),
+            "blast_radius": graph_assessment.blast_radius,
+        },
+        "temporal_policy": violation_codes,
+        "fusion": {
+            "score": fused.score,
+            "level": fused.level,
+            "reasons": list(fused.reasons),
+        },
+        "safety_envelope": {
+            "clear_speed": clear_speed.speed_limit,
+            "contained_speed": contained_speed.speed_limit,
+            "contained_state": contained_speed.state,
+            "stale_sensor_state": stale_sensor.state,
+        },
+        "recovery": {
+            "blocked": list(blocked_recovery.missing),
+            "allowed": allowed_recovery.allowed,
+        },
+    }
+    assert abs(graph_assessment.risk_by_node["cmd_vel"] - 0.81) < 1e-9, evidence
+    assert abs(graph_assessment.risk_by_node["base"] - 0.648) < 1e-9, evidence
+    assert graph_assessment.critical_nodes == frozenset({"base"}), evidence
+    assert violation_codes == {
+        "valid": [],
+        "untrusted": ["UNTRUSTED_SOURCE"],
+        "replay": ["REPLAY"],
+        "stale": ["STALE"],
+    }, evidence
+    assert fused.level == "CONTAIN" and fused.score > 0.35, evidence
+    assert 0.0 < contained_speed.speed_limit < clear_speed.speed_limit, evidence
+    assert contained_speed.state == "CONTAINING" and not contained_speed.mission_allowed, evidence
+    assert stale_sensor.state == "SAFE_STOP" and stale_sensor.speed_limit == 0.0, evidence
+    assert not blocked_recovery.allowed and "graph_stable" in blocked_recovery.missing, evidence
+    assert allowed_recovery.allowed, evidence
+    return {"name": "cross_layer_fusion", "passed": True, "evidence": evidence}
+
+
 def main() -> int:
     experiments = [
         experiment_zero_trust_event_gate(),
         experiment_wave_replanning(),
         experiment_safety_state_machine(),
         experiment_dashboard_and_audit(),
+        experiment_cross_layer_fusion(),
     ]
     report = {"passed": all(item["passed"] for item in experiments), "experiments": experiments}
     output_path = ROOT / "experiments" / "results" / "innovation_validation.json"

@@ -7,9 +7,11 @@
 ## 现在能运行什么
 
 - 纯 Python 核心引擎：不依赖 ROS 图形界面，可测试攻击验证、风险计算、3b 多波攻击重规划和安全状态机。
+- 跨层安全核心：对 ROS 2 数据路径做图风险传播、来源/时序策略检查、多源证据融合、风险自适应速度包络和恢复门控。
 - ROS 2 Jazzy 包：`guardian_interfaces` 消息包和 `guardian_core` 节点包。
 - 本地 Web 安全驾驶舱：只读映射风险、攻击组件、缓解方案和安全状态。
 - `guardian_node` 订阅 `guardian/attack_events`，输出 `guardian/risk_state`、`guardian/mitigation_command` 和 `guardian/safety_status`。
+- `experiments/run_innovation_experiments.py` 现在包含 5 组确定性实验，新增跨层融合链路的离线验收。
 - 离线实验：`python3 experiments/run_guardian_scenario.py --scenario 3b`。
 - 可接入现有 Webots PR2：把攻击事件送入 Guardian，再由 `safety_supervisor` 控制速度、隔离或停车。
 
@@ -76,7 +78,7 @@ ros2 launch guardian_core guardian.launch.py
 python3 experiments/run_innovation_experiments.py
 ```
 
-跨层融合扩展的实验设计见 [docs/fusion_experiment_plan.md](docs/fusion_experiment_plan.md)。其中明确区分了当前已实现验证和下一阶段待实现模块。
+跨层融合扩展的实验设计见 [docs/fusion_experiment_plan.md](docs/fusion_experiment_plan.md)，实现边界和后续 ROS 2 接入步骤见 [docs/fusion_implementation_plan.md](docs/fusion_implementation_plan.md)。当前跨层模块已完成纯 Python 离线验证，但还没有直接接管真实底盘、Webots 或 ROS 2 live graph introspection。
 ## Current implementation status
 
 Implemented in this repository:
