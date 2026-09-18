@@ -56,6 +56,7 @@
 | `ros2_ws/src/guardian_core/guardian_core/dashboard_state.py` | 驾驶舱线程安全状态缓存 |
 | `ros2_ws/src/guardian_core/guardian_core/frontend/` | HTML、CSS、JavaScript 页面 |
 | `experiments/run_guardian_scenario.py` | 离线多波攻击场景 |
+| `experiments/run_innovation_experiments.py` | 零信任、重新规划、状态机和审计验证 |
 | `tests/` | 核心引擎和驾驶舱状态缓存测试 |
 | `.env` | 已跟踪的安全默认配置；不要写入真实密钥 |
 
@@ -103,6 +104,7 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - ROS 2 Jazzy `colcon build --symlink-install` 成功构建 `guardian_interfaces` 和 `guardian_core`。
 - 真实 `guardian_dashboard` 进程已验证 `/api/health`、`/api/state` 和 HTML 页面可访问。
 - 已确认 `.env` 被 Git 跟踪，远程 GitHub 树中也存在 `.env`。
+- 创新层验证报告见 `docs/innovation_validation.md`；脚本输出保存在被忽略的 `experiments/results/innovation_validation.json`。
 
 ## 6. GitHub 发布状态
 
@@ -164,3 +166,8 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 
 - 改动：新增本文件，补充系统结构、运行命令、验证证据、发布状态、后续方向和每次提交更新规则；README 增加交接文档入口。
 - 验证：提交前执行 `git diff --check`，并在同步后核验远程文件树和 `main` 分支。
+
+### 2026-09-18 — 创新功能验证
+
+- 改动：新增 `experiments/run_innovation_experiments.py` 和 `docs/innovation_validation.md`，验证零信任事件门、计划生效前多波重新规划、安全状态机、驾驶舱状态聚合和审计 JSONL。
+- 验证：4 类实验全部通过；5 类不可信事件被拦截；旧计划被新关键攻击替换；隔离后残余风险下降并恢复为 `RESUMABLE`。

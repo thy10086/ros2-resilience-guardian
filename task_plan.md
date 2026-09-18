@@ -20,3 +20,8 @@ avoids adding a Node/FastAPI dependency while preserving a clear upgrade path.
 
 The public repository is `https://github.com/thy10086/ros2-resilience-guardian`.
 The `main` branch contains the complete local tree, including the tracked `.env`.
+
+## Innovation validation
+
+- [complete] Add deterministic experiments for zero-trust event verification, stale-plan replacement, safety-state gating, dashboard state aggregation, and audit logging.
+- [complete] Record evidence and limitations in `docs/innovation_validation.md` and `HANDOFF.md`.
