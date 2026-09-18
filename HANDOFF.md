@@ -57,6 +57,8 @@
 | `ros2_ws/src/guardian_core/guardian_core/frontend/` | HTML、CSS、JavaScript 页面 |
 | `experiments/run_guardian_scenario.py` | 离线多波攻击场景 |
 | `experiments/run_innovation_experiments.py` | 零信任、重新规划、状态机和审计验证 |
+| `docs/fusion_experiment_plan.md` | 图传播、时序规则、证据融合和安全速度的后续实验设计 |
+| `docs/innovation_validation.md` | 当前创新实验的结果、原理和判定过程 |
 | `tests/` | 核心引擎和驾驶舱状态缓存测试 |
 | `.env` | 已跟踪的安全默认配置；不要写入真实密钥 |
 
@@ -105,6 +107,7 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 真实 `guardian_dashboard` 进程已验证 `/api/health`、`/api/state` 和 HTML 页面可访问。
 - 已确认 `.env` 被 Git 跟踪，远程 GitHub 树中也存在 `.env`。
 - 创新层验证报告见 `docs/innovation_validation.md`；脚本输出保存在被忽略的 `experiments/results/innovation_validation.json`。
+- 跨层融合实验计划见 `docs/fusion_experiment_plan.md`；图传播、时序规则、安全速度包络和恢复门控仍属于待实现范围。
 
 ## 6. GitHub 发布状态
 
@@ -171,3 +174,8 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 
 - 改动：新增 `experiments/run_innovation_experiments.py` 和 `docs/innovation_validation.md`，验证零信任事件门、计划生效前多波重新规划、安全状态机、驾驶舱状态聚合和审计 JSONL。
 - 验证：4 类实验全部通过；5 类不可信事件被拦截；旧计划被新关键攻击替换；隔离后残余风险下降并恢复为 `RESUMABLE`。
+
+### 2026-09-18 — 跨层融合实验说明
+
+- 改动：补充当前四类实验的原理和逐步判定过程，新增跨层融合实验计划，覆盖 ROS 2 图传播、时序规则、多源证据融合、安全速度包络和恢复门控。
+- 验证：文档明确区分已实现功能与待实现研究模块；现有实验脚本和 ROS 2 构建结果保持不变。
