@@ -1,0 +1,7 @@
+# Guardian runtime defaults
+# This file is intentionally tracked. It contains no credentials.
+task: navigate_to_goal
+goal: box2
+max_event_age_sec: 5.0
+mitigation_delay_sec: 1.0
+default_speed_limit: 0.35
