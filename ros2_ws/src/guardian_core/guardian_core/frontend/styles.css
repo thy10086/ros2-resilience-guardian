@@ -1,0 +1,26 @@
+:root { --bg: #0b1020; --panel: #131b2f; --panel-2: #182440; --text: #eef4ff; --muted: #8fa2c5; --line: #2b3a5e; --cyan: #48d9c5; --amber: #f5bc5d; --red: #ff6b78; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 980px; background: radial-gradient(circle at 10% 0%, #17284a 0, var(--bg) 38rem); color: var(--text); font: 15px/1.5 Inter, "Segoe UI", "Microsoft YaHei", sans-serif; }
+.shell { width: min(1280px, calc(100% - 64px)); margin: 0 auto; padding: 42px 0 28px; }
+.topbar, .state-row, .metric-row, .section-title, .speed, footer { display: flex; align-items: center; justify-content: space-between; }
+.topbar { margin-bottom: 28px; }
+h1, h2, p { margin: 0; } h1 { font-size: 34px; letter-spacing: -.04em; } h2 { font-size: 17px; }
+.eyebrow, .card-label, .sub-label { color: var(--cyan); font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.subtitle, .muted, footer { color: var(--muted); } .subtitle { margin-top: 5px; }
+.connection, .badge, .pill, .chip { border-radius: 999px; font-size: 12px; font-weight: 700; }
+.connection { padding: 8px 13px; border: 1px solid var(--line); } .connected { color: var(--cyan); border-color: #267d77; background: #103734; } .pending { color: var(--amber); background: #352b15; border-color: #765b23; }
+.hero-grid, .content-grid { display: grid; gap: 16px; } .hero-grid { grid-template-columns: 1fr 1fr; } .content-grid { grid-template-columns: 1fr 1fr; margin-top: 16px; }
+.card { background: linear-gradient(145deg, rgba(24,36,64,.96), rgba(16,24,44,.96)); border: 1px solid var(--line); border-radius: 16px; padding: 22px; box-shadow: 0 18px 50px rgba(0,0,0,.16); }
+.state-card { border-left: 4px solid var(--cyan); } .state-card.degraded, .state-card.containing { border-left-color: var(--amber); } .state-card.safe_stop { border-left-color: var(--red); }
+.state-row { margin-top: 16px; } .state-row span:first-child { font-size: 34px; font-weight: 800; letter-spacing: -.04em; }
+.badge { padding: 6px 10px; color: var(--red); background: #3b1b2c; } .badge.allowed { color: var(--cyan); background: #103b38; }
+.speed { margin-top: 24px; color: var(--muted); } .speed strong { color: var(--text); font-size: 21px; }
+.risk-score { margin: 17px 0 12px; font-size: 48px; font-weight: 800; letter-spacing: -.06em; } .risk-score small { color: var(--muted); font-size: 16px; font-weight: 500; }
+.meter { height: 9px; overflow: hidden; background: #0d1426; border-radius: 9px; } .meter span { display: block; width: 0; height: 100%; background: var(--cyan); border-radius: inherit; transition: width .3s ease; } .meter span.warning { background: var(--amber); } .meter span.danger { background: var(--red); }
+.metric-row { margin-top: 15px; color: var(--muted); } .metric-row b { color: var(--text); margin-left: 4px; }
+.section-title { margin-bottom: 21px; } .pill { padding: 5px 9px; color: var(--cyan); background: #103b38; } .mono { color: var(--muted); font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 28px; } .chip { padding: 6px 10px; color: #d7e4ff; background: #243657; border: 1px solid #36527e; } .critical .chip { color: #ffd8a0; background: #3b2d1b; border-color: #795d2b; }
+.sub-label { margin: 21px 0 9px; color: var(--muted); letter-spacing: .08em; } .empty { color: #62769c; font-size: 13px; }
+.action { margin: 7px 0 18px; color: var(--amber); font-size: 25px; font-weight: 800; letter-spacing: .04em; } .timeline-card { margin-top: 16px; }
+.timeline { max-height: 330px; overflow-y: auto; } .timeline-item { display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid rgba(43,58,94,.6); } .timeline-item:last-child { border-bottom: 0; } .dot { flex: 0 0 9px; width: 9px; height: 9px; margin-top: 7px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 12px var(--cyan); } .dot.degraded, .dot.containing { background: var(--amber); box-shadow: 0 0 12px var(--amber); } .dot.safe_stop { background: var(--red); box-shadow: 0 0 12px var(--red); } .timeline-item b { display: block; font-size: 13px; } .timeline-summary { margin-left: 10px; color: var(--cyan); font-size: 12px; } .timeline-item small { display: block; color: var(--muted); font-size: 12px; }
+footer { justify-content: flex-start; margin-top: 18px; font-size: 12px; }

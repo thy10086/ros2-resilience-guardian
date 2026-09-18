@@ -1,0 +1,9 @@
+float64 timestamp
+string state
+float32 risk
+float32 psi
+bool delta
+bool gamma
+string[] active_components
+string[] critical_components
+string reason

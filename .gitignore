@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# ROS 2 / colcon
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
+# Generated experiment output (keep small example reports only)
+experiments/results/
+*.bag
+*.db3
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

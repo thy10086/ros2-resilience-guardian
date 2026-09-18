@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>guardian_core</name>
+  <version>0.1.0</version>
+  <description>Mission-aware zero-trust resilience guardian for ROS 2 robots.</description>
+  <maintainer email="thy10086@users.noreply.github.com">thy10086</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <depend>rclpy</depend>
+  <depend>guardian_interfaces</depend>
+  <export><build_type>ament_python</build_type></export>
+</package>
