@@ -23,4 +23,34 @@ h1, h2, p { margin: 0; } h1 { font-size: 34px; letter-spacing: -.04em; } h2 { fo
 .sub-label { margin: 21px 0 9px; color: var(--muted); letter-spacing: .08em; } .empty { color: #62769c; font-size: 13px; }
 .action { margin: 7px 0 18px; color: var(--amber); font-size: 25px; font-weight: 800; letter-spacing: .04em; } .timeline-card { margin-top: 16px; }
 .timeline { max-height: 330px; overflow-y: auto; } .timeline-item { display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid rgba(43,58,94,.6); } .timeline-item:last-child { border-bottom: 0; } .dot { flex: 0 0 9px; width: 9px; height: 9px; margin-top: 7px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 12px var(--cyan); } .dot.degraded, .dot.containing { background: var(--amber); box-shadow: 0 0 12px var(--amber); } .dot.safe_stop { background: var(--red); box-shadow: 0 0 12px var(--red); } .timeline-item b { display: block; font-size: 13px; } .timeline-summary { margin-left: 10px; color: var(--cyan); font-size: 12px; } .timeline-item small { display: block; color: var(--muted); font-size: 12px; }
+.jev-card { margin-top: 16px; }
+.jev-subtitle { margin-top: 4px; font-size: 13px; }
+.jev-form-grid { display: grid; grid-template-columns: .85fr 1.15fr; gap: 16px; }
+.field { display: flex; min-width: 0; flex-direction: column; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .05em; }
+.field input, .field textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; background: #0d1426; color: var(--text); font: inherit; font-size: 14px; font-weight: 500; letter-spacing: 0; outline: none; }
+.field input { height: 43px; }
+.field textarea { min-height: 120px; resize: vertical; line-height: 1.55; }
+.field input::placeholder, .field textarea::placeholder { color: #62769c; }
+.field input:focus, .field textarea:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(72,217,197,.14); }
+.jev-actions { display: flex; align-items: center; gap: 10px; min-height: 40px; margin-top: 16px; }
+.button { min-width: 96px; height: 38px; border: 1px solid transparent; border-radius: 8px; padding: 0 15px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity .2s ease, border-color .2s ease, background .2s ease; }
+.button.primary { color: #071b1a; background: var(--cyan); border-color: var(--cyan); }
+.button.primary:hover { background: #6be6d5; border-color: #6be6d5; }
+.button.secondary { color: var(--text); background: #202d47; border-color: #36527e; }
+.button.secondary:hover { background: #2a3b5f; border-color: #4c6da2; }
+.button:disabled { opacity: .5; cursor: wait; }
+.jev-feedback { min-width: 0; margin-left: 4px; color: var(--muted); overflow-wrap: anywhere; font-size: 13px; }
+.jev-feedback.error { color: var(--red); }
+.jev-feedback.success { color: var(--cyan); }
+.jev-status.idle { color: var(--muted); background: #202d47; }
+.jev-status.loading { color: var(--amber); background: #352b15; }
+.jev-status.success { color: var(--cyan); background: #103b38; }
+.jev-status.error { color: var(--red); background: #3b1b2c; }
+.jev-result { margin-top: 22px; padding-top: 1px; border-top: 1px solid var(--line); }
+.jev-result-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.jev-metric { min-width: 0; padding: 12px; background: rgba(13,20,38,.7); border: 1px solid rgba(43,58,94,.8); border-radius: 8px; }
+.jev-metric span { display: block; color: var(--muted); font-size: 11px; }
+.jev-metric strong { display: block; margin-top: 5px; color: var(--text); font-size: 14px; overflow-wrap: anywhere; }
+.jev-reason { margin-top: 14px; padding: 10px 12px; border-left: 3px solid var(--cyan); background: rgba(16,55,52,.45); overflow-wrap: anywhere; }
+.jev-result[hidden] { display: none; }
 footer { justify-content: flex-start; margin-top: 18px; font-size: 12px; }

@@ -40,6 +40,26 @@ avoids adding a Node/FastAPI dependency while preserving a clear upgrade path.
 The public repository is `https://github.com/thy10086/ros2-resilience-guardian`.
 The `main` branch contains the complete local tree, including the tracked `.env`.
 
+## Current task: dashboard Jev connection test
+
+- [complete] Review the current dashboard, official TypeSafe API contract, and comparable open-source clients.
+- [complete] Add red tests for request validation, bounded proxy behavior, upstream failures, and credential non-disclosure.
+- [complete] Implement a local `/api/jev/test` proxy using the existing `JevSemanticAdvisor` without persisting the submitted key.
+- [complete] Add the desktop Jev test panel with loading, connected, unavailable, invalid, and clear states.
+- [complete] Run unit, compile, ROS 2 build, and real-browser smoke validation with a deterministic local fake transport.
+- [complete] Update documentation and handoff, commit, push `main`, and verify the remote tree.
+
+## Jev dashboard design decision
+
+The browser sends a short test state and an API key to the local dashboard only.
+The dashboard forwards the request to the configured, allowlisted HTTPS
+TypeSafe endpoint (official by default) and
+returns bounded normalized assessment metadata. The key is never placed in
+`.env`, local/session storage, ROS messages, audit data, or logs. The endpoint
+is a manual advisory test path and cannot change Guardian safety state or robot
+commands. The browser does not call TypeSafe directly because the service
+rejects the dashboard origin through CORS.
+
 ## Innovation validation
 
 - [complete] Add deterministic experiments for zero-trust event verification, stale-plan replacement, safety-state gating, dashboard state aggregation, and audit logging.

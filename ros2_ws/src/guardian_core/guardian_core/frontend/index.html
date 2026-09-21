@@ -53,6 +53,47 @@
       <div class="section-title"><h2>安全事件时间线</h2><span id="last-updated" class="muted">尚无更新</span></div>
       <div id="timeline" class="timeline"><div class="empty">等待 ROS 2 消息</div></div>
     </section>
+
+    <section class="card jev-card" aria-labelledby="jev-title">
+      <div class="section-title">
+        <div>
+          <h2 id="jev-title">Jev 连接测试</h2>
+          <p class="muted jev-subtitle">通过本地 Guardian 服务验证 TypeSafe API</p>
+        </div>
+        <span id="jev-status" class="pill jev-status idle" role="status" aria-live="polite">未测试</span>
+      </div>
+
+      <form id="jev-form" novalidate>
+        <div class="jev-form-grid">
+          <label class="field" for="jev-api-key">
+            <span>API Key</span>
+            <input id="jev-api-key" name="jev-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴 TypeSafe API Key">
+          </label>
+          <label class="field" for="jev-state">
+            <span>测试状态</span>
+            <textarea id="jev-state" name="jev-state" rows="5" spellcheck="false">已验证导航组件在短时间内收到异常高频速度指令，来源签名有效但行为可能影响安全边界。</textarea>
+          </label>
+        </div>
+        <div class="jev-actions">
+          <button id="jev-test" class="button primary" type="submit">测试连接</button>
+          <button id="jev-clear" class="button secondary" type="button">清空</button>
+          <span id="jev-feedback" class="muted" role="status" aria-live="polite">输入 API Key 后开始测试</span>
+        </div>
+      </form>
+
+      <div id="jev-result" class="jev-result" hidden aria-live="polite">
+        <div class="sub-label">标准化判断</div>
+        <div class="jev-result-grid">
+          <div class="jev-metric"><span>攻击类型</span><strong id="jev-label">—</strong></div>
+          <div class="jev-metric"><span>任务影响</span><strong id="jev-impact">—</strong></div>
+          <div class="jev-metric"><span>辅助评分</span><strong id="jev-score">—</strong></div>
+          <div class="jev-metric"><span>置信度</span><strong id="jev-confidence">—</strong></div>
+          <div class="jev-metric"><span>人工复核</span><strong id="jev-review">—</strong></div>
+          <div class="jev-metric"><span>模型 / 延迟</span><strong id="jev-model">—</strong></div>
+        </div>
+        <p id="jev-reason" class="muted jev-reason">—</p>
+      </div>
+    </section>
     <footer>只读监控面板 · 状态来源：/guardian/risk_state、/guardian/mitigation_command、/guardian/safety_status</footer>
   </main>
   <script src="app.js"></script>

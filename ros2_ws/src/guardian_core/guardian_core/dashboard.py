@@ -17,6 +17,14 @@ from rclpy.node import Node
 from guardian_interfaces.msg import MitigationCommand, RiskState, SafetyStatus
 
 from .dashboard_state import DashboardState
+from .dashboard_jev import (
+    DEFAULT_TIMEOUT_SEC,
+    DEFAULT_ENDPOINT,
+    JevDashboardService,
+    JevRequestError,
+    MAX_REQUEST_BYTES,
+    parse_request,
+)
 
 
 def _frontend_dir() -> Path:
@@ -52,14 +60,97 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
         self._static(parsed.path)
 
-    def _json(self, payload: object) -> None:
+    def do_POST(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
+        parsed = urlparse(self.path)
+        if parsed.path == "/api/jev/test":
+            self._jev_test()
+            return
+        self.send_error(404)
+
+    def _json(self, payload: object, *, status: int = 200) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        self.send_response(200)
+        self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _jev_test(self) -> None:
+        content_length = self.headers.get("Content-Length")
+        if content_length is None:
+            self._json(
+                {
+                    "status": "INVALID_REQUEST",
+                    "connected": False,
+                    "error": {"code": "missing_content_length", "message": "Request body is required"},
+                },
+                status=400,
+            )
+            return
+        try:
+            length = int(content_length)
+        except (TypeError, ValueError):
+            length = -1
+        if length < 0:
+            self._json(
+                {
+                    "status": "INVALID_REQUEST",
+                    "connected": False,
+                    "error": {"code": "invalid_content_length", "message": "Request body length is invalid"},
+                },
+                status=400,
+            )
+            return
+        if length > MAX_REQUEST_BYTES:
+            self._json(
+                {
+                    "status": "INVALID_REQUEST",
+                    "connected": False,
+                    "error": {"code": "request_too_large", "message": "Request body is too large"},
+                },
+                status=413,
+            )
+            return
+        raw = self.rfile.read(length)
+        if len(raw) != length:
+            self._json(
+                {
+                    "status": "INVALID_REQUEST",
+                    "connected": False,
+                    "error": {"code": "incomplete_body", "message": "Request body is incomplete"},
+                },
+                status=400,
+            )
+            return
+        try:
+            api_key, state = parse_request(raw)
+        except JevRequestError as error:
+            self._json(
+                {
+                    "status": "INVALID_REQUEST",
+                    "connected": False,
+                    "error": {"code": error.code, "message": error.message},
+                },
+                status=error.http_status,
+            )
+            return
+        try:
+            response = self.dashboard_server.jev_service.test(api_key, state)
+        except Exception:
+            # Keep an unexpected provider/client failure bounded and free of
+            # request data; the browser can render the same failure state.
+            self._json(
+                {
+                    "status": "UNAVAILABLE",
+                    "connected": False,
+                    "error": {"code": "provider_unavailable", "message": "Jev service is unavailable"},
+                },
+                status=502,
+            )
+            return
+        self._json(response.payload, status=response.http_status)
 
     def _static(self, request_path: str) -> None:
         relative = unquote(request_path.lstrip("/")) or "index.html"
@@ -87,10 +178,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
 class DashboardHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address: tuple[str, int], state: DashboardState, frontend_dir: Path) -> None:
+    def __init__(
+        self,
+        address: tuple[str, int],
+        state: DashboardState,
+        frontend_dir: Path,
+        jev_service: JevDashboardService | None = None,
+    ) -> None:
         super().__init__(address, DashboardHandler)
         self.state = state
         self.frontend_dir = frontend_dir
+        self.jev_service = jev_service or JevDashboardService()
 
 
 class DashboardNode(Node):
@@ -100,6 +198,9 @@ class DashboardNode(Node):
         self.declare_parameter("port", 8080)
         self.declare_parameter("timeline_limit", 100)
         self.declare_parameter("frontend_dir", "")
+        self.declare_parameter("jev_endpoint", os.getenv("JEV_ENDPOINT", DEFAULT_ENDPOINT))
+        self.declare_parameter("jev_model", os.getenv("JEV_MODEL", "jev-latest"))
+        self.declare_parameter("jev_timeout_sec", os.getenv("JEV_TIMEOUT_SEC", str(DEFAULT_TIMEOUT_SEC)))
 
         self.state = DashboardState(int(self.get_parameter("timeline_limit").value))
         frontend_parameter = str(self.get_parameter("frontend_dir").value)
@@ -108,7 +209,16 @@ class DashboardNode(Node):
             raise RuntimeError(f"Dashboard frontend directory does not exist: {frontend_dir}")
         host = str(self.get_parameter("host").value)
         port = int(self.get_parameter("port").value)
-        self.http_server = DashboardHTTPServer((host, port), self.state, frontend_dir)
+        try:
+            jev_service = JevDashboardService(
+                endpoint=str(self.get_parameter("jev_endpoint").value),
+                model=str(self.get_parameter("jev_model").value),
+                timeout_sec=float(self.get_parameter("jev_timeout_sec").value),
+            )
+        except (TypeError, ValueError) as error:
+            self.get_logger().warning(f"Invalid Jev dashboard configuration; using defaults: {error}")
+            jev_service = JevDashboardService()
+        self.http_server = DashboardHTTPServer((host, port), self.state, frontend_dir, jev_service=jev_service)
         self.http_thread = Thread(target=self.http_server.serve_forever, name="guardian-dashboard-http", daemon=True)
         self.http_thread.start()
 
@@ -129,7 +239,9 @@ def main(args: Iterable[str] | None = None) -> None:
     node = DashboardNode()
     try:
         rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
-
+        if rclpy.ok():
+            rclpy.shutdown()

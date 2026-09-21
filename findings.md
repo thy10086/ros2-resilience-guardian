@@ -34,3 +34,24 @@ be committed or printed.
 - The existing project already has deterministic event verification, graph/fusion logic, and a final `SafetySupervisor`; the safest insertion point is a bounded advisory evidence adapter between verified event summaries and evidence fusion.
 - Raw high-rate telemetry, credentials, and unredacted logs must not be sent to the external API. The adapter should accept a compact, caller-supplied incident summary and return normalized typed evidence.
 - Final validation on 2026-09-21: 23 tests passed, six deterministic innovation groups passed, and both ROS 2 Jazzy packages built; live Jev accuracy, calibration, latency, cost, and availability remain unmeasured.
+
+## Dashboard Jev connection findings (2026-09-21)
+
+- The official API is `POST https://api.typesafe.ai/v1/systemone` with a Bearer
+  key, `state`, `model: "jev-latest"`, and typed questions. The response has
+  `answers`, `model`, and optional `usage`.
+- A browser request from the local dashboard origin is rejected by TypeSafe's
+  CORS policy (`400 Disallowed CORS origin`), so the key must be sent to the
+  local dashboard proxy rather than directly to the provider.
+- GitHub repository search found community TypeSafe clients such as
+  `lu-zero/systemone`, `dwisiswant0/typesafe-sdk-go`, and
+  `Premo-Cloud/typesafe-sdk-java`; they confirm the endpoint/header contract
+  but do not provide a ROS 2 dashboard integration. Existing ROS 2 references
+  remain `rajavardhan28/IDS_ROS2` and `seergiromero/ROS2-Intrusion-Detection`.
+- The UI contract is a manual `POST /api/jev/test` with `{api_key, state}`.
+  Validation and response limits are enforced locally; upstream errors are
+  mapped to bounded status messages and never echo request headers or keys.
+- The dashboard transport disables automatic HTTP redirects, so an upstream
+  redirect cannot carry the Authorization header to another host. API keys are
+  restricted to printable ASCII before entering that header; state text keeps
+  Unicode support and is still bounded/redacted by the advisor.

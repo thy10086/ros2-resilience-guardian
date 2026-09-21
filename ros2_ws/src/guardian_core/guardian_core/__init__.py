@@ -26,6 +26,12 @@ from .jev_advisor import (
     JevSemanticAdvisor,
     SemanticContext,
 )
+from .dashboard_jev import (
+    JevDashboardService,
+    JevProxyResponse,
+    JevRequestError,
+    parse_request,
+)
 
 __all__ = [
     "ActionType", "AttackEvent", "AuditLogger", "GuardianConfig", "MitigationPlan",
@@ -36,4 +42,5 @@ __all__ = [
     "TopicPolicy", "RecoveryDecision", "RecoveryEvidence", "RecoveryGate",
     "SafetyEnvelopeController", "SafetyEnvelopeDecision",
     "JevAdvisorConfig", "JevAssessment", "JevAssessmentStatus", "JevSemanticAdvisor", "SemanticContext",
+    "JevDashboardService", "JevProxyResponse", "JevRequestError", "parse_request",
 ]

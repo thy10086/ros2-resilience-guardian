@@ -29,6 +29,8 @@
 - `guardian_interfaces` 提供 `AttackEvent`、`RiskState`、`MitigationCommand` 和 `SafetyStatus` 消息。
 - `guardian_node` 订阅 `/guardian/attack_events`，发布风险、缓解和安全状态话题。
 - `guardian_dashboard` 订阅三个状态话题，维护线程安全缓存并提供本地 HTTP API。
+- `guardian_dashboard` 提供 `/api/jev/test` 本地代理，可用一次性 API Key
+  和短状态文本执行 Jev 连接测试；结果只作为旁路建议。
 - `guardian.launch.py` 可同时启动核心守护节点和驾驶舱。
 
 ### 2.3 Web 安全驾驶舱
@@ -40,14 +42,19 @@
 - 活动攻击组件和关键组件；
 - 当前缓解动作、计划 ID、速度限制；
 - 风险评估、缓解规划和安全监督时间线。
+- Jev 连接测试状态、标准化攻击类型、任务影响、分数、置信度和人工复核建议。
 
 后端默认只监听 `127.0.0.1:8080`，提供：
 
 - `GET /`：静态驾驶舱页面；
 - `GET /api/health`：服务健康检查；
 - `GET /api/state`：当前状态和时间线 JSON。
+- `POST /api/jev/test`：使用本次请求提供的 API Key 和状态文本调用固定
+  TypeSafe endpoint，返回有界连接/评估结果。
 
-驾驶舱是只读监控入口。实际机器人速度和停车动作仍必须由 Webots 或硬件适配器消费 `SafetyStatus` 后执行。
+驾驶舱仍是只读监控入口。Jev 测试只返回语义建议，实际机器人速度和停车动作仍必须由 Webots 或硬件适配器消费 `SafetyStatus` 后执行。
+API Key 不从环境变量读取，也不会写入浏览器存储、ROS 消息、审计数据或日志；
+浏览器只调用本地代理，以避开 TypeSafe 的 CORS 限制。
 
 ## 3. 关键目录和文件
 
@@ -59,6 +66,7 @@
 | `ros2_ws/src/guardian_core/guardian_core/supervisor.py` | 安全状态机 |
 | `ros2_ws/src/guardian_core/guardian_core/guardian_node.py` | ROS 2 守护节点 |
 | `ros2_ws/src/guardian_core/guardian_core/dashboard.py` | ROS 2 到 HTTP 的桥接服务 |
+| `ros2_ws/src/guardian_core/guardian_core/dashboard_jev.py` | 有界 Jev dashboard 代理、输入校验和错误映射 |
 | `ros2_ws/src/guardian_core/guardian_core/dashboard_state.py` | 驾驶舱线程安全状态缓存 |
 | `ros2_ws/src/guardian_core/guardian_core/frontend/` | HTML、CSS、JavaScript 页面 |
 | `experiments/run_guardian_scenario.py` | 离线多波攻击场景 |
@@ -72,7 +80,7 @@
 | `docs/fusion_experiment_plan.md` | 图传播、时序规则、证据融合和安全速度的后续实验设计 |
 | `docs/innovation_validation.md` | 当前创新实验的结果、原理和判定过程 |
 | `docs/jev_advisor.md` | Jev 旁路的使用方式、隐私边界和离线验证说明 |
-| `tests/` | 核心引擎和驾驶舱状态缓存测试 |
+| `tests/` | 核心引擎、驾驶舱状态缓存和 Jev 代理契约测试 |
 | `.env` | 已跟踪的安全默认配置；不要写入真实密钥 |
 
 ## 4. 环境和运行命令
@@ -106,6 +114,13 @@ ros2 launch guardian_core guardian.launch.py
 ros2 run guardian_core guardian_dashboard
 ```
 
+启动后访问 `http://127.0.0.1:8080`，在“Jev 连接测试”面板输入 TypeSafe
+API Key 和简短状态文本即可执行一次测试。请求也可直接发送到
+`POST /api/jev/test`，JSON 形如
+`{"api_key":"<key>","state":"verified command anomaly"}`。请求体上限为
+64 KiB，状态文本上限为 4096 个字符；400/413 表示输入错误，502 表示上游
+拒绝或非法响应，504 表示超时。真实 API Key 不得写入仓库或 `.env`。
+
 运行离线场景：
 
 ```bash
@@ -121,6 +136,8 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 已确认 `.env` 被 Git 跟踪，远程 GitHub 树中也存在 `.env`。
 - 创新层验证报告见 `docs/innovation_validation.md`；脚本输出保存在被忽略的 `experiments/results/innovation_validation.json`。
 - `python3 experiments/run_innovation_experiments.py` 通过 6 组实验；新增 `jev_semantic_advisor` 离线 stub 实验，验证类型化回答、缓存、未验证来源跳过和 JSONL 审计；报告见 `docs/innovation_validation.md`。
+- WSL2 Ubuntu-24.04 中 `python3 -m pytest -q tests` 通过，当前结果为 `35 passed`；新增 `tests/test_dashboard_jev.py` 覆盖 Jev 代理请求限制、成功响应、401/429、超时、非法响应、控制字符 key、provider echo 脱敏、endpoint allowlist、redirect 防护和 API Key 不泄露。Windows Python `compileall` 也通过。
+- 使用确定性 fake transport 的 dashboard HTTP smoke test 验证 `/api/jev/test` 成功响应、坏 JSON 的 400 和超大请求的 413；真实无效 key 请求实际到达 TypeSafe 并返回 401，页面显示安全失败状态；前端 `node --check` 通过。
 - 纯 Python 图传播、时序规则、证据融合、安全速度包络和恢复门控已经实现并通过单元测试；它们仍未接入真实 ROS 2 live graph、`guardian_node`、SROS 2/DDS 权限或 Webots 底盘。
 
 ## 6. GitHub 发布状态
@@ -206,3 +223,11 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 文件：`ros2_ws/src/guardian_core/guardian_core/jev_advisor.py`、`ros2_ws/src/guardian_core/guardian_core/__init__.py`、`tests/test_jev_advisor.py`、`experiments/run_innovation_experiments.py`、`docs/jev_advisor.md`、`docs/innovation_validation.md`、`README.md`、`.env`、`task_plan.md`、`findings.md`、`progress.md`。
 - 验证：Windows `compileall` 通过；WSL2 `python3 -m pytest -q tests` 为 `23 passed`；创新实验共 6 组通过，Jev 实验使用 stub provider 并验证缓存、未验证来源跳过和 JSONL 审计；ROS 2 `colcon build --symlink-install` 成功构建两个包；未进行真实 API 调用，也未宣称 Jev 已接入实时 ROS 2 或 Webots 控制。
 - 风险或后续：如需在线使用，应实现异步 worker、结果过期和置信度门控，并先以离线回放评估准确率、校准、延迟、成本和数据隐私；Jev 结果不得单独解除 `SAFE_STOP` 或批准恢复。
+
+### 2026-09-21 — `feat: add dashboard Jev connection test`
+
+- 改动：在本地只读驾驶舱增加 Jev 连接测试面板和 `POST /api/jev/test` 代理；后端默认调用官方 TypeSafe endpoint，仅允许显式 localhost 测试 override，限制请求体和状态文本长度，归一化成功结果，并将上游拒绝、非法响应和超时映射为有限 HTTP 状态。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/dashboard_jev.py`、`dashboard.py`、`frontend/index.html`、`frontend/app.js`、`frontend/styles.css`、`tests/test_dashboard_jev.py`、`README.md`、`docs/jev_advisor.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 安全边界：API Key 只由用户在单次浏览器请求中提供，暂存于进程内并放入上游 `Authorization` header；不写入 `.env`、浏览器存储、ROS 状态、审计记录、响应或日志。Dashboard transport 禁止自动 HTTP 重定向，且只允许官方 endpoint 或显式 localhost 测试 endpoint。Jev 结果不能改变安全状态、速度限制、恢复门控或机器人命令。
+- 验证：WSL2 `python3 -m pytest -q tests` 为 `35 passed`；`python -m compileall -q ros2_ws/src/guardian_core/guardian_core tests` 和 `node --check ros2_ws/src/guardian_core/guardian_core/frontend/app.js` 通过；fake transport HTTP smoke test 验证成功、400 和 413 路径，真实无效 key 验证上游 401 映射，浏览器验证空 key、失败、成功和清空状态。未用真实 API Key 做线上成功调用。
+- 风险或后续：TypeSafe 是早期体验远程服务，真实延迟、配额和准确率未评估；生产部署应继续只绑定本机、使用短生命周期密钥，并在需要时增加异步队列、速率限制和更严格的 endpoint allowlist。

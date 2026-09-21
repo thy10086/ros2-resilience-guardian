@@ -16,6 +16,148 @@ function formatTime(value) {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('zh-CN', {hour12: false});
 }
 
+const JEV_TEST_ENDPOINT = '/api/jev/test';
+
+function finiteNumber(value, fallback = 0) {
+  if (value === null || value === undefined || value === '') return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function formatJevNumber(value) {
+  const number = finiteNumber(value, NaN);
+  return Number.isFinite(number) ? number.toFixed(3) : '—';
+}
+
+function redactJevMessage(value) {
+  return String(value || 'Jev 请求失败')
+    .replace(/(api[_ -]?key|authorization|credential|password|secret|token)\s*[:=]\s*[^\s,;]+/gi, '$1=<redacted>')
+    .slice(0, 320);
+}
+
+function setJevStatus(kind, label) {
+  const status = $('jev-status');
+  status.className = `pill jev-status ${kind}`;
+  status.textContent = label;
+}
+
+function setJevFeedback(message, kind = '') {
+  const feedback = $('jev-feedback');
+  feedback.className = `jev-feedback muted ${kind}`.trim();
+  feedback.textContent = message;
+}
+
+function setJevBusy(busy) {
+  $('jev-test').disabled = busy;
+  $('jev-clear').disabled = busy;
+  $('jev-form').setAttribute('aria-busy', String(busy));
+}
+
+function resetJevResult() {
+  $('jev-result').hidden = true;
+  $('jev-label').textContent = '—';
+  $('jev-impact').textContent = '—';
+  $('jev-score').textContent = '—';
+  $('jev-confidence').textContent = '—';
+  $('jev-review').textContent = '—';
+  $('jev-model').textContent = '—';
+  $('jev-reason').textContent = '—';
+}
+
+function renderJevAssessment(payload) {
+  const assessment = payload.assessment || {};
+  const latency = finiteNumber(payload.latency_ms, NaN);
+  const model = String(assessment.model || '—');
+  $('jev-label').textContent = String(assessment.label || 'UNKNOWN');
+  $('jev-impact').textContent = String(assessment.mission_impact || 'unknown');
+  $('jev-score').textContent = formatJevNumber(assessment.score);
+  $('jev-confidence').textContent = formatJevNumber(assessment.confidence);
+  $('jev-review').textContent = assessment.needs_human_review === true ? '是' : '否';
+  $('jev-model').textContent = Number.isFinite(latency) ? `${model} · ${latency.toFixed(0)} ms` : model;
+  $('jev-reason').textContent = String(assessment.reason || '—');
+  $('jev-result').hidden = false;
+}
+
+function jevErrorMessage(payload, response) {
+  const error = payload && typeof payload.error === 'object' ? payload.error : {};
+  const code = String(error.code || '').trim();
+  const message = redactJevMessage(error.message || `Jev 请求失败（HTTP ${response.status}）`);
+  return code ? `${code}: ${message}` : message;
+}
+
+async function parseJsonResponse(response) {
+  try {
+    return await response.json();
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function testJev(event) {
+  event.preventDefault();
+  const apiKey = $('jev-api-key').value.trim();
+  const state = $('jev-state').value.trim();
+  resetJevResult();
+
+  if (!apiKey) {
+    setJevStatus('error', '缺少 API Key');
+    setJevFeedback('请输入 API Key 后再测试', 'error');
+    $('jev-api-key').focus();
+    return;
+  }
+  if (!state) {
+    setJevStatus('error', '缺少测试状态');
+    setJevFeedback('请输入一段测试状态', 'error');
+    $('jev-state').focus();
+    return;
+  }
+
+  setJevBusy(true);
+  setJevStatus('loading', '请求中');
+  setJevFeedback('正在验证 Jev 连接…');
+  const startedAt = performance.now();
+
+  try {
+    const response = await fetch(JEV_TEST_ENDPOINT, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      cache: 'no-store',
+      body: JSON.stringify({api_key: apiKey, state}),
+    });
+    const payload = await parseJsonResponse(response);
+    if (!response.ok || !payload || payload.status !== 'OK' || payload.connected !== true || !payload.assessment) {
+      throw new Error(jevErrorMessage(payload, response));
+    }
+
+    renderJevAssessment(payload);
+    const latency = finiteNumber(payload.latency_ms, performance.now() - startedAt);
+    setJevStatus('success', '已连接');
+    setJevFeedback(`Jev 调用成功 · ${latency.toFixed(0)} ms`, 'success');
+  } catch (error) {
+    setJevStatus('error', '连接失败');
+    const message = error instanceof Error ? error.message : '无法连接本地 Jev 接口';
+    setJevFeedback(redactJevMessage(message), 'error');
+  } finally {
+    setJevBusy(false);
+  }
+}
+
+function clearJev() {
+  $('jev-api-key').value = '';
+  $('jev-state').value = '';
+  resetJevResult();
+  setJevStatus('idle', '未测试');
+  setJevFeedback('输入 API Key 后开始测试');
+  $('jev-api-key').focus();
+}
+
+function setupJev() {
+  const form = $('jev-form');
+  if (!form) return;
+  form.addEventListener('submit', testJev);
+  $('jev-clear').addEventListener('click', clearJev);
+}
+
 function render(data) {
   const risk = data.risk || {};
   const mitigation = data.mitigation || {};
@@ -64,5 +206,6 @@ async function refresh() {
   }
 }
 
+setupJev();
 refresh();
 setInterval(refresh, 1000);

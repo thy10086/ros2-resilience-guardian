@@ -48,6 +48,38 @@ payload.
 The cache key includes the model and the complete normalized context, including
 the event sequence. A new event sequence therefore cannot reuse an old result.
 
+## Dashboard connection test
+
+The local dashboard exposes a manual, advisory proxy at:
+
+```text
+POST http://127.0.0.1:8080/api/jev/test
+Content-Type: application/json
+```
+
+The request body is a short-lived JSON object:
+
+```json
+{"api_key":"<your TypeSafe key>","state":"verified high-rate command anomaly"}
+```
+
+The dashboard forwards the state to the configured HTTPS TypeSafe endpoint and
+returns only normalized assessment metadata. Production defaults use the fixed
+official endpoint; non-official hosts are rejected, and HTTP is accepted only
+for explicit localhost test transports. A successful response has HTTP 200 and includes
+`status: "OK"`, `connected: true`, `assessment`, and `latency_ms`. Invalid input
+returns 400 (or 413 when the body exceeds 64 KiB); an upstream rejection or
+malformed provider response returns 502; a timeout returns 504. The state text is
+limited to 4096 characters.
+
+The browser never calls TypeSafe directly. TypeSafe rejects the local dashboard
+origin through its CORS policy, so the standard-library dashboard proxy keeps the
+API key in the local request and the provider `Authorization` header. The key is
+not placed in `.env`, browser storage, ROS messages, audit records, responses, or
+logs, and the dashboard does not retain it after the request. The panel is a
+connectivity and semantic-advice check only: its result cannot change a Guardian
+safety state, speed limit, recovery decision, or robot command.
+
 ## Python usage
 
 The TypeSafe SDK is not a package dependency. The adapter uses the standard
@@ -91,11 +123,12 @@ the dashboard frontend.
 
 ## Configuration defaults
 
-The tracked `.env` contains only disabled, non-secret defaults. The current ROS
-node does not read these values automatically; an integration layer must pass
-an explicit `JevAdvisorConfig` and keep the call off the control loop. The
-default endpoint requires HTTPS; HTTP is accepted only for localhost test
-transports.
+The tracked `.env` contains only disabled, non-secret defaults. The dashboard
+reads the endpoint, model, and timeout as ROS parameters (with the corresponding
+`JEV_*` environment values as defaults), but it never reads an API key from the
+environment. The browser supplies a key for one manual test, and the dashboard
+passes it to an explicit `JevAdvisorConfig` outside the control loop. The default
+endpoint requires HTTPS; HTTP is accepted only for localhost test transports.
 
 ## Deterministic validation
 
@@ -109,4 +142,7 @@ python3 experiments/run_innovation_experiments.py
 The `jev_semantic_advisor` experiment verifies a typed response, cache reuse,
 source rejection, bounded scores, and an audit row. A live API smoke test is
 deliberately not part of the default suite because Jev is an early-access
-hosted service and network behavior is not deterministic.
+hosted service and network behavior is not deterministic. The dashboard proxy
+contract is covered by `tests/test_dashboard_jev.py`; those tests use a fake
+transport and verify request limits, 401/429/timeout mappings, malformed
+responses, and key non-disclosure.
