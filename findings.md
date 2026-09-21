@@ -25,3 +25,12 @@ The existing SSH key is not authorized by GitHub (`Permission denied (publickey)
 Pushing requires either adding its public key to the user's GitHub account or
 providing a Personal Access Token for a one-time HTTPS push. Secrets must never
 be committed or printed.
+
+## Jev integration facts (2026-09-21)
+
+- The user authorized autonomous implementation of an optional Jev semantic advisor.
+- TypeSafe's official API is `POST https://api.typesafe.ai/v1/systemone`; the Python SDK is optional and should not become a hard dependency of the ROS 2 safety core.
+- Jev is an early-access hosted service. It must not be placed in the real-time `/cmd_vel` path or become the sole basis for `SAFE_STOP` or recovery release.
+- The existing project already has deterministic event verification, graph/fusion logic, and a final `SafetySupervisor`; the safest insertion point is a bounded advisory evidence adapter between verified event summaries and evidence fusion.
+- Raw high-rate telemetry, credentials, and unredacted logs must not be sent to the external API. The adapter should accept a compact, caller-supplied incident summary and return normalized typed evidence.
+- Final validation on 2026-09-21: 23 tests passed, six deterministic innovation groups passed, and both ROS 2 Jazzy packages built; live Jev accuracy, calibration, latency, cost, and availability remain unmeasured.

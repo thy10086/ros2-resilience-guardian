@@ -17,3 +17,8 @@
 - 2026-09-18: Added detailed experiment rationale and the staged cross-layer fusion plan; updated HANDOFF.md in the same change.
 - 2026-09-18: Implemented pure Python cross-layer fusion modules: graph risk propagation, temporal policy monitoring, evidence fusion, safety speed envelope, and recovery gate.
 - 2026-09-18: Added a fifth deterministic innovation experiment covering the full cross-layer path; WSL2 validation passed with `15 passed` and the innovation suite passed all 5 groups.
+- 2026-09-21: Started the optional Jev semantic security advisor task. Scope is bounded to advisory evidence, offline evaluation, documentation, and handoff updates; existing deterministic safety behavior remains the fallback.
+- 2026-09-21: Added `jev_advisor.py`, exported its typed API, and wrote red/green tests for disabled mode, redaction, source gating, timeout/error fallback, response bounds, cache invalidation, and safe audit metadata.
+- 2026-09-21: Added the deterministic `jev_semantic_advisor` innovation experiment, tracked `.env` defaults, and documented the early-access/side-channel boundary in `docs/jev_advisor.md`, README, and HANDOFF.md.
+- 2026-09-21: WSL2 `python3 -m pytest -q tests` passed with `23 passed`; `experiments/run_innovation_experiments.py` passed all 6 groups; Windows `compileall` passed; ROS 2 `colcon build --symlink-install` built both packages.
+- 2026-09-21: An initial combined WSL verification command had a PowerShell quoting error; the command was rerun with a single-quoted shell body and completed successfully.

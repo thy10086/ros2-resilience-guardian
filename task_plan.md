@@ -1,5 +1,24 @@
 # Implementation plan
 
+## Current task: optional Jev semantic security advisor
+
+- [complete] Define a bounded, fail-safe Jev integration that cannot directly actuate or release the robot.
+- [complete] Add red tests for request construction, response normalization, timeout/error fallback, and bounded evidence.
+- [complete] Implement the optional advisor with standard-library HTTP transport and no mandatory runtime dependency.
+- [complete] Add offline replay/experiment coverage and document configuration, privacy, and safety boundaries.
+- [complete] Run Python tests, innovation experiments, ROS 2 build/smoke checks where available, and update handoff artifacts.
+
+## Current validation evidence
+
+- WSL2 `python3 -m pytest -q tests`: `23 passed`.
+- WSL2 `python3 experiments/run_innovation_experiments.py`: 6 deterministic groups passed, including `jev_semantic_advisor` with a stub provider.
+- Windows `python -m compileall -q ros2_ws/src/guardian_core/guardian_core tests/test_jev_advisor.py`: passed.
+- WSL2 `colcon build --symlink-install`: `guardian_interfaces` and `guardian_core` built successfully.
+
+## Current design decision
+
+Jev is an advisory semantic evidence source after deterministic event verification and before any future, explicitly enabled evidence-fusion policy. The default path remains rule-only. A Jev result may inform review/containment analysis, but it cannot clear a verified violation, release `SAFE_STOP`, or directly publish a robot command. Network failures, malformed responses, low confidence, and missing configuration are ignored by the deterministic safety path.
+
 ## Current task: ROS 2 security dashboard and GitHub delivery
 
 - [complete] Inspect existing repository and preserve `.env` in Git.

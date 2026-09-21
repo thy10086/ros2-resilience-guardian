@@ -36,6 +36,10 @@ from guardian_core import (  # noqa: E402
     TemporalPolicyMonitor,
     TopicPolicy,
     VerificationCode,
+    JevAdvisorConfig,
+    JevAssessmentStatus,
+    JevSemanticAdvisor,
+    SemanticContext,
 )
 from guardian_core.dashboard_state import DashboardState  # noqa: E402
 
@@ -365,6 +369,85 @@ def experiment_cross_layer_fusion() -> dict[str, object]:
     return {"name": "cross_layer_fusion", "passed": True, "evidence": evidence}
 
 
+def experiment_jev_semantic_advisor() -> dict[str, object]:
+    """Validate the Jev side-channel with a deterministic provider stub.
+
+    This deliberately does not alter EvidenceFusion or SafetySupervisor. The
+    experiment proves the typed response, cache behavior and fail-safe source
+    boundary without requiring network access or a real API key.
+    """
+    calls: list[dict[str, object]] = []
+
+    def transport(endpoint: str, headers: dict[str, str], body: bytes, timeout: float) -> bytes:
+        calls.append({"endpoint": endpoint, "timeout": timeout, "body_bytes": len(body)})
+        return json.dumps({
+            "model": "jev-stub",
+            "answers": {
+                "attack_type": {
+                    "type": "choice",
+                    "choice": "unsafe_command",
+                    "confidence": 0.9,
+                    "probabilities": {"unsafe_command": 0.9, "benign": 0.1},
+                },
+                "mission_impact": {
+                    "type": "choice",
+                    "choice": "critical",
+                    "confidence": 0.8,
+                    "probabilities": {"critical": 0.85, "medium": 0.15},
+                },
+                "needs_human_review": {"type": "noul", "noul": 1.0},
+            },
+        }).encode("utf-8")
+
+    advisor = JevSemanticAdvisor(
+        JevAdvisorConfig(enabled=True, api_key="offline-stub", cache_ttl_sec=5.0),
+        transport=transport,
+        clock=lambda: 100.0,
+    )
+    context = SemanticContext(
+        event_id="jev-innovation-1",
+        component="nav",
+        attack_type="UNSAFE_COMMAND",
+        event_confidence=0.9,
+        source_verified=True,
+        temporal_codes=("REPLAY",),
+        graph_risk=0.81,
+        mission_criticality=0.9,
+        active_components=("nav", "base"),
+        safety_state="CONTAINING",
+        sequence=1,
+        summary="verified command anomaly",
+    )
+    assessment = advisor.evaluate(context)
+    cached = advisor.evaluate(context)
+    skipped = advisor.evaluate(SemanticContext(**{**context.__dict__, "source_verified": False}))
+    with tempfile.TemporaryDirectory(prefix="guardian-jev-") as directory:
+        audit_path = Path(directory) / "audit.jsonl"
+        AuditLogger(audit_path).emit("jev_semantic_advice", assessment.audit_payload())
+        audit_rows = audit_path.read_text(encoding="utf-8").splitlines()
+
+    evidence = {
+        "status": assessment.status.value,
+        "cached_status": cached.status.value,
+        "unverified_status": skipped.status.value,
+        "label": assessment.label,
+        "score": assessment.score,
+        "confidence": assessment.confidence,
+        "review_recommended": assessment.recommends_review(),
+        "provider_calls": len(calls),
+        "audit_rows": len(audit_rows),
+    }
+    assert assessment.status == JevAssessmentStatus.OK, evidence
+    assert cached.status == JevAssessmentStatus.CACHED, evidence
+    assert skipped.status == JevAssessmentStatus.SKIPPED_UNVERIFIED, evidence
+    assert assessment.label == "unsafe_command", evidence
+    assert assessment.score >= 0.85, evidence
+    assert assessment.recommends_review(), evidence
+    assert len(calls) == 1, evidence
+    assert len(audit_rows) == 1, evidence
+    return {"name": "jev_semantic_advisor", "passed": True, "evidence": evidence}
+
+
 def main() -> int:
     experiments = [
         experiment_zero_trust_event_gate(),
@@ -372,6 +455,7 @@ def main() -> int:
         experiment_safety_state_machine(),
         experiment_dashboard_and_audit(),
         experiment_cross_layer_fusion(),
+        experiment_jev_semantic_advisor(),
     ]
     report = {"passed": all(item["passed"] for item in experiments), "experiments": experiments}
     output_path = ROOT / "experiments" / "results" / "innovation_validation.json"

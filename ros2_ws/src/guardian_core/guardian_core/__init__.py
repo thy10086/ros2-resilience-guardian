@@ -19,6 +19,13 @@ from .graph_model import GraphEdge, GraphNode, GraphRiskAssessment, SecurityGrap
 from .policy_monitor import PolicyViolation, TemporalPolicyMonitor, TopicPolicy
 from .recovery_gate import RecoveryDecision, RecoveryEvidence, RecoveryGate
 from .safety_envelope import SafetyEnvelopeController, SafetyEnvelopeDecision
+from .jev_advisor import (
+    JevAdvisorConfig,
+    JevAssessment,
+    JevAssessmentStatus,
+    JevSemanticAdvisor,
+    SemanticContext,
+)
 
 __all__ = [
     "ActionType", "AttackEvent", "AuditLogger", "GuardianConfig", "MitigationPlan",
@@ -28,4 +35,5 @@ __all__ = [
     "GraphRiskAssessment", "SecurityGraph", "PolicyViolation", "TemporalPolicyMonitor",
     "TopicPolicy", "RecoveryDecision", "RecoveryEvidence", "RecoveryGate",
     "SafetyEnvelopeController", "SafetyEnvelopeDecision",
+    "JevAdvisorConfig", "JevAssessment", "JevAssessmentStatus", "JevSemanticAdvisor", "SemanticContext",
 ]

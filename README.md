@@ -11,7 +11,7 @@
 - ROS 2 Jazzy 包：`guardian_interfaces` 消息包和 `guardian_core` 节点包。
 - 本地 Web 安全驾驶舱：只读映射风险、攻击组件、缓解方案和安全状态。
 - `guardian_node` 订阅 `guardian/attack_events`，输出 `guardian/risk_state`、`guardian/mitigation_command` 和 `guardian/safety_status`。
-- `experiments/run_innovation_experiments.py` 现在包含 5 组确定性实验，新增跨层融合链路的离线验收。
+- `experiments/run_innovation_experiments.py` 现在包含 6 组确定性实验，新增跨层融合和 Jev 语义顾问的离线验收。
 - 离线实验：`python3 experiments/run_guardian_scenario.py --scenario 3b`。
 - 可接入现有 Webots PR2：把攻击事件送入 Guardian，再由 `safety_supervisor` 控制速度、隔离或停车。
 
@@ -43,7 +43,7 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 运行测试：
 
 ```bash
-python3 -m pytest -q
+python3 -m pytest -q tests
 ```
 
 启动 ROS 2 守护节点：
@@ -77,6 +77,8 @@ ros2 launch guardian_core guardian.launch.py
 ```bash
 python3 experiments/run_innovation_experiments.py
 ```
+
+可选的 Jev 语义安全顾问见 [docs/jev_advisor.md](docs/jev_advisor.md)。它只对已经通过确定性验证的事件摘要做分类和人工复核建议，默认关闭，不进入 `guardian_node` 的实时控制循环，也不能解除停车或直接控制底盘。离线实验使用 stub provider，不需要 API Key。
 
 跨层融合扩展的实验设计见 [docs/fusion_experiment_plan.md](docs/fusion_experiment_plan.md)，实现边界和后续 ROS 2 接入步骤见 [docs/fusion_implementation_plan.md](docs/fusion_implementation_plan.md)。当前跨层模块已完成纯 Python 离线验证，但还没有直接接管真实底盘、Webots 或 ROS 2 live graph introspection。
 ## Current implementation status
