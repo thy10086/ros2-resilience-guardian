@@ -26,6 +26,10 @@ Non-boolean verification flags, non-finite/out-of-range risk values, and
 malformed temporal evidence fail closed into local enforcement or unverified
 skipping; they are never normalized into a safe remote request.
 
+The base advisor applies the same strict provenance rule: only a native Boolean
+`True` can pass `source_verified`. `False` and every non-Boolean value return
+`SKIPPED_UNVERIFIED` before cache or transport handling.
+
 For ambiguous events, the layer removes event ID and sequence counters from a
 stable incident fingerprint, retains model and policy version, and normalizes
 component/code ordering. The fingerprint is used for a bounded TTL/LRU cache.

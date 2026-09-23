@@ -1,5 +1,17 @@
 # Implementation plan
 
+## Direct Jev advisor provenance hardening (2026-09-23)
+
+- [complete] Reproduce truthiness-based `source_verified` transport bypass at the base advisor API.
+- [complete] Require a native Boolean `True` before advisor configuration, cache, or transport handling.
+- [complete] Run full tests, experiments, compile checks, ROS 2 build, and handoff updates before the local `main` commit.
+
+## Validation evidence: direct advisor provenance (2026-09-23)
+
+- Direct non-Boolean source regression passed with zero transport calls.
+- `python3 -m pytest -q tests`: `98 passed`.
+- Session, efficient Jev, original innovation, and patent innovation experiments passed; compileall passed.
+
 ## Strict source-verification hardening (2026-09-23)
 
 - [complete] Reproduce the non-boolean `source_verified` session-reuse bypass.

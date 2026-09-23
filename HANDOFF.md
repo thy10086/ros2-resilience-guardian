@@ -28,6 +28,7 @@
 - `JevIncidentSession` 的同一会话决策和账本写回使用独立锁串行化，不同会话仍可并行；账本 `verify()+append()` 使用短全局临界区防止哈希链竞态；风险、任务关键性、事件置信度、来源验证和父证据变化会触发重新判断，会话容量在所有写回路径上受 `max_sessions` 限制。
 - 会话身份和查询签名复用 `SemanticContext.to_state()` 的有界文本、列表和数值规范化，防止超长输入在本地哈希和集合操作中放大资源消耗。
 - `source_verified` 只接受原生布尔值；`False` 或非布尔值不能复用已验证会话，统一经过 `SKIPPED_UNVERIFIED` 本地拒绝并进入 `CONTAINING`。
+- `JevSemanticAdvisor` 直连入口也执行同一严格检查，在缓存和网络之前拒绝非布尔或 `False` 来源，避免绕过事件会话层直接外发未验证上下文。
 
 本轮专利化安全核心新增：
 
@@ -319,3 +320,10 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 文件：`ros2_ws/src/guardian_core/guardian_core/jev_incident_session.py`、`tests/test_jev_incident_session.py`、`docs/jev_session_design.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
 - 验证：来源类型回归先失败后通过；全量 WSL2 测试 `97 passed`；会话、高效判断、原有六组创新和专利化五组实验、compileall、ROS 2 Jazzy 两包构建、前端语法检查和 `git diff --check` 均通过。仍只在本地 `main` 开发，不上传 GitHub。
 - 安全边界：非布尔来源不会触发远程调用，也不能解除已有的 `CONTAINING` 或 `SAFE_STOP` 状态。
+
+### 2026-09-23 — Direct Jev advisor provenance hardening
+
+- 改动：修复基础 `JevSemanticAdvisor.evaluate()` 的真值判断漏洞。现在只有原生布尔 `True` 才能进入配置、缓存和传输逻辑；`"false"`、`0` 等值统一返回 `SKIPPED_UNVERIFIED`。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/jev_advisor.py`、`tests/test_jev_advisor.py`、`docs/jev_advisor.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：直接适配器回归先失败后通过；全量 WSL2 测试 `98 passed`；会话、高效判断、原有六组创新和专利化五组实验、compileall、ROS 2 Jazzy 两包构建、前端语法检查和 `git diff --check` 均通过。仍只在本地 `main` 开发，不上传 GitHub。
+- 安全边界：此修复只收紧来源门控，不改变 Jev 旁路权限；Jev 仍不能发布 `/cmd_vel`、解除 `SAFE_STOP`、修改速度限制或批准恢复。

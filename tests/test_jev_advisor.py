@@ -118,6 +118,18 @@ def test_rejected_source_is_never_sent_to_jev():
     assert not transport.calls
 
 
+def test_non_boolean_source_is_never_sent_to_jev():
+    transport = FakeTransport(response=valid_response())
+    advisor = JevSemanticAdvisor(
+        JevAdvisorConfig(enabled=True, api_key="secret"), transport=transport
+    )
+
+    result = advisor.evaluate(context(source_verified="false"))
+
+    assert result.status == JevAssessmentStatus.SKIPPED_UNVERIFIED
+    assert not transport.calls
+
+
 def test_timeout_falls_back_to_unavailable_advice():
     transport = FakeTransport(error=TimeoutError("timed out"))
     advisor = JevSemanticAdvisor(

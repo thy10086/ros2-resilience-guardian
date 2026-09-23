@@ -223,7 +223,7 @@ class JevSemanticAdvisor:
 
     def evaluate(self, context: SemanticContext) -> JevAssessment:
         now = float(self._clock())
-        if not context.source_verified:
+        if type(context.source_verified) is not bool or not context.source_verified:
             return self._result(
                 JevAssessmentStatus.SKIPPED_UNVERIFIED,
                 context,

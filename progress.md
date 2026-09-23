@@ -1,5 +1,7 @@
 # Progress
 
+- 2026-09-23: Closed the same provenance type-confusion at the direct `JevSemanticAdvisor` boundary. Non-Boolean `source_verified` values are now rejected before cache/network handling; the direct-advisor regression and full suite pass with `98 passed`.
+
 - 2026-09-23: Closed a source-verification type confusion found in review. Strict native-boolean handling now forces re-evaluation and `CONTAINING` for `False` or non-boolean values; the regression and full suite pass with `97 passed`.
 
 - 2026-09-23: Hardened the Jev session boundary against oversized context fields. Session IDs and signatures now reuse the advisor's bounded `to_state()` representation, preserve invalid numeric markers, and exclude free-form summaries, event IDs, and sequence numbers. A long-input regression passed; full tests now report `96 passed`.

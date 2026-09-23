@@ -1,5 +1,11 @@
 # Findings
 
+## Advisor provenance type closure (2026-09-23)
+
+- Direct `JevSemanticAdvisor.evaluate()` previously used truthiness for `source_verified`, so a string such as `"false"` could pass the provenance gate and reach the remote transport.
+- The advisor now requires `type(source_verified) is bool` and a true value before checking configuration, cache, or network transport. The efficient judge and incident session apply the same rule and fail closed.
+- Added a direct-advisor regression proving a non-Boolean source returns `SKIPPED_UNVERIFIED` with zero transport calls. Full validation after the fix reports 98 passed.
+
 ## Strict source-verification closure (2026-09-23)
 
 - Review found that `bool(context.source_verified)` collapsed the string `"false"` and integer `0` into the same signature as verified `True`. A previously verified session could therefore reuse an old Jev result during the minimum query interval.
