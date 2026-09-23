@@ -99,6 +99,8 @@ python3 experiments/run_innovation_experiments.py
 
 可选的 Jev 语义安全顾问见 [docs/jev_advisor.md](docs/jev_advisor.md)。它只对已经通过确定性验证的事件摘要做分类和人工复核建议，默认关闭，不进入 `guardian_node` 的实时控制循环，也不能解除停车或直接控制底盘。离线实验使用 stub provider，不需要 API Key。Jev 高效判断层增加本地风险分流、稳定事件指纹、TTL/LRU 缓存、并发 single-flight、调用预算和冲突指标；运行 `python3 experiments/run_jev_efficiency_experiments.py` 可复现实验。
 
+Jev 事件会话层进一步聚合连续告警、对风险和语义变化重新查询、用滞回窗口稳定人工复核状态，并把有期限的 Jev 软证据绑定到确定性父证据；同一会话的决策和账本写回串行化，不同事件仍可并行，账本的哈希链写入只在短临界区内串行，账本异常分支也受会话容量上限约束。实验命令为 `python3 experiments/run_jev_session_experiments.py`，设计见 [docs/jev_session_design.md](docs/jev_session_design.md)。
+
 跨层融合扩展的实验设计见 [docs/fusion_experiment_plan.md](docs/fusion_experiment_plan.md)，实现边界和后续 ROS 2 接入步骤见 [docs/fusion_implementation_plan.md](docs/fusion_implementation_plan.md)。当前跨层模块已完成纯 Python 离线验证，但还没有直接接管真实底盘、Webots 或 ROS 2 live graph introspection。
 
 专利化研究方案、现有技术边界和对照实验见 [docs/patent_disclosure.md](docs/patent_disclosure.md)、[docs/patent_prior_art.md](docs/patent_prior_art.md) 和 [docs/patent_experiments.md](docs/patent_experiments.md)。当前新增的因果图、证据账本、预测安全包络、反事实解释和双阶段恢复协议已完成纯 Python 离线验证，尚未宣称完成实机认证或专利授权。

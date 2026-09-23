@@ -63,6 +63,13 @@ from .jev_efficiency import (
     JevEfficiencyPolicy,
     JevRoute,
 )
+from .jev_incident_session import (
+    JevIncidentSession,
+    JevSessionConfig,
+    JevSessionDecision,
+    JevSessionRoute,
+    JevSessionState,
+)
 
 __all__ = [
     "ActionType", "AttackEvent", "AuditLogger", "GuardianConfig", "MitigationPlan",
@@ -82,4 +89,6 @@ __all__ = [
     "RecoveryProtocol",
     "JevEfficientAssessment", "JevEfficientJudge", "JevEfficiencyMetrics",
     "JevEfficiencyPolicy", "JevRoute",
+    "JevIncidentSession", "JevSessionConfig", "JevSessionDecision",
+    "JevSessionRoute", "JevSessionState",
 ]

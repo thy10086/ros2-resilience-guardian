@@ -1,5 +1,15 @@
 # Progress
 
+- 2026-09-23: Independent review of the Jev session layer found four P2 issues. Added per-session serialization, unified bounded session write-back, complete normalized semantic signatures, and parent-evidence-change rebind semantics.
+- 2026-09-23: Added four regression tests for same-session concurrency, ledger-blocked capacity, mission/confidence-triggered re-query, and parent evidence rebinding. Red phase reproduced all four failures; the green phase passed session tests `12/12` and full tests `94 passed`.
+- 2026-09-23: Session experiments, efficient Jev experiments, the six-group innovation suite, the five-group patent suite, and Python compileall all passed after review hardening. Development remains local on `main`; no GitHub push was made.
+- 2026-09-23: Follow-up review found cross-session `EvidenceLedger.verify()+append()` could race. Added a manager-level ledger transaction lock and a two-session instrumented-ledger regression; session tests now pass `13/13` and full tests `95 passed`.
+
+- 2026-09-23: User approved the next Jev depth phase: incident-session aggregation with short-lived soft evidence bound to the existing evidence ledger. Development starts offline without a real API or GitHub push.
+- 2026-09-23: Added `JevIncidentSession` with incident aggregation, query throttling, risk/semantic-change triggers, review hysteresis, TTL expiry, and short-lived Jev evidence bound to verified parent records. Ledger integrity failures now block even local-fast-path observations.
+- 2026-09-23: Session tests initially exposed missing ledger-wide fail-closed handling and semantic-context change detection; both were fixed. New session tests now pass 8/8, including tampered-ledger local path and same-risk temporal-code change.
+- 2026-09-23: Final session-phase validation passed: full WSL2 suite `90 passed`; session and efficiency experiments, the original six-group innovation suite, and the five-group patent suite passed; compileall, frontend syntax, git diff check, and ROS 2 Jazzy two-package build passed.
+
 - 2026-09-23: User approved the offline-first efficient Jev judgment design. Baseline inspection found synchronous per-event calls, sequence-sensitive cache keys, and no in-flight deduplication or provider budget; implementation starts with red tests and keeps Jev advisory-only.
 - 2026-09-23: Added red contract tests for local fast paths, critical local enforcement, stable fingerprint reuse, single-flight coalescing, budget fallback, disagreement reporting, invalid-input fail-closed behavior, and provider-failure metrics. The first WSL2 invocation was blocked by `Wsl/Service/E_ACCESSDENIED`; no pytest result was produced by that invocation.
 - 2026-09-23: Implemented `JevEfficientJudge`, `JevEfficiencyPolicy`, route/result types, bounded metrics, and the deterministic `run_jev_efficiency_experiments.py` comparison. Added exports and Jev documentation; Python execution remains pending until the WSL service is available again.

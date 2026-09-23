@@ -1,5 +1,27 @@
 # Findings
 
+## Jev incident session review closure (2026-09-23)
+
+- Independent review found four P2 risks: same-session updates could race, ledger-blocked writes bypassed `max_sessions`, three normalized semantic values did not trigger a re-query, and parent evidence changes could reuse an old binding.
+- The session manager now allocates a lock per session and serializes the complete decision path only for that session. The shared session map uses one bounded write-back helper for both normal and ledger-blocked paths, so LRU capacity is always enforced.
+- The context signature now includes normalized `graph_risk`, `mission_criticality`, `event_confidence`, `source_verified`, and `parent_evidence_id`, while continuing to exclude event IDs, sequence numbers, and free-form summaries from incident identity.
+- A parent change forces a new session decision. A cached successful Jev assessment may be rebound once to the new verified parent, while ordinary cache reuse never refreshes soft-evidence expiry. The advice remains `hard_stop=False` and Jev remains advisory-only.
+- Regression coverage now includes deterministic two-thread same-session serialization, blocked-session capacity, numeric semantic changes, and parent rebinds. The session suite is 12 passed and the complete test suite is 94 passed after the fixes.
+
+## Cross-session ledger integrity closure (2026-09-23)
+
+- A second review found that independent session locks still allowed two different incidents to execute `EvidenceLedger.verify()` and `append()` concurrently. That could compute the same previous hash and invalidate the append-only chain, turning a concurrency burst into a system-wide `LEDGER_BLOCKED` condition.
+- Added a short-lived manager-level ledger lock around the verification-plus-append transaction. It does not cover provider calls or local judgment, so independent incident sessions retain parallel query execution.
+- Added a deterministic two-session concurrency test with an instrumented ledger; it proves appends do not overlap and the final chain verifies. The session suite is now 13 passed and the complete suite is 95 passed.
+
+## Jev incident session design (2026-09-23)
+
+- Approved next step: aggregate repeated verified contexts into an incident session before Jev advice is written to the ledger.
+- Session state must be deterministic and fail-safe: `OBSERVING`, `REVIEW_REQUIRED`, `CONTAINING`, and `EXPIRED`; risk increases enter review immediately, while recovery from review requires a hysteresis margin and a stable window.
+- A Jev result is soft evidence only. It must reference an existing verified parent evidence ID, use a distinct source (`jev`), have a short expiry, and never supersede or clear hard-stop evidence.
+- Provider failures, malformed advice, budget exhaustion, and invalid context preserve deterministic local state and do not append a ledger record.
+- Session review found two required fail-closed rules: ledger integrity must be checked before local-fast-path routing, and semantic context changes must force a new query even when the numeric risk is unchanged. Both are now enforced and covered by regression tests.
+
 ## Efficient Jev judgment design (2026-09-23)
 
 - Current `JevSemanticAdvisor.evaluate` is synchronous and performs one provider call for every verified cache miss. Its cache key includes the event ID and sequence, so repeated observations from one incident commonly miss the cache.

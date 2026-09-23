@@ -24,6 +24,8 @@
 - `RecoveryGate` 要求无活动攻击、图稳定、传感器新鲜、策略有效、命令清空和驻留时间完成后才允许恢复。
 - `JevSemanticAdvisor` 提供可选的语义安全旁路：只接收已验证事件的限长摘要，返回有界的攻击类型、任务影响、置信度和人工复核建议；默认关闭，不参与实时控制。
 - `JevEfficientJudge` 在 Jev 之前执行本地快速分流，并提供稳定指纹、TTL/LRU 缓存、single-flight 合并、调用预算和冲突指标；仍然只作为旁路建议。
+- `JevIncidentSession` 在高效判断和证据账本之间聚合事件、执行查询滞回，并将有期限的 Jev 软证据绑定到确定性父证据；账本异常时强制 `CONTAINING`。
+- `JevIncidentSession` 的同一会话决策和账本写回使用独立锁串行化，不同会话仍可并行；账本 `verify()+append()` 使用短全局临界区防止哈希链竞态；风险、任务关键性、事件置信度、来源验证和父证据变化会触发重新判断，会话容量在所有写回路径上受 `max_sessions` 限制。
 
 本轮专利化安全核心新增：
 
@@ -87,6 +89,8 @@ API Key 不从环境变量读取，也不会写入浏览器存储、ROS 消息�
 | `ros2_ws/src/guardian_core/guardian_core/recovery_gate.py` | 多条件恢复门控 |
 | `ros2_ws/src/guardian_core/guardian_core/jev_advisor.py` | 可选 Jev 语义顾问、缓存、响应归一化和安全审计元数据 |
 | `ros2_ws/src/guardian_core/guardian_core/jev_efficiency.py` | Jev 高效判断编排、本地分流、稳定指纹、single-flight、预算和效率指标 |
+| `ros2_ws/src/guardian_core/guardian_core/jev_incident_session.py` | Jev 事件会话聚合、查询门控、滞回和账本软证据绑定 |
+| `docs/jev_session_design.md` | Jev 事件会话状态、查询时机和软证据约束 |
 | `docs/fusion_experiment_plan.md` | 图传播、时序规则、证据融合和安全速度的后续实验设计 |
 | `docs/innovation_validation.md` | 当前创新实验的结果、原理和判定过程 |
 | `docs/jev_advisor.md` | Jev 旁路的使用方式、隐私边界和离线验证说明 |
@@ -274,4 +278,27 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 文件：`ros2_ws/src/guardian_core/guardian_core/jev_efficiency.py`、`tests/test_jev_efficiency.py`、`experiments/run_jev_efficiency_experiments.py`、`docs/jev_advisor.md`、`README.md`、`HANDOFF.md`、`task_plan.md`、`findings.md`、`progress.md`。
 - 安全边界：低风险和关键风险由确定性本地规则立即处理；Jev 不参与停车、速度限制、恢复批准或 ROS 2 命令发布。预算耗尽、并发等待超时和 provider 错误都保留本地安全结果。
 - 验证：9 个新增 Jev efficiency 行为测试通过直接调用；`compileall`、前端 `node --check` 和 `git diff --check` 通过；离线对照实验通过，原始 12 次远程调用降为 1 次，调用减少 91.7%，低风险和关键风险分别走 `LOCAL_SAFE`/`LOCAL_ENFORCED`。原有六组和专利化五组实验也通过。
-- 未覆盖：全量 pytest 和当前 ROS 2 colcon 因 WSL 返回 `Wsl/Service/E_ACCESSDENIED` 尚未执行；线程附带 Python 没有 pytest。真实 API 的延迟、准确率和配额仍需用户提供临时凭据后做受控实验。
+- 验证：全量 WSL2 测试 `90 passed`；会话测试 8 passed；高效判断测试 9 passed；事件会话、高效判断、原有六组创新和专利化五组实验全部通过；Windows compileall、前端 `node --check`、`git diff --check` 通过；ROS 2 Jazzy 两包 `colcon build --symlink-install` 成功。
+- 未覆盖：真实 API 的延迟、准确率和配额仍需用户提供临时凭据后做受控实验；会话层尚未接入真实 ROS 2 异步 worker。
+
+### 2026-09-23 — `feat: add Jev incident sessions and ledger-bound advice`
+
+- 改动：新增事件会话聚合、最小查询间隔、风险和语义变化触发、`REVIEW_REQUIRED` 滞回恢复、会话 TTL，以及绑定确定性父证据的短期 Jev 软证据。账本校验失败会阻断 Jev 并保持 `CONTAINING`，本地低风险快路径也不能绕过该检查。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/jev_incident_session.py`、`tests/test_jev_incident_session.py`、`experiments/run_jev_session_experiments.py`、`docs/jev_session_design.md`、`README.md`、`HANDOFF.md`、`task_plan.md`、`findings.md`、`progress.md`。
+- 验证：新增会话测试 8 passed；高效判断测试 9 passed；事件会话实验和高效判断实验通过；全量测试正在重跑。实验显示洪泛事件 10 次观测中 9 次会话复用，风险上升进入 `REVIEW_REQUIRED`，稳定窗口后回到 `OBSERVING`，账本异常进入 `LEDGER_BLOCKED/CONTAINING`。
+- 边界：Jev 仍不发布 ROS 2 命令、不改变 `SafetySupervisor`、速度包络或恢复协议；当前会话层是纯 Python 离线模块，尚未接入真实 ROS 2 异步 worker。
+
+### 2026-09-23 — Jev incident session review hardening
+
+- 改动：按独立审查结果修复四类会话层缺陷。新增每会话独立锁，保证同一事件的读取、Jev 查询或复用、软证据追加和状态写回不会丢失；不同事件不会被全局锁串行阻塞。账本损坏分支复用统一的 LRU 写回逻辑，持续异常时不会突破 `max_sessions`。
+- 语义：会话签名现在包含规范化的 `graph_risk`、`mission_criticality`、`event_confidence`、`source_verified` 和 `parent_evidence_id`，仍排除 event ID、sequence 和自由文本摘要。父证据变更会触发重新查询；若高效判断命中已成功的 Jev 缓存，只允许重新绑定到新的已验证父证据，普通缓存复用不会刷新软证据 TTL。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/jev_incident_session.py`、`tests/test_jev_incident_session.py`、`docs/jev_session_design.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：会话测试 `12 passed`；全量 WSL2 测试 `94 passed`；事件会话、高效判断、原有六组创新和专利化五组实验均报告 `passed: true`；WSL2 Python compileall 通过。当前改动只在本地 `main`，没有上传 GitHub。
+- 安全边界：Jev 仍是旁路建议，不能发布 `/cmd_vel`、解除 `SAFE_STOP`、修改速度限制或批准恢复。当前验证是离线 Python 与既有 ROS 2 包构建，未宣称真实 API 准确率、实机或 Webots 运行结果。
+
+### 2026-09-23 — Cross-session ledger integrity hardening
+
+- 改动：独立复审发现不同事件会话仍可能并发破坏账本哈希链。新增管理器级 `_ledger_lock`，只包住 `EvidenceLedger.verify()` 与 `append()` 的短事务；远程 Jev 调用、本地判断和不同会话的其他状态更新仍可并行。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/jev_incident_session.py`、`tests/test_jev_incident_session.py`、`docs/jev_session_design.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：跨会话账本竞态测试先失败后通过；会话测试 `13 passed`；全量 WSL2 测试 `95 passed`。事件会话、高效判断、原有六组创新和专利化五组实验仍报告 `passed: true`；ROS 2 Jazzy 两包构建、Python compileall、前端语法检查和 `git diff --check` 通过。当前改动只在本地 `main`，没有上传 GitHub。
+- 安全边界：锁只保证账本完整性，不授予 Jev 控制权；Jev 仍不能发布 `/cmd_vel`、解除 `SAFE_STOP`、修改速度限制或批准恢复。

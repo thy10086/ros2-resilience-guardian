@@ -1,5 +1,36 @@
 # Implementation plan
 
+## Review hardening: Jev incident sessions (2026-09-23)
+
+- [complete] Reproduce same-session concurrency, ledger capacity, numeric semantic, and parent-rebind failures with focused tests.
+- [complete] Serialize one session without blocking independent sessions; enforce `max_sessions` on every write path.
+- [complete] Include all normalized semantic inputs and parent evidence identity in the query signature.
+- [complete] Rebind cached successful advice only when the parent evidence changes; preserve soft-evidence TTL semantics for ordinary reuse.
+- [complete] Serialize only the ledger `verify()+append()` transaction across independent sessions, without holding a lock during provider calls.
+- [complete] Run the complete test suite, experiments, compileall, and documentation checks; keep work local on `main`.
+
+## Validation evidence: Jev review hardening (2026-09-23)
+
+- `tests/test_jev_incident_session.py`: `13 passed`.
+- `python3 -m pytest -q tests`: `95 passed`.
+- Session, efficient Jev, original innovation, and patent innovation experiments: all reported `passed: true`.
+- WSL2 Python compileall: passed.
+
+## Current task: Jev incident session and ledger binding (2026-09-23)
+
+- [complete] Specify and test incident aggregation, hysteresis, query gating, and bounded session expiry.
+- [complete] Bind successful Jev advice to verified parent evidence as short-lived soft ledger records.
+- [complete] Add burst/oscillation/provider-fault experiments and document the patent distinction.
+- [complete] Run full validation and update HANDOFF; do not push GitHub in this task.
+
+## Validation evidence: Jev incident sessions (2026-09-23)
+
+- WSL2 `python3 -m pytest -q tests`: `90 passed`.
+- `tests/test_jev_incident_session.py`: 8 passed; `tests/test_jev_efficiency.py`: 9 passed.
+- `run_jev_session_experiments.py`, `run_jev_efficiency_experiments.py`, `run_innovation_experiments.py`, and `run_patent_innovation_experiments.py`: passed.
+- Bundled Python `compileall`, frontend `node --check`, and `git diff --check`: passed.
+- WSL2 ROS 2 Jazzy `colcon build --symlink-install`: `guardian_interfaces` and `guardian_core` built successfully.
+
 ## Current task: efficient Jev judgment orchestration (2026-09-23)
 
 - [in_progress] Specify and test local triage, stable incident fingerprints, single-flight deduplication, bounded cache/budget, and quality metrics.
@@ -9,14 +40,14 @@
 
 ## Validation issue
 
-- WSL2 test/build commands currently return `Wsl/Service/E_ACCESSDENIED` before starting Python. Retry after the WSL service is available; do not treat this as a test pass.
+- An earlier attempt returned `Wsl/Service/E_ACCESSDENIED`; WSL2 is now available and the commands above have completed successfully.
 
 ## Current validation evidence
 
 - 9 new Jev efficiency behavior tests passed by direct invocation with the bundled Python runtime.
 - `compileall`, frontend `node --check`, and `git diff --check` passed.
 - `run_jev_efficiency_experiments.py`, `run_innovation_experiments.py`, and `run_patent_innovation_experiments.py` passed.
-- Full pytest and current ROS 2 build remain pending until WSL service access is restored.
+- Full pytest and current ROS 2 build are complete; see the validation evidence above.
 
 ## Approved design decision
 
