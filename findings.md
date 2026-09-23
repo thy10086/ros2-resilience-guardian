@@ -147,3 +147,10 @@ be committed or printed.
 - `proof_id` is now included in the proof signature material, so replacing the identifier cannot bypass the one-time-use set.
 - Export verification reconstructs the same parent and replacement constraints as in-memory verification. A hash-correct export with a missing parent, expired/unverified parent, cross-policy parent, or soft replacement of a hard-stop record is rejected.
 - These closure tests are included in `tests/test_patent_core.py`; the final WSL2 run reported 73 total tests passing. The implementation remains a pure Python safety-core validation and does not imply cryptographic identity, DDS authorization, or physical actuator certification.
+## Jev reuse outcome investigation (2026-09-24)
+
+- A single-flight follower currently changes every non-null assessment to `CACHED`, including `INVALID`, `UNAVAILABLE`, and `DISABLED`. The outer route also becomes `COALESCED` even when the owner failed; a consumer checking only status can misclassify failure as usable advice.
+- The fingerprint-cache branch builds a new result without recomputing `disagreement`; the default `False` suppresses a previously identified conflict. A low-score benign response to deterministic attack evidence can therefore lose its review signal for the next caller.
+- Open-source reference: Go `golang/sync/singleflight` returns the original value/error to both owner and followers while reporting sharing separately (`return c.val, c.err, true`, `Result{c.val, c.err, c.dups > 0}`). This informs the result contract only; no code is copied.
+
+- The follower path now preserves failed assessment status/reason and returns `UNAVAILABLE` for a shared failure; only usable advice is labelled `COALESCED`/`CACHED`. Cache hits recompute the disagreement predicate for the current local triage, so review-required conflicts are not lost when event IDs or sequences change.

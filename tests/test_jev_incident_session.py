@@ -728,3 +728,26 @@ def test_fresh_provider_result_after_expiry_can_create_new_soft_evidence():
     assert fresh.ledger_bound
     assert transport.calls == 2
     assert next(item for item in ledger.active(4.0) if item.source == "jev").expires_at == 7.0
+
+
+def test_new_session_retains_review_requirement_when_cached_advice_conflicts():
+    transport = Transport()
+
+    def benign_transport(*args):
+        payload = json.loads(transport(*args))
+        payload["answers"]["attack_type"].update(choice="benign", probabilities={"benign": 0.1})
+        payload["answers"]["mission_impact"].update(choice="low", probabilities={"low": 0.1})
+        payload["answers"]["needs_human_review"]["noul"] = 0.0
+        return json.dumps(payload).encode()
+
+    session = make_session(Clock(), benign_transport)
+    incident = context(graph_risk=0.55, mission_criticality=0.1, temporal_codes=())
+    first = session.observe(incident, parent_evidence_id="event-proof", incident_key="conflict-owner")
+    cached = session.observe(replace(incident, event_id="next"), parent_evidence_id="event-proof", incident_key="conflict-cached")
+
+    assert first.state == JevSessionState.REVIEW_REQUIRED
+    assert cached.assessment.route == JevRoute.CACHE
+    assert cached.state == JevSessionState.REVIEW_REQUIRED
+    assert cached.assessment.disagreement
+    assert not cached.ledger_bound
+    assert transport.calls == 1

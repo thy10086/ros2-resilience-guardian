@@ -2,9 +2,13 @@ import json
 import math
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
-from guardian_core.jev_advisor import SemanticContext
+import pytest
+
+import guardian_core.jev_efficiency as efficiency
+from guardian_core.jev_advisor import JevAssessment, JevAssessmentStatus, SemanticContext
 from guardian_core.jev_efficiency import (
     JevEfficientJudge,
     JevEfficiencyPolicy,
@@ -323,3 +327,125 @@ def test_unexpected_provider_exception_is_counted_as_failure():
 
     assert result.route == JevRoute.UNAVAILABLE
     assert judge.metrics().provider_failures == 1
+
+
+class BlockingAdvisor:
+    config = SimpleNamespace(model="jev-test")
+
+    def __init__(self, assessment):
+        self.assessment = assessment
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.calls = 0
+
+    def evaluate(self, incident):
+        self.calls += 1
+        self.started.set()
+        if not self.release.wait(5.0):
+            raise TimeoutError("test provider was not released")
+        if self.assessment is None:
+            raise RuntimeError("offline adapter failure")
+        return self.assessment
+
+
+def shared_pair(judge, advisor, monkeypatch):
+    """Release the owner only after a follower actually waits on its flight."""
+    waiting = threading.Event()
+
+    class ObservedCompletion:
+        def __init__(self):
+            self.done = threading.Event()
+
+        def wait(self, timeout):
+            waiting.set()
+            return self.done.wait(timeout)
+
+        def set(self):
+            self.done.set()
+
+    monkeypatch.setattr(efficiency, "Event", ObservedCompletion)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        owner = executor.submit(judge.evaluate, context())
+        try:
+            assert advisor.started.wait(2.0)
+            follower = executor.submit(judge.evaluate, context(event_id="event-2", sequence=2))
+            assert waiting.wait(2.0)
+        finally:
+            advisor.release.set()
+        return owner.result(timeout=2.0), follower.result(timeout=2.0)
+
+
+@pytest.mark.parametrize("status", [
+    JevAssessmentStatus.UNAVAILABLE, JevAssessmentStatus.INVALID,
+    JevAssessmentStatus.DISABLED, JevAssessmentStatus.SKIPPED_UNVERIFIED, None,
+])
+def test_single_flight_preserves_failed_advice_and_counts_one_failure(status, monkeypatch):
+    assessment = None if status is None else JevAssessment(
+        status=status, event_id="event-1", reason="offline failure or unavailable advice",
+    )
+    advisor = BlockingAdvisor(assessment)
+    judge = JevEfficientJudge(advisor)
+    owner, follower = shared_pair(judge, advisor, monkeypatch)
+
+    assert owner.route == follower.route == JevRoute.UNAVAILABLE
+    assert follower.coalesced and not follower.remote_called and not follower.cache_hit
+    assert follower.event_id == "event-2"
+    assert follower.local_score == owner.local_score
+    assert not follower.disagreement
+    if assessment is None:
+        assert follower.assessment is None
+    else:
+        assert follower.assessment.status == status
+        assert follower.assessment.event_id == "event-2"
+        assert follower.assessment.reason == assessment.reason
+    assert follower.audit_payload()["jev_status"] == (status.value if status else None)
+    assert advisor.calls == 1
+    metrics = judge.metrics()
+    assert metrics.total_requests == 2
+    assert metrics.remote_calls == metrics.provider_failures == metrics.coalesced_requests == 1
+    # Failure is neither cached nor left as an in-flight request.
+    advisor.assessment = JevAssessment(status=JevAssessmentStatus.OK, event_id="event-1")
+    assert judge.evaluate(context()).route == JevRoute.REMOTE
+    assert advisor.calls == 2
+
+
+@pytest.mark.parametrize("status", [JevAssessmentStatus.OK, JevAssessmentStatus.CACHED])
+@pytest.mark.parametrize("label,disagreement", [("unsafe_command", False), ("benign", True)])
+def test_single_flight_success_preserves_disagreement_and_current_event(status, label, disagreement, monkeypatch):
+    advisor = BlockingAdvisor(JevAssessment(
+        status=status, event_id="event-1", label=label, score=0.1, confidence=0.9,
+        observed_at=100.0, expires_at=105.0,
+    ))
+    judge = JevEfficientJudge(advisor)
+    owner, follower = shared_pair(judge, advisor, monkeypatch)
+
+    assert owner.route == (JevRoute.DISAGREEMENT if disagreement else JevRoute.REMOTE)
+    assert follower.route == JevRoute.COALESCED
+    assert follower.coalesced and not follower.remote_called
+    assert follower.disagreement is disagreement
+    assert follower.assessment.status == JevAssessmentStatus.CACHED
+    assert follower.assessment.event_id == "event-2"
+    assert follower.assessment.observed_at == 100.0
+    assert follower.assessment.expires_at == 105.0
+    assert advisor.calls == 1
+    assert judge.metrics().provider_failures == 0
+    assert judge.metrics().disagreements == (2 if disagreement else 0)
+
+
+def test_cache_hit_preserves_conflict_with_deterministic_attack_evidence():
+    payload = json.loads(response(label="benign", impact="low", review=0.0))
+    for name, label in (("attack_type", "benign"), ("mission_impact", "low")):
+        payload["answers"][name]["probabilities"] = {label: 0.1}
+    transport = Transport(json.dumps(payload).encode())
+    judge = make_judge(transport)
+
+    first = judge.evaluate(context(graph_risk=0.55, mission_criticality=0.1, temporal_codes=(), safety_state="NORMAL"))
+    cached = judge.evaluate(context(event_id="event-2", graph_risk=0.55, mission_criticality=0.1, temporal_codes=(), safety_state="NORMAL"))
+
+    assert first.route == JevRoute.DISAGREEMENT
+    assert cached.route == JevRoute.CACHE and cached.cache_hit
+    assert cached.disagreement and cached.audit_payload()["disagreement"]
+    assert cached.assessment.event_id == "event-2"
+    assert cached.local_score == first.local_score == 0.55
+    assert judge.metrics().disagreements == 2
+    assert len(transport.calls) == 1

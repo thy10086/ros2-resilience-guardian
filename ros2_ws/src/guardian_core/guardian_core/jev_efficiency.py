@@ -296,6 +296,7 @@ class JevEfficientJudge:
                     local_score=triage.score,
                     local_reason=triage.reason,
                     cache_hit=True,
+                    disagreement=self._is_disagreement(triage, assessment),
                     assessment=assessment,
                 ),
                 started,
@@ -356,21 +357,28 @@ class JevEfficientJudge:
                     started,
                 )
             shared_assessment = shared.assessment
+            usable = shared_assessment is not None and shared_assessment.status in {
+                JevAssessmentStatus.OK, JevAssessmentStatus.CACHED,
+            }
             if shared_assessment is not None:
                 shared_assessment = replace(
                     shared_assessment,
-                    status=JevAssessmentStatus.CACHED,
+                    status=JevAssessmentStatus.CACHED if usable else shared_assessment.status,
                     event_id=context.event_id,
-                    reason="single-flight Jev result reused",
+                    reason="single-flight Jev result reused" if usable else shared_assessment.reason,
                 )
             return self._finish(
                 replace(
                     shared,
                     event_id=context.event_id,
-                    route=JevRoute.COALESCED,
+                    route=JevRoute.COALESCED if usable else JevRoute.UNAVAILABLE,
+                    local_label=triage.label,
+                    local_score=triage.score,
+                    local_reason=triage.reason if usable else shared.local_reason,
                     remote_called=False,
                     coalesced=True,
                     cache_hit=False,
+                    disagreement=self._is_disagreement(triage, shared_assessment) if usable else False,
                     assessment=shared_assessment,
                 ),
                 started,

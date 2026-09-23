@@ -100,6 +100,11 @@ starts a new efficient-layer TTL from a fresh advisor `OK` response. An advisor
 never written back as a new efficient-cache lease; otherwise a lower cache
 could keep the upper cache alive indefinitely without a new provider result.
 
+Single-flight followers preserve the owner's assessment status and reason when
+the owner failed; only usable `OK`/`CACHED` advice is marked `COALESCED` and
+relabelled `CACHED`. Cache hits recompute the local-vs-Jev disagreement for the
+current caller, so a conflict remains reviewable across event IDs.
+
 ## Dashboard connection test
 
 The local dashboard exposes a manual, advisory proxy at:

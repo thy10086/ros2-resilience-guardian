@@ -1,5 +1,25 @@
 # Implementation plan
 
+## Current heartbeat: preserve Jev outcomes across reuse (2026-09-24 01:00 CST)
+
+- [complete] Reproduce failed single-flight results being promoted to `CACHED` and cache hits dropping disagreement flags with deterministic tests.
+- [complete] Preserve non-success assessment status/reason, mark shared failures `UNAVAILABLE`, and recompute disagreements against each caller's local triage.
+- [complete] Verify session review behavior and an offline disagreement comparison, then run full tests, experiments, ROS 2 build, and final diff review.
+- [complete] Update HANDOFF/progress/findings and commit locally on `main`; no GitHub push or live provider calls.
+- Reference checked: Go `golang/sync/singleflight` returns `val`, `err`, and `shared` independently (https://github.com/golang/sync/blob/master/singleflight/singleflight.go). No external code or dependency is imported.
+
+## Validation evidence: Jev reuse outcomes
+
+- [complete] Targeted failure/success/cache/session regressions: `54 passed`.
+- [complete] Full WSL2 test suite, all offline experiments, ROS 2 Jazzy build, frontend syntax, diff check, `.env` tracking, review and local commit.
+
+## Final validation evidence: Jev reuse outcomes
+
+- WSL2 `python3 -m pytest -q tests`: `130 passed`.
+- Jev session, efficient judgment, original innovation, and patent innovation experiments: all passed.
+- WSL2 ROS 2 Jazzy `colcon build --symlink-install`: `guardian_interfaces` and `guardian_core` finished successfully.
+- Windows `compileall`, frontend `node --check`, `git diff --check`, and tracked `.env` check: passed.
+
 ## Current heartbeat: layered Jev cache lease hardening (2026-09-24 00:00 CST)
 
 - [complete] Reproduce upper-layer TTL renewal from a lower-layer advisor `CACHED` result.
