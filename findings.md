@@ -114,6 +114,12 @@ be committed or printed.
 - Both layers now keep a separate clock lock and clamp every read to a finite non-decreasing value. The first invalid read uses `0.0`; later invalid reads reuse the last valid value. This is an input-timing guard only and does not alter local safety triage.
 - Regression tests cover a NaN-first advisor clock, advisor rollback, efficient-judge NaN timing, and efficient-judge rollback with cache reuse. Provider and control permissions are unchanged.
 
+## Jev layered-cache lease finding (2026-09-24)
+
+- The advisor and efficient judge have independent caches. After the efficient-layer TTL expired, the judge accepted an advisor `CACHED` response and wrote it back with a new upper-layer deadline. Repeating this sequence could keep the efficient cache alive indefinitely without a fresh provider result.
+- `_put_cache` now accepts only `JevAssessmentStatus.OK`; a lower-layer cache hit is returned to the caller but cannot start a new efficient-layer lease. A new upper-layer lease therefore records a fresh provider success, while the advisor's own cache remains independently bounded.
+- The regression advances the judge clock past its TTL while keeping the advisor cache valid, then proves the next observation re-enters the advisor instead of returning `JevRoute.CACHE`; the provider transport remains at one call.
+
 ## Dashboard Jev connection findings (2026-09-21)
 
 - The official API is `POST https://api.typesafe.ai/v1/systemone` with a Bearer

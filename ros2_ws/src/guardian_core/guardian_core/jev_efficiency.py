@@ -506,7 +506,10 @@ class JevEfficientJudge:
             return assessment
 
     def _put_cache(self, fingerprint: str, assessment: JevAssessment, now: float) -> None:
-        if self.policy.cache_ttl_sec <= 0.0 or assessment.status not in {JevAssessmentStatus.OK, JevAssessmentStatus.CACHED}:
+        # Only a fresh provider answer starts a new efficient-layer lease.
+        # Re-caching an advisor CACHED result would let a lower cache renew
+        # this layer forever without another provider result.
+        if self.policy.cache_ttl_sec <= 0.0 or assessment.status != JevAssessmentStatus.OK:
             return
         with self._lock:
             self._cache[fingerprint] = (now + self.policy.cache_ttl_sec, assessment)

@@ -1,5 +1,24 @@
 # Implementation plan
 
+## Current heartbeat: layered Jev cache lease hardening (2026-09-24 00:00 CST)
+
+- [complete] Reproduce upper-layer TTL renewal from a lower-layer advisor `CACHED` result.
+- [complete] Require a fresh advisor `OK` result before starting a new efficient-judge cache lease.
+- [complete] Run full validation, update handoff files, obtain review, and commit locally on `main`.
+- Scope: Jev advisory cache semantics only; no external API calls, ROS 2 control changes, or GitHub push.
+
+## Validation evidence: layered Jev cache lease hardening
+
+- [complete] Targeted regression and Jev advisor/efficient-judge tests: `24 passed`.
+- [complete] Full WSL2 test suite, all offline experiments, ROS 2 Jazzy build, frontend syntax, diff check, `.env` tracking, review and local commit.
+
+## Final validation evidence: layered Jev cache lease hardening
+
+- WSL2 `python3 -m pytest -q tests`: `119 passed`.
+- Jev session, efficient judgment, original innovation, and patent innovation experiments: all passed.
+- WSL2 ROS 2 Jazzy `colcon build --symlink-install`: `guardian_interfaces` and `guardian_core` finished successfully.
+- Windows `compileall`, frontend `node --check`, `git diff --check`, and tracked `.env` check: passed.
+
 ## Current heartbeat: Jev adapter clock hardening (2026-09-23 23:00 CST)
 
 - [complete] Reproduce invalid/non-finite and finite rollback clocks at the advisor and efficient-judge boundaries.

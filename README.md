@@ -97,7 +97,7 @@ python3 experiments/run_innovation_experiments.py
 
     python3 experiments/run_patent_innovation_experiments.py
 
-可选的 Jev 语义安全顾问见 [docs/jev_advisor.md](docs/jev_advisor.md)。它只对已经通过确定性验证的事件摘要做分类和人工复核建议，默认关闭，不进入 `guardian_node` 的实时控制循环，也不能解除停车或直接控制底盘；非布尔或未验证来源会在缓存和网络之前被拒绝。advisor 和高效判断层对注入时钟执行有限、单调不减保护，避免非法时间、TTL 回退、负延迟和预算窗口倒退。离线实验使用 stub provider，不需要 API Key。Jev 高效判断层增加本地风险分流、稳定事件指纹、TTL/LRU 缓存、并发 single-flight、调用预算和冲突指标；运行 `python3 experiments/run_jev_efficiency_experiments.py` 可复现实验。
+可选的 Jev 语义安全顾问见 [docs/jev_advisor.md](docs/jev_advisor.md)。它只对已经通过确定性验证的事件摘要做分类和人工复核建议，默认关闭，不进入 `guardian_node` 的实时控制循环，也不能解除停车或直接控制底盘；非布尔或未验证来源会在缓存和网络之前被拒绝。advisor 和高效判断层对注入时钟执行有限、单调不减保护，避免非法时间、TTL 回退、负延迟和预算窗口倒退；高效层只接受 advisor 的新鲜 `OK` 结果启动自己的缓存租约，不会用下层 `CACHED` 结果续租。离线实验使用 stub provider，不需要 API Key。Jev 高效判断层增加本地风险分流、稳定事件指纹、TTL/LRU 缓存、并发 single-flight、调用预算和冲突指标；运行 `python3 experiments/run_jev_efficiency_experiments.py` 可复现实验。
 
 Jev 事件会话层进一步聚合连续告警、对风险和语义变化重新查询、用滞回窗口稳定人工复核状态，并把有期限的 Jev 软证据绑定到确定性父证据；同一会话的决策和账本写回串行化，不同事件仍可并行，账本的哈希链写入只在短临界区内串行，账本异常分支也受会话容量上限约束。父证据必须当前有效、已验证、策略匹配且父链完整；父证据在 provider 调用期间被替代时会在写回前再次阻断。缓存结果切换父证据只保留原软证据截止时间，到期缓存不能复活账本证据，只有新的 provider 成功结果才能建立新租约。会话 ID 和签名复用 Jev 适配器的有界上下文表示，避免超长输入放大会话层资源消耗；非布尔或未验证来源会强制进入本地 `CONTAINING`，不会复用旧 Jev 结果。实验命令为 `python3 experiments/run_jev_session_experiments.py`，设计见 [docs/jev_session_design.md](docs/jev_session_design.md)。
 

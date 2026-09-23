@@ -141,6 +141,55 @@ def test_efficiency_clock_rollback_does_not_create_negative_latency_or_reset_cac
     assert len(transport.calls) == 1
 
 
+def test_judge_cache_ttl_cannot_be_renewed_by_advisor_cached_result():
+    from guardian_core.jev_advisor import JevAdvisorConfig, JevSemanticAdvisor
+
+    advisor_clock = [100.0]
+    judge_clock = [0.0]
+    transport = Transport()
+    advisor = JevSemanticAdvisor(
+        JevAdvisorConfig(enabled=True, api_key="offline", cache_ttl_sec=100.0),
+        transport=transport,
+        clock=lambda: advisor_clock[0],
+    )
+
+    class CountingAdvisor:
+        def __init__(self, wrapped):
+            self.wrapped = wrapped
+            self.config = wrapped.config
+            self.calls = 0
+
+        def evaluate(self, incident):
+            self.calls += 1
+            return self.wrapped.evaluate(incident)
+
+        def clear_cache(self):
+            self.wrapped.clear_cache()
+
+    counted = CountingAdvisor(advisor)
+    judge = JevEfficientJudge(
+        counted,
+        policy=JevEfficiencyPolicy(cache_ttl_sec=5.0),
+        clock=lambda: judge_clock[0],
+    )
+
+    first = judge.evaluate(context())
+    judge_clock[0] = 6.0
+    advisor_cached = judge.evaluate(context())
+    judge_clock[0] = 10.0
+    must_recheck = judge.evaluate(context())
+
+    assert first.route == JevRoute.REMOTE
+    assert advisor_cached.route == JevRoute.REMOTE
+    assert advisor_cached.assessment is not None
+    assert advisor_cached.assessment.status.value == "CACHED"
+    assert must_recheck.route == JevRoute.REMOTE
+    assert must_recheck.assessment is not None
+    assert must_recheck.assessment.status.value == "CACHED"
+    assert counted.calls == 3
+    assert len(transport.calls) == 1
+
+
 def test_critical_event_is_enforced_locally_without_waiting_for_jev():
     transport = Transport()
     judge = make_judge(transport)

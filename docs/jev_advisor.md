@@ -94,6 +94,12 @@ Malformed, NaN, or infinite clock values fall back to the last valid value (or
 clock fault from rewinding a lease, creating negative latency, or prematurely
 resetting a provider budget.
 
+The two cache layers have separate lease ownership. The efficient judge only
+starts a new efficient-layer TTL from a fresh advisor `OK` response. An advisor
+`CACHED` response can be observed after the efficient cache expires, but it is
+never written back as a new efficient-cache lease; otherwise a lower cache
+could keep the upper cache alive indefinitely without a new provider result.
+
 ## Dashboard connection test
 
 The local dashboard exposes a manual, advisory proxy at:
