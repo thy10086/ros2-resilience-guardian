@@ -1,5 +1,27 @@
 # Implementation plan
 
+## Current task: efficient Jev judgment orchestration (2026-09-23)
+
+- [in_progress] Specify and test local triage, stable incident fingerprints, single-flight deduplication, bounded cache/budget, and quality metrics.
+- [complete] Implement the efficient judgment layer while preserving `JevSemanticAdvisor` and dashboard compatibility.
+- [complete] Add deterministic efficiency comparisons and document API/key boundaries.
+- [in_progress] Run full tests, experiments, compile checks, ROS 2 build, review, and update HANDOFF before committing on `main`.
+
+## Validation issue
+
+- WSL2 test/build commands currently return `Wsl/Service/E_ACCESSDENIED` before starting Python. Retry after the WSL service is available; do not treat this as a test pass.
+
+## Current validation evidence
+
+- 9 new Jev efficiency behavior tests passed by direct invocation with the bundled Python runtime.
+- `compileall`, frontend `node --check`, and `git diff --check` passed.
+- `run_jev_efficiency_experiments.py`, `run_innovation_experiments.py`, and `run_patent_innovation_experiments.py` passed.
+- Full pytest and current ROS 2 build remain pending until WSL service access is restored.
+
+## Approved design decision
+
+Use an offline-first `JevEfficientJudge` orchestration layer. Deterministic local policy remains authoritative for safety; Jev is called only for verified, semantically ambiguous incidents. Stable fingerprints exclude event IDs and sequence counters so repeated observations can reuse results. Concurrent identical requests use single-flight coalescing, while TTL/LRU cache and a configurable call budget bound provider usage. Critical local risk is enforced immediately and Jev may only add asynchronous explanation metadata.
+
 ## Current task: provenance-bound predictive safety research (2026-09-23)
 
 - [complete] Implement the user-approved architecture in docs/patent_implementation_plan.md.

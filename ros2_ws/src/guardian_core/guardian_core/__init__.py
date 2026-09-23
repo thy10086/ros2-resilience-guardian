@@ -56,6 +56,13 @@ from .recovery_protocol import (
     RecoveryProof,
     RecoveryProtocol,
 )
+from .jev_efficiency import (
+    JevEfficientAssessment,
+    JevEfficientJudge,
+    JevEfficiencyMetrics,
+    JevEfficiencyPolicy,
+    JevRoute,
+)
 
 __all__ = [
     "ActionType", "AttackEvent", "AuditLogger", "GuardianConfig", "MitigationPlan",
@@ -73,4 +80,6 @@ __all__ = [
     "MotionSample", "PredictiveConfig", "PredictiveDecision", "PredictiveEnvelope",
     "RecoveryConfig", "RecoveryProtocolDecision", "RecoveryObservation", "RecoveryProof",
     "RecoveryProtocol",
+    "JevEfficientAssessment", "JevEfficientJudge", "JevEfficiencyMetrics",
+    "JevEfficiencyPolicy", "JevRoute",
 ]

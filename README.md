@@ -97,7 +97,7 @@ python3 experiments/run_innovation_experiments.py
 
     python3 experiments/run_patent_innovation_experiments.py
 
-可选的 Jev 语义安全顾问见 [docs/jev_advisor.md](docs/jev_advisor.md)。它只对已经通过确定性验证的事件摘要做分类和人工复核建议，默认关闭，不进入 `guardian_node` 的实时控制循环，也不能解除停车或直接控制底盘。离线实验使用 stub provider，不需要 API Key。
+可选的 Jev 语义安全顾问见 [docs/jev_advisor.md](docs/jev_advisor.md)。它只对已经通过确定性验证的事件摘要做分类和人工复核建议，默认关闭，不进入 `guardian_node` 的实时控制循环，也不能解除停车或直接控制底盘。离线实验使用 stub provider，不需要 API Key。Jev 高效判断层增加本地风险分流、稳定事件指纹、TTL/LRU 缓存、并发 single-flight、调用预算和冲突指标；运行 `python3 experiments/run_jev_efficiency_experiments.py` 可复现实验。
 
 跨层融合扩展的实验设计见 [docs/fusion_experiment_plan.md](docs/fusion_experiment_plan.md)，实现边界和后续 ROS 2 接入步骤见 [docs/fusion_implementation_plan.md](docs/fusion_implementation_plan.md)。当前跨层模块已完成纯 Python 离线验证，但还没有直接接管真实底盘、Webots 或 ROS 2 live graph introspection。
 

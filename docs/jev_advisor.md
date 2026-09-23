@@ -11,6 +11,41 @@ The advisor is disabled by default and does not replace `EventVerifier`,
 `RiskEngine`, `MitigationPlanner`, `SafetySupervisor`, `EvidenceFusion`, or
 `RecoveryGate`.
 
+## Efficient judgment layer
+
+`guardian_core.jev_efficiency.JevEfficientJudge` wraps the advisor for event
+streams. It applies deterministic local triage before any provider call:
+
+- verified low-risk events in `NORMAL` state use `LOCAL_SAFE` and do not call
+  Jev;
+- deterministic critical risk uses `LOCAL_ENFORCED` immediately and does not
+  wait for a semantic provider;
+- only verified, semantically ambiguous events use the bounded Jev path.
+
+Non-boolean verification flags, non-finite/out-of-range risk values, and
+malformed temporal evidence fail closed into local enforcement or unverified
+skipping; they are never normalized into a safe remote request.
+
+For ambiguous events, the layer removes event ID and sequence counters from a
+stable incident fingerprint, retains model and policy version, and normalizes
+component/code ordering. The fingerprint is used for a bounded TTL/LRU cache.
+Concurrent requests with the same fingerprint share one provider call through
+single-flight coalescing. A rolling call budget returns a deterministic local
+fallback when the provider budget is exhausted. The output includes route,
+local score, optional normalized Jev advice, disagreement metadata, and
+bounded P50/P95 latency and call-efficiency counters.
+
+The local route is authoritative for safety. `DISAGREEMENT` is an explanation
+flag only; a Jev answer cannot clear `SAFE_STOP`, raise a speed limit, or
+approve recovery. The offline comparison is reproducible with:
+
+```bash
+python3 experiments/run_jev_efficiency_experiments.py
+```
+
+It compares the existing sequence-sensitive advisor cache with the stable
+fingerprint layer. A real API key is not required for this experiment.
+
 ## Safety boundary
 
 The current implementation is intentionally a library and offline experiment;

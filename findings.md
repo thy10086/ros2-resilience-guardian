@@ -1,5 +1,12 @@
 # Findings
 
+## Efficient Jev judgment design (2026-09-23)
+
+- Current `JevSemanticAdvisor.evaluate` is synchronous and performs one provider call for every verified cache miss. Its cache key includes the event ID and sequence, so repeated observations from one incident commonly miss the cache.
+- The existing adapter already bounds context, response size, timeout, endpoint scheme, and answer types. The new layer should compose it rather than change the provider contract or dashboard request path.
+- Safety must remain deterministic: local risk and recovery rules cannot wait for Jev or be cleared by a Jev answer. Jev efficiency work is limited to triage, explanation, duplicate suppression, bounded provider use, and offline measurement.
+- Approved design: local triage plus stable incident fingerprint, single-flight duplicate coalescing, TTL/LRU cache and call budget, disagreement metadata, and deterministic metrics. Real API testing remains optional and requires a user-provided temporary credential or endpoint override.
+
 ## Patent-oriented research (2026-09-23)
 
 - User approved implementation of the proposed four-module architecture. Existing baseline is clean `e9c4932` on main, including Jev advisory and dashboard test features.

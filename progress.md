@@ -1,5 +1,11 @@
 # Progress
 
+- 2026-09-23: User approved the offline-first efficient Jev judgment design. Baseline inspection found synchronous per-event calls, sequence-sensitive cache keys, and no in-flight deduplication or provider budget; implementation starts with red tests and keeps Jev advisory-only.
+- 2026-09-23: Added red contract tests for local fast paths, critical local enforcement, stable fingerprint reuse, single-flight coalescing, budget fallback, disagreement reporting, invalid-input fail-closed behavior, and provider-failure metrics. The first WSL2 invocation was blocked by `Wsl/Service/E_ACCESSDENIED`; no pytest result was produced by that invocation.
+- 2026-09-23: Implemented `JevEfficientJudge`, `JevEfficiencyPolicy`, route/result types, bounded metrics, and the deterministic `run_jev_efficiency_experiments.py` comparison. Added exports and Jev documentation; Python execution remains pending until the WSL service is available again.
+- 2026-09-23: Thread-bundled Python validation passed: the 9 new Jev efficiency tests passed by direct invocation, `compileall` passed, the Jev efficiency comparison passed with 12 baseline calls versus 1 efficient call (91.7% reduction), and the existing six-group and five-group innovation suites passed. Frontend syntax and `git diff --check` passed.
+- 2026-09-23: Full pytest and ROS 2 colcon commands remain pending because WSL returns `Wsl/Service/E_ACCESSDENIED` before Python/colcon starts; the bundled runtime does not include pytest. No full-suite or current ROS 2 build result is claimed for this change.
+
 - 2026-09-23: Resumed approved patent-oriented development from clean main e9c4932. Read planning/TDD/verification skills, checked relevant open-source references, and recorded exact interfaces and validation in docs/patent_implementation_plan.md. No secrets or global environment variables changed.
 
 - 2026-09-23: Added red tests for causal graph provenance, evidence lineage/tamper detection, predictive envelope, assurance counterfactuals, and two-phase recovery; initial collection failed because the new modules were absent.

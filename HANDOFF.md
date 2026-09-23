@@ -23,6 +23,7 @@
 - `SafetyEnvelopeController` 根据融合风险、可用距离和传感器新鲜度计算速度上限和停车状态。
 - `RecoveryGate` 要求无活动攻击、图稳定、传感器新鲜、策略有效、命令清空和驻留时间完成后才允许恢复。
 - `JevSemanticAdvisor` 提供可选的语义安全旁路：只接收已验证事件的限长摘要，返回有界的攻击类型、任务影响、置信度和人工复核建议；默认关闭，不参与实时控制。
+- `JevEfficientJudge` 在 Jev 之前执行本地快速分流，并提供稳定指纹、TTL/LRU 缓存、single-flight 合并、调用预算和冲突指标；仍然只作为旁路建议。
 
 本轮专利化安全核心新增：
 
@@ -85,6 +86,7 @@ API Key 不从环境变量读取，也不会写入浏览器存储、ROS 消息�
 | `ros2_ws/src/guardian_core/guardian_core/safety_envelope.py` | 风险与制动距离约束的速度上限 |
 | `ros2_ws/src/guardian_core/guardian_core/recovery_gate.py` | 多条件恢复门控 |
 | `ros2_ws/src/guardian_core/guardian_core/jev_advisor.py` | 可选 Jev 语义顾问、缓存、响应归一化和安全审计元数据 |
+| `ros2_ws/src/guardian_core/guardian_core/jev_efficiency.py` | Jev 高效判断编排、本地分流、稳定指纹、single-flight、预算和效率指标 |
 | `docs/fusion_experiment_plan.md` | 图传播、时序规则、证据融合和安全速度的后续实验设计 |
 | `docs/innovation_validation.md` | 当前创新实验的结果、原理和判定过程 |
 | `docs/jev_advisor.md` | Jev 旁路的使用方式、隐私边界和离线验证说明 |
@@ -265,3 +267,11 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 验证：专利核心测试 `38 passed`；全量 WSL2 测试 `73 passed`；原有六组和专利化五组实验全部通过；Windows `compileall`、前端 `node --check`、`git diff --check` 通过；ROS 2 Jazzy 两包 `colcon build --symlink-install` 成功。
 - 风险或后续：当前 proof 签名仍属于进程内完整性校验，尚未接入 DDS 身份、硬件密钥或外部可信执行环境；恢复协议和账本模块仍需接入真实 ROS 2 节点后做端到端时序与故障注入验证。
 - 发布状态：本地 `main` 已创建提交；尝试推送 `origin/main` 时 GitHub 返回 `Permission denied (publickey)`，因此本轮变更尚未同步到远程。未复用旧令牌，也未将凭据写入仓库、远程地址或日志。
+
+### 2026-09-23 — `feat: add efficient Jev judgment orchestration`
+
+- 改动：新增本地风险分流、稳定事件指纹、TTL/LRU 复用、并发 single-flight、滚动调用预算、Jev/本地冲突标记和 P50/P95 效率指标；增加离线对照实验。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/jev_efficiency.py`、`tests/test_jev_efficiency.py`、`experiments/run_jev_efficiency_experiments.py`、`docs/jev_advisor.md`、`README.md`、`HANDOFF.md`、`task_plan.md`、`findings.md`、`progress.md`。
+- 安全边界：低风险和关键风险由确定性本地规则立即处理；Jev 不参与停车、速度限制、恢复批准或 ROS 2 命令发布。预算耗尽、并发等待超时和 provider 错误都保留本地安全结果。
+- 验证：9 个新增 Jev efficiency 行为测试通过直接调用；`compileall`、前端 `node --check` 和 `git diff --check` 通过；离线对照实验通过，原始 12 次远程调用降为 1 次，调用减少 91.7%，低风险和关键风险分别走 `LOCAL_SAFE`/`LOCAL_ENFORCED`。原有六组和专利化五组实验也通过。
+- 未覆盖：全量 pytest 和当前 ROS 2 colcon 因 WSL 返回 `Wsl/Service/E_ACCESSDENIED` 尚未执行；线程附带 Python 没有 pytest。真实 API 的延迟、准确率和配额仍需用户提供临时凭据后做受控实验。
