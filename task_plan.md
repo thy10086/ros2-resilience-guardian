@@ -1,5 +1,26 @@
 # Implementation plan
 
+## Current heartbeat: advisor cache completion-time sampling (2026-09-24 05:00 CST)
+
+- [complete] Reproduce a delayed advisor cache lookup reusing an expired assessment.
+- [complete] Re-sample advisor TTL time under the cache lock and add the same boundary to the offline efficiency experiment.
+- [complete] Run advisor/full tests, all experiments, ROS 2 build, review the diff, update handoff/progress/findings, and commit locally on main.
+- Scope: existing Jev advisor cache timing only; no provider credentials, control changes, or GitHub push.
+
+## Validation evidence: advisor cache completion-time sampling
+
+- [complete] Red/green regression: `1 failed` before the lock-time fix, `1 passed` after it.
+- [complete] `run_jev_efficiency_experiments.py`: advisor expired-cache race returns `OK` with two provider calls.
+- [complete] Full WSL2 test suite, all offline experiments, ROS 2 Jazzy build, final review, and local commit.
+
+## Final validation evidence: advisor cache completion-time sampling
+
+- WSL2 `Ubuntu-24.04` `python3 -m pytest -q tests`: `149 passed`.
+- Advisor cache regression and efficiency regressions pass; efficiency experiment reports advisor expired-cache `OK` with two provider calls.
+- All four offline experiment suites passed; ROS 2 Jazzy `guardian_interfaces` and `guardian_core` built successfully.
+- Windows compileall, frontend `node --check`, `git diff --check`, and tracked `.env` check passed.
+- Independent review is the final pre-commit check; local `main` commit follows after staging this record.
+
 ## Current heartbeat: concurrent Jev budget/cache rollover (2026-09-24 04:00 CST)
 
 - [complete] Reproduce an older concurrent request resetting a newer budget window after its pre-lock time sample is delayed.

@@ -237,6 +237,10 @@ class JevSemanticAdvisor:
 
         cache_key = self._cache_key(context)
         with self._cache_lock:
+            # Re-sample after acquiring the cache lock. A caller can be
+            # descheduled after its initial clock read; using that stale value
+            # could revive an assessment past its TTL.
+            now = max(now, self._now())
             cached = self._cache.get(cache_key)
             if cached is not None:
                 expires_at, assessment = cached

@@ -1,4 +1,6 @@
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
@@ -238,7 +240,7 @@ def test_invalid_advisor_clock_falls_back_to_finite_time():
 
 
 def test_advisor_clock_rollback_cannot_shorten_or_rewind_cache_time():
-    now = iter((10.0, 5.0))
+    now = iter((10.0, *([5.0] * 8)))
     transport = FakeTransport(response=valid_response())
     advisor = JevSemanticAdvisor(
         JevAdvisorConfig(enabled=True, api_key="secret", cache_ttl_sec=5.0),
@@ -252,6 +254,39 @@ def test_advisor_clock_rollback_cannot_shorten_or_rewind_cache_time():
     assert first.observed_at == 10.0
     assert second.observed_at == 10.0
     assert second.expires_at == 15.0
+    assert len(transport.calls) == 2
+
+
+def test_delayed_advisor_cache_lookup_cannot_reuse_expired_result(monkeypatch):
+    now = [100.0]
+    transport = FakeTransport(response=valid_response())
+    advisor = JevSemanticAdvisor(
+        JevAdvisorConfig(enabled=True, api_key="secret", cache_ttl_sec=5.0),
+        transport=transport,
+        clock=lambda: now[0],
+    )
+    cached_context = context(sequence=1, summary="advisor cache race")
+    assert advisor.evaluate(cached_context).status == JevAssessmentStatus.OK
+    paused, release = threading.Event(), threading.Event()
+    original_cache_key = advisor._cache_key
+
+    def delayed_cache_key(incident):
+        paused.set()
+        assert release.wait(5.0), "delayed advisor cache lookup was not released"
+        return original_cache_key(incident)
+
+    monkeypatch.setattr(advisor, "_cache_key", delayed_cache_key)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        delayed = executor.submit(advisor.evaluate, cached_context)
+        try:
+            assert paused.wait(2.0), "request did not reach the advisor cache boundary"
+            now[0] = 106.0
+            advisor._now()
+        finally:
+            release.set()
+        result = delayed.result(timeout=2.0)
+
+    assert result.status == JevAssessmentStatus.OK
     assert len(transport.calls) == 2
 
 

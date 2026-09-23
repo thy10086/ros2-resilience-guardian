@@ -200,6 +200,38 @@ def main() -> int:
         "cache_hit": stale_result.cache_hit,
         "provider_calls": cache_transport.calls,
     }
+
+    advisor_clock = [0.0]
+    advisor_transport = StubTransport()
+    advisor_cache = JevSemanticAdvisor(
+        JevAdvisorConfig(enabled=True, api_key="offline-stub", cache_ttl_sec=5.0),
+        transport=advisor_transport,
+        clock=lambda: advisor_clock[0],
+    )
+    advisor_context = context(event_id="advisor-cache-old", sequence=1, summary="advisor cache race")
+    assert advisor_cache.evaluate(advisor_context).status.value == "OK"
+    advisor_fingerprint = advisor_cache._cache_key(advisor_context)
+    advisor_paused = threading.Event()
+    advisor_release = threading.Event()
+    advisor_original_key = advisor_cache._cache_key
+
+    def delayed_advisor_key(incident):
+        advisor_paused.set()
+        assert advisor_release.wait(2.0)
+        return advisor_original_key(incident)
+
+    advisor_cache._cache_key = delayed_advisor_key
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        advisor_future = executor.submit(advisor_cache.evaluate, advisor_context)
+        assert advisor_paused.wait(2.0)
+        advisor_clock[0] = 6.0
+        advisor_cache._now()
+        advisor_release.set()
+        advisor_result = advisor_future.result(timeout=2.0)
+    advisor_cache_race = {
+        "status": advisor_result.status.value,
+        "provider_calls": advisor_transport.calls,
+    }
     evidence = {
         "baseline_remote_calls": baseline_transport.calls,
         "efficient_remote_calls": efficient_transport.calls,
@@ -209,6 +241,7 @@ def main() -> int:
         "local_enforced_route": local_enforced.route.value,
         "budget_window_race": budget_race,
         "expired_cache_race": cache_race,
+        "advisor_expired_cache_race": advisor_cache_race,
         "metrics": metrics.as_dict(),
     }
     assert baseline_transport.calls == len(repeated)
@@ -229,6 +262,7 @@ def main() -> int:
         "provider_calls": 2,
     }
     assert cache_race == {"route": "REMOTE", "cache_hit": False, "provider_calls": 1}
+    assert advisor_cache_race == {"status": "OK", "provider_calls": 2}
     print(json.dumps({"passed": True, "experiment": "jev_efficiency", "evidence": evidence}, indent=2))
     return 0
 

@@ -94,11 +94,11 @@ Malformed, NaN, or infinite clock values fall back to the last valid value (or
 clock fault from rewinding a lease, creating negative latency, or prematurely
 resetting a provider budget.
 
-The efficient judge re-samples its clock while holding the cache/reservation
-lock. A request paused after cache lookup therefore cannot use an older
-timestamp to revive an expired cache entry or reset a newer fixed budget
-window; a legitimate cache miss or budget reset occurs only when a later
-request reaches the corresponding locked boundary.
+The advisor and efficient judge re-sample their clocks while holding the
+cache/reservation lock. A request paused after cache lookup therefore cannot
+use an older timestamp to revive an expired advisor or efficient-layer cache,
+or reset a newer fixed budget window; a legitimate cache miss or budget reset
+occurs only when a later request reaches the corresponding locked boundary.
 
 The two cache layers have separate lease ownership. The efficient judge only
 starts a new efficient-layer TTL from a fresh advisor `OK` response. An advisor

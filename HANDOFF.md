@@ -38,6 +38,7 @@
 - single-flight 等待者会保留 owner 的失败状态和原因；只有可用的 `OK`/`CACHED` 建议才标记为 `COALESCED`，缓存命中和并发复用都会按当前本地 triage 重新计算 Jev 冲突，避免 `REVIEW_REQUIRED` 信号丢失。
 - 会话用完成时刻重新验证父证据和完整 lineage；provider 期间过期、被替代、祖先失效或账本篡改时，成功和失败结果都不会写回软证据。显式回放时间保留调用方原点，provider 等待耗时从软证据剩余 TTL 中扣除。
 - 高效判断层在缓存/预算状态锁内重新采样时间，暂停在缓存查找阶段的旧请求不能复活过期建议、回滚并重置较新的固定窗口；新的预约时间也用于 provider 缓存租约起点。
+- 基础 `JevSemanticAdvisor` 也在 `_cache_lock` 内重新采样有限单调时钟，防止暂停的旧请求绕过 advisor 自身 TTL；两层缓存均要求完成时刻仍在租约内。
 
 本轮专利化安全核心新增：
 
@@ -399,3 +400,10 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 文件：`ros2_ws/src/guardian_core/guardian_core/jev_efficiency.py`、`tests/test_jev_efficiency.py`、`experiments/run_jev_efficiency_experiments.py`、`docs/jev_advisor.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
 - 验证：预算竞态回归修复前 `2 failed`、修复后 `2 passed`；过期缓存竞态回归修复前 `1 failed`、修复后 `1 passed`；高效判断定向测试 `25 passed`，离线效率实验验证预算窗口和过期缓存两条路径；WSL2 全量测试 `147 passed`，四组离线实验、ROS 2 Jazzy 两包构建、Windows compileall、前端 `node --check`、`git diff --check` 和 `.env` 跟踪检查均通过，独立复审无 P0–P2。
 - 安全边界：本轮只限制 Jev 缓存和调用预算的并发时序，不改变 Jev 旁路权限；Jev 仍不能发布 `/cmd_vel`、解除 `SAFE_STOP`、修改速度限制或批准恢复。
+
+### 2026-09-24 — Advisor cache completion-time hardening
+
+- 改动：修复基础 advisor 在 cache key 计算后被挂起时，使用旧时间复用已过期 `CACHED` 结果的问题。缓存锁内重新采样有限单调时钟后，过期结果会重新进入 provider；高效层和 advisor 的 TTL 时序规则保持一致。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/jev_advisor.py`、`tests/test_jev_advisor.py`、`experiments/run_jev_efficiency_experiments.py`、`docs/jev_advisor.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：advisor 竞态回归修复前 `1 failed`、修复后 `1 passed`；离线效率实验报告 advisor 过期缓存路径 `OK` 且 provider 调用 `2` 次；WSL2 全量测试 `149 passed`，四组离线实验、ROS 2 Jazzy 两包构建、Windows compileall、前端 `node --check`、`git diff --check` 和 `.env` 跟踪检查均通过。第一次全量运行仅因既有回退时钟夹具值不足而失败，扩展为持续回退值后通过。
+- 安全边界：本轮只收紧语义建议缓存时效，不改变 Jev 旁路权限，也不授予其控制 ROS 2 或解除安全状态的能力。

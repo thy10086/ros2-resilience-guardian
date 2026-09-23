@@ -1,5 +1,11 @@
 # Findings
 
+## Advisor cache completion-time closure (2026-09-24)
+
+- `JevSemanticAdvisor.evaluate()` read `now` before computing the cache key and waiting for `_cache_lock`. A delayed request could therefore compare an expired entry against an older timestamp and return `CACHED` after its TTL.
+- A deterministic two-thread regression reproduced the stale `CACHED` result. Cache lookup now re-samples the finite monotonic clock while holding `_cache_lock`, preserving the original cache key and provider contract.
+- The regression and offline experiment now return a fresh `OK` assessment with two provider calls. No credentials or live provider were used.
+
 ## Concurrent budget-window closure (2026-09-24 04:00 CST)
 
 - `JevEfficientJudge.evaluate()` samples `now` before `_get_cache()` and acquiring the reservation lock. Monotonic clock reads do not imply chronological reservation order across threads.
