@@ -87,6 +87,13 @@ payload.
 The cache key includes the model and the complete normalized context, including
 the event sequence. A new event sequence therefore cannot reuse an old result.
 
+The advisor and efficient judge use a finite, non-decreasing injected clock for
+cache expiry, call budgets, latency metrics, and `observed_at`/`expires_at`.
+Malformed, NaN, or infinite clock values fall back to the last valid value (or
+`0.0` on first use), and a clock rollback is clamped. This keeps an adapter
+clock fault from rewinding a lease, creating negative latency, or prematurely
+resetting a provider budget.
+
 ## Dashboard connection test
 
 The local dashboard exposes a manual, advisory proxy at:

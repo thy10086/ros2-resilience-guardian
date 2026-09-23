@@ -221,6 +221,40 @@ def test_successful_answers_are_cached_until_context_changes_or_expiry():
     assert len(transport.calls) == 3
 
 
+def test_invalid_advisor_clock_falls_back_to_finite_time():
+    transport = FakeTransport(response=valid_response())
+    advisor = JevSemanticAdvisor(
+        JevAdvisorConfig(enabled=True, api_key="secret", cache_ttl_sec=5.0),
+        transport=transport,
+        clock=lambda: float("nan"),
+    )
+
+    result = advisor.evaluate(context())
+
+    assert result.status == JevAssessmentStatus.OK
+    assert result.observed_at == 0.0
+    assert result.expires_at == 5.0
+    assert transport.calls
+
+
+def test_advisor_clock_rollback_cannot_shorten_or_rewind_cache_time():
+    now = iter((10.0, 5.0))
+    transport = FakeTransport(response=valid_response())
+    advisor = JevSemanticAdvisor(
+        JevAdvisorConfig(enabled=True, api_key="secret", cache_ttl_sec=5.0),
+        transport=transport,
+        clock=lambda: next(now),
+    )
+
+    first = advisor.evaluate(context(sequence=1))
+    second = advisor.evaluate(context(sequence=2))
+
+    assert first.observed_at == 10.0
+    assert second.observed_at == 10.0
+    assert second.expires_at == 15.0
+    assert len(transport.calls) == 2
+
+
 def test_config_rejects_remote_http_credentials_and_nonfinite_values():
     with pytest.raises(ValueError, match="HTTPS"):
         JevAdvisorConfig(endpoint="http://remote.example.test")

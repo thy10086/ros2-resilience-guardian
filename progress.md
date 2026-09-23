@@ -1,5 +1,7 @@
 # Progress
 
+- 2026-09-23: Found and fixed direct clock handling in `JevSemanticAdvisor` and `JevEfficientJudge`. Invalid/non-finite clocks now fall back to the last finite value (or `0.0` initially), and finite rollback is clamped. Added four regressions; advisor/efficient-judge tests pass `22/22`. WSL2 full tests report `118 passed`; all four offline experiment suites and the ROS 2 Jazzy two-package build pass. Independent review is the final step before local commit.
+
 - 2026-09-23: Closed the parent-evidence lifetime gap found during Jev session review. Active parent validation now runs before judgment and again during ledger append; cached parent rebinds inherit the original soft-evidence deadline, and expired cached advice cannot renew or resurrect a ledger record. Added parent expiry/replacement coverage and extended the deterministic session experiment. WSL2 full tests report `114 passed`; all four offline experiment suites and the ROS 2 Jazzy two-package build pass.
 
 - 2026-09-23: Closed finite timestamp rollback after review. Session observations now clamp to `last_seen`; the rollback regression and full suite pass with `100 passed`, while all experiments and ROS 2 validation remain green.

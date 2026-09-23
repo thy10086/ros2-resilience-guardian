@@ -1,5 +1,24 @@
 # Implementation plan
 
+## Current heartbeat: Jev adapter clock hardening (2026-09-23 23:00 CST)
+
+- [complete] Reproduce invalid/non-finite and finite rollback clocks at the advisor and efficient-judge boundaries.
+- [complete] Add failing regressions for finite audit timestamps, cache leases, latency, and budget timing.
+- [complete] Implement finite non-decreasing clock reads, run full validation, update handoff files, and commit locally on `main`.
+- Scope: Jev advisory timing only; no external API calls, ROS 2 control changes, or GitHub push.
+
+## Validation evidence: Jev adapter clock hardening
+
+- [complete] Targeted advisor/efficient-judge tests: `22 passed`.
+- [complete] Full WSL2 test suite, all offline experiments, ROS 2 Jazzy build, frontend syntax, diff check, `.env` tracking, review and local commit.
+
+## Final validation evidence: Jev adapter clock hardening
+
+- WSL2 `python3 -m pytest -q tests`: `118 passed`.
+- Jev session, efficient judgment, original innovation, and patent innovation experiments: all passed.
+- WSL2 ROS 2 Jazzy `colcon build --symlink-install`: `guardian_interfaces` and `guardian_core` finished successfully.
+- Windows `compileall`, frontend `node --check`, `git diff --check`, and tracked `.env` check: passed.
+
 ## Current heartbeat: soft-evidence lifetime and live parent binding (2026-09-23 22:00 CST)
 
 - [complete] Reproduce cached parent-rebinding TTL renewal and reuse of expired/superseded parent evidence.

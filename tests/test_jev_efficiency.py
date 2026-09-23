@@ -74,6 +74,7 @@ class Transport:
 
 
 def make_judge(transport, **policy_changes):
+    clock = policy_changes.pop("clock", time.time)
     policy = JevEfficiencyPolicy(**policy_changes)
     from guardian_core.jev_advisor import JevAdvisorConfig, JevSemanticAdvisor
 
@@ -82,7 +83,7 @@ def make_judge(transport, **policy_changes):
         transport=transport,
         clock=time.time,
     )
-    return JevEfficientJudge(advisor, policy=policy)
+    return JevEfficientJudge(advisor, policy=policy, clock=clock)
 
 
 def test_low_risk_verified_event_uses_local_fast_path_without_remote_call():
@@ -102,6 +103,42 @@ def test_low_risk_verified_event_uses_local_fast_path_without_remote_call():
     assert result.route == JevRoute.LOCAL_SAFE
     assert result.remote_called is False
     assert not transport.calls
+
+
+def test_invalid_efficiency_clock_is_fail_safe_and_metrics_stay_finite():
+    transport = Transport()
+    judge = make_judge(transport, clock=lambda: float("nan"))
+
+    result = judge.evaluate(
+        context(
+            graph_risk=0.1,
+            mission_criticality=0.1,
+            event_confidence=0.95,
+            temporal_codes=(),
+            safety_state="NORMAL",
+        )
+    )
+
+    assert result.route == JevRoute.LOCAL_SAFE
+    assert math.isfinite(result.latency_ms)
+    metrics = judge.metrics()
+    assert math.isfinite(metrics.p50_latency_ms)
+    assert math.isfinite(metrics.p95_latency_ms)
+
+
+def test_efficiency_clock_rollback_does_not_create_negative_latency_or_reset_cache_early():
+    now = iter((10.0, *([5.0] * 12)))
+    transport = Transport()
+    judge = make_judge(transport, clock=lambda: next(now))
+
+    first = judge.evaluate(context())
+    second = judge.evaluate(context(event_id="event-2", sequence=2))
+
+    assert first.route == JevRoute.REMOTE
+    assert second.route == JevRoute.CACHE
+    assert first.latency_ms >= 0.0
+    assert second.latency_ms >= 0.0
+    assert len(transport.calls) == 1
 
 
 def test_critical_event_is_enforced_locally_without_waiting_for_jev():

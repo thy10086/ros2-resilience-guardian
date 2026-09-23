@@ -218,11 +218,13 @@ class JevSemanticAdvisor:
         self.config = config or JevAdvisorConfig()
         self._transport = transport or self._http_transport
         self._clock = clock or time.time
+        self._clock_lock = Lock()
+        self._last_clock: float | None = None
         self._cache: dict[str, tuple[float, JevAssessment]] = {}
         self._cache_lock = Lock()
 
     def evaluate(self, context: SemanticContext) -> JevAssessment:
-        now = float(self._clock())
+        now = self._now()
         if type(context.source_verified) is not bool or not context.source_verified:
             return self._result(
                 JevAssessmentStatus.SKIPPED_UNVERIFIED,
@@ -277,6 +279,21 @@ class JevSemanticAdvisor:
     def clear_cache(self) -> None:
         with self._cache_lock:
             self._cache.clear()
+
+    def _now(self) -> float:
+        """Return a finite, non-decreasing clock value for TTL and audit data."""
+
+        try:
+            candidate = float(self._clock())
+        except (TypeError, ValueError, OverflowError):
+            candidate = float("nan")
+        with self._clock_lock:
+            if not math.isfinite(candidate):
+                candidate = self._last_clock if self._last_clock is not None else 0.0
+            elif self._last_clock is not None and candidate < self._last_clock:
+                candidate = self._last_clock
+            self._last_clock = candidate
+            return candidate
 
     def _request_payload(self, context: SemanticContext) -> dict[str, Any]:
         return {

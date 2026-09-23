@@ -33,6 +33,7 @@
 - 同一会话的有限观测时间也必须单调不减；早于 `last_seen` 的输入会被钳制，避免 TTL 延长、负查询间隔或倒退软证据时间。
 - Jev 软证据写回前后都会验证父证据：父记录必须 active、已验证、策略版本匹配、不是 Jev 软证据，且完整父链可验证；父记录缺失、过期、未来生效、被替代或祖先失效时，判断在 provider 前直接阻断。
 - 父证据在 provider 调用期间被替代时，追加阶段的第二次检查会拒绝写回。缓存判断切换到新父证据时继承旧软证据的绝对截止时间；过期缓存不能刷新或复活软证据，只有新的 provider 成功结果能建立新租约。
+- `JevSemanticAdvisor` 与 `JevEfficientJudge` 的注入时钟现在都经过有限、单调不减的保护；非法、NaN、无穷或回退时间不会制造负延迟、倒退缓存 TTL 或提前重置调用预算。
 
 本轮专利化安全核心新增：
 
@@ -352,3 +353,10 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 文件：`ros2_ws/src/guardian_core/guardian_core/jev_incident_session.py`、`tests/test_jev_incident_session.py`、`experiments/run_jev_session_experiments.py`、`docs/jev_session_design.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
 - 验证：新增父证据缺失/过期/未来/未验证/策略不一致/被替代/祖先失效、调用期间替代、缓存重绑定 TTL 和过期不续租回归；WSL2 全量测试 `114 passed`；事件会话、高效判断、原有创新和专利化实验全部通过；ROS 2 Jazzy 两包构建成功；Windows `compileall`、前端 `node --check`、`git diff --check` 和 `.env` 跟踪检查通过。
 - 安全边界：Jev 仍是旁路建议，不能发布 `/cmd_vel`、解除 `SAFE_STOP`、修改速度限制或批准恢复；本轮没有外部 API 调用或 GitHub 上传。
+
+### 2026-09-23 — Jev adapter clock hardening
+
+- 改动：为 `JevSemanticAdvisor` 和 `JevEfficientJudge` 增加有限、单调不减的时钟读取。非法或非有限时钟值回退到上一有效时间，首次异常回退到 `0.0`；回退时间被钳制，保护缓存过期、滚动调用预算、延迟指标和软证据时间戳。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/jev_advisor.py`、`ros2_ws/src/guardian_core/guardian_core/jev_efficiency.py`、`tests/test_jev_advisor.py`、`tests/test_jev_efficiency.py`、`docs/jev_advisor.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：新增非法时钟和回退时钟回归；Jev advisor/efficient judge 定向测试 `22 passed`；WSL2 全量测试 `118 passed`；事件会话、高效判断、原有创新和专利化实验全部通过；ROS 2 Jazzy 两包构建成功；Windows `compileall`、前端 `node --check`、`git diff --check` 和 `.env` 跟踪检查通过。
+- 安全边界：时钟保护只维护缓存、预算、审计时间和旁路软证据的时序一致性，不赋予 Jev 控制机器人、解除 `SAFE_STOP` 或批准恢复的权限。

@@ -219,10 +219,12 @@ class JevEfficientJudge:
         self.advisor = advisor
         self.policy = policy or JevEfficiencyPolicy()
         self._clock = clock or time.monotonic
+        self._clock_lock = Lock()
+        self._last_clock: float | None = None
         self._lock = Lock()
         self._cache: OrderedDict[str, tuple[float, JevAssessment]] = OrderedDict()
         self._inflight: dict[str, _Inflight] = {}
-        self._window_started = float(self._clock())
+        self._window_started = self._now()
         self._remote_calls_in_window = 0
         self._total_requests = 0
         self._unverified = 0
@@ -237,7 +239,7 @@ class JevEfficientJudge:
         self._latencies: deque[float] = deque(maxlen=self.policy.max_latency_samples)
 
     def evaluate(self, context: SemanticContext) -> JevEfficientAssessment:
-        started = float(self._clock())
+        started = self._now()
         try:
             triage = self._triage(context)
         except (AttributeError, TypeError, ValueError, OverflowError):
@@ -276,7 +278,7 @@ class JevEfficientJudge:
                 started,
             )
 
-        now = float(self._clock())
+        now = self._now()
         cached = self._get_cache(fingerprint, now)
         if cached is not None:
             assessment = replace(
@@ -530,7 +532,7 @@ class JevEfficientJudge:
         return triage.score <= self.policy.safe_risk_threshold and assessment.score >= 0.8
 
     def _finish(self, result: JevEfficientAssessment, started: float) -> JevEfficientAssessment:
-        latency = max(0.0, (float(self._clock()) - started) * 1000.0)
+        latency = max(0.0, (self._now() - started) * 1000.0)
         result = replace(result, latency_ms=latency)
         with self._lock:
             self._total_requests += 1
@@ -552,6 +554,21 @@ class JevEfficientJudge:
             if result.disagreement:
                 self._disagreements += 1
         return result
+
+    def _now(self) -> float:
+        """Return a finite, non-decreasing clock value for cache/budget timing."""
+
+        try:
+            candidate = float(self._clock())
+        except (TypeError, ValueError, OverflowError):
+            candidate = float("nan")
+        with self._clock_lock:
+            if not math.isfinite(candidate):
+                candidate = self._last_clock if self._last_clock is not None else 0.0
+            elif self._last_clock is not None and candidate < self._last_clock:
+                candidate = self._last_clock
+            self._last_clock = candidate
+            return candidate
 
     @staticmethod
     def _percentile(values: list[float], percentile: float) -> float:

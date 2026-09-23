@@ -108,6 +108,12 @@ be committed or printed.
 - Rebinding a cached successful result to a replacement parent is allowed only while the original soft-evidence deadline remains in the future. The replacement record inherits the absolute deadline; a cache hit after that deadline cannot renew or resurrect evidence. A fresh provider success is required for a new lease.
 - The deterministic session experiment now reports the rebind deadline and verifies that the provider is called once, the replacement expires at the original deadline, and no Jev record remains active at that deadline.
 
+## Jev adapter clock findings (2026-09-23)
+
+- The session layer already protected observation timestamps, but the advisor and efficient judge still consumed their injected clocks directly. A malformed or non-finite value could enter `observed_at`, cache expiry, budget-window, or latency arithmetic; a finite clock rollback could shorten an advisor lease or create a negative elapsed interval.
+- Both layers now keep a separate clock lock and clamp every read to a finite non-decreasing value. The first invalid read uses `0.0`; later invalid reads reuse the last valid value. This is an input-timing guard only and does not alter local safety triage.
+- Regression tests cover a NaN-first advisor clock, advisor rollback, efficient-judge NaN timing, and efficient-judge rollback with cache reuse. Provider and control permissions are unchanged.
+
 ## Dashboard Jev connection findings (2026-09-21)
 
 - The official API is `POST https://api.typesafe.ai/v1/systemone` with a Bearer
