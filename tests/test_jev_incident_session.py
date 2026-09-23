@@ -114,22 +114,24 @@ def context(
     graph_risk=0.6,
     mission_criticality=0.6,
     event_confidence=0.8,
+    source_verified=True,
     temporal_codes=("REPLAY",),
     safety_state="NORMAL",
+    summary="verified command anomaly",
 ):
     return SemanticContext(
         event_id=event_id,
         component="nav",
         attack_type="UNSAFE_COMMAND",
         event_confidence=event_confidence,
-        source_verified=True,
+        source_verified=source_verified,
         temporal_codes=temporal_codes,
         graph_risk=graph_risk,
         mission_criticality=mission_criticality,
         active_components=("nav", "base"),
         safety_state=safety_state,
         sequence=sequence,
-        summary="verified command anomaly",
+        summary=summary,
     )
 
 
@@ -504,3 +506,56 @@ def test_different_sessions_serialize_ledger_append_without_serializing_judgment
     assert len(decisions) == 2
     assert ledger.concurrent_append is False
     assert ledger.verify()
+
+
+def test_session_signature_reuses_bounded_context_representation():
+    clock = Clock()
+    transport = Transport()
+    session = make_session(clock, transport, min_query_interval_sec=10.0)
+    shared_prefix = "X" * 64
+
+    first = session.observe(
+        context(temporal_codes=(shared_prefix + "first-tail" * 100,), summary="a" * 10000),
+        parent_evidence_id="event-proof",
+        incident_key="incident-bounded-context",
+    )
+    clock.now = 0.1
+    reused = session.observe(
+        context(
+            event_id="event-2",
+            sequence=2,
+            temporal_codes=(shared_prefix + "second-tail" * 100,),
+            summary="b" * 10000,
+        ),
+        parent_evidence_id="event-proof",
+        incident_key="incident-bounded-context",
+    )
+
+    assert first.route == JevSessionRoute.QUERIED
+    assert reused.route == JevSessionRoute.SESSION_REUSE
+    assert transport.calls == 1
+
+
+def test_non_boolean_source_verification_cannot_reuse_verified_session():
+    clock = Clock()
+    transport = Transport()
+    session = make_session(clock, transport, min_query_interval_sec=10.0)
+
+    first = session.observe(
+        context(),
+        parent_evidence_id="event-proof",
+        incident_key="incident-source-type",
+    )
+    clock.now = 0.1
+    invalid = session.observe(
+        context(event_id="event-2", sequence=2, source_verified="false"),
+        parent_evidence_id="event-proof",
+        incident_key="incident-source-type",
+    )
+
+    assert first.route == JevSessionRoute.QUERIED
+    assert invalid.route == JevSessionRoute.QUERIED
+    assert invalid.state == JevSessionState.CONTAINING
+    assert invalid.assessment is not None
+    assert invalid.assessment.route == JevRoute.SKIPPED_UNVERIFIED
+    assert transport.calls == 1

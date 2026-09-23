@@ -26,6 +26,8 @@
 - `JevEfficientJudge` 在 Jev 之前执行本地快速分流，并提供稳定指纹、TTL/LRU 缓存、single-flight 合并、调用预算和冲突指标；仍然只作为旁路建议。
 - `JevIncidentSession` 在高效判断和证据账本之间聚合事件、执行查询滞回，并将有期限的 Jev 软证据绑定到确定性父证据；账本异常时强制 `CONTAINING`。
 - `JevIncidentSession` 的同一会话决策和账本写回使用独立锁串行化，不同会话仍可并行；账本 `verify()+append()` 使用短全局临界区防止哈希链竞态；风险、任务关键性、事件置信度、来源验证和父证据变化会触发重新判断，会话容量在所有写回路径上受 `max_sessions` 限制。
+- 会话身份和查询签名复用 `SemanticContext.to_state()` 的有界文本、列表和数值规范化，防止超长输入在本地哈希和集合操作中放大资源消耗。
+- `source_verified` 只接受原生布尔值；`False` 或非布尔值不能复用已验证会话，统一经过 `SKIPPED_UNVERIFIED` 本地拒绝并进入 `CONTAINING`。
 
 本轮专利化安全核心新增：
 
@@ -303,3 +305,17 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 验证：跨会话账本竞态测试先失败后通过；会话测试 `13 passed`；全量 WSL2 测试 `95 passed`。事件会话、高效判断、原有六组创新和专利化五组实验仍报告 `passed: true`；ROS 2 Jazzy 两包构建、Python compileall、前端语法检查和 `git diff --check` 通过。当前改动只在本地 `main`，没有上传 GitHub。
 - 安全边界：锁只保证账本完整性，不授予 Jev 控制权；Jev 仍不能发布 `/cmd_vel`、解除 `SAFE_STOP`、修改速度限制或批准恢复。
 - 本地提交：`394a197 fix: harden Jev incident session concurrency`；工作区已清洁，`.env` 仍被 Git 跟踪。
+
+### 2026-09-23 — Bounded Jev session context hardening
+
+- 改动：会话 ID 和上下文签名不再直接读取原始上下文字段，统一复用 Jev 适配器的 `to_state()` 有界表示；时序码和活动组件去重排序，数值字段保留非法标记以触发重新判断，摘要、事件 ID 和序列号继续排除。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/jev_incident_session.py`、`tests/test_jev_incident_session.py`、`docs/jev_session_design.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：新增超长上下文回归通过；全量 WSL2 测试 `96 passed`；会话、高效判断、原有六组创新和专利化五组实验及 compileall 已通过，ROS 2 构建和前端语法检查正在本轮最终复核。当前仍只在本地 `main` 开发，不上传 GitHub。
+- 安全边界：有界规范化只限制本地判断资源，不改变确定性安全状态机；Jev 仍不能发布 `/cmd_vel`、解除 `SAFE_STOP`、修改速度限制或批准恢复。
+
+### 2026-09-23 — Strict source-verification hardening
+
+- 改动：修复 `bool("false")`/`bool(0)` 与 `True` 等价导致的会话复用绕过。会话签名保留严格原生布尔值，非法来源类型强制重新判断；`False` 或非布尔结果走 `SKIPPED_UNVERIFIED` 并进入 `CONTAINING`。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/jev_incident_session.py`、`tests/test_jev_incident_session.py`、`docs/jev_session_design.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：来源类型回归先失败后通过；全量 WSL2 测试 `97 passed`；会话、高效判断、原有六组创新和专利化五组实验、compileall、ROS 2 Jazzy 两包构建、前端语法检查和 `git diff --check` 均通过。仍只在本地 `main` 开发，不上传 GitHub。
+- 安全边界：非布尔来源不会触发远程调用，也不能解除已有的 `CONTAINING` 或 `SAFE_STOP` 状态。

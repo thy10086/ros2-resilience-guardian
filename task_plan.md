@@ -1,5 +1,31 @@
 # Implementation plan
 
+## Strict source-verification hardening (2026-09-23)
+
+- [complete] Reproduce the non-boolean `source_verified` session-reuse bypass.
+- [complete] Preserve strict boolean provenance in the session signature and fail closed through `SKIPPED_UNVERIFIED`.
+- [complete] Re-run tests, experiments, compile checks, ROS 2 build, and documentation verification before the local `main` commit.
+
+## Validation evidence: strict source verification (2026-09-23)
+
+- Source-type regression passed.
+- `python3 -m pytest -q tests`: `97 passed`.
+- Session, efficient Jev, original innovation, and patent innovation experiments passed; compileall passed.
+- ROS 2 Jazzy `colcon build --symlink-install`, frontend `node --check`, and `git diff --check` passed.
+
+## Bounded Jev session context hardening (2026-09-23)
+
+- [complete] Reproduce oversized summary and context-tail behavior with a focused regression.
+- [complete] Reuse `SemanticContext.to_state()` bounds and normalization for session identity and query signatures.
+- [complete] Re-run the full test, experiment, compile, and ROS 2 validation set; update handoff before the local `main` commit.
+
+## Validation evidence: bounded session context (2026-09-23)
+
+- Bounded-context regression passed.
+- `python3 -m pytest -q tests`: `96 passed`.
+- Session, efficient Jev, original innovation, and patent innovation experiments passed.
+- WSL2 Python compileall passed; ROS 2 build and frontend syntax check remain part of the final validation pass.
+
 ## Review hardening: Jev incident sessions (2026-09-23)
 
 - [complete] Reproduce same-session concurrency, ledger capacity, numeric semantic, and parent-rebind failures with focused tests.

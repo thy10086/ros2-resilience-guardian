@@ -1,5 +1,11 @@
 # Findings
 
+## Strict source-verification closure (2026-09-23)
+
+- Review found that `bool(context.source_verified)` collapsed the string `"false"` and integer `0` into the same signature as verified `True`. A previously verified session could therefore reuse an old Jev result during the minimum query interval.
+- The normalized signature now stores only a native boolean or `None` for an invalid type. Any change from verified `True` to `False` or a non-boolean forces a fresh local decision; `SKIPPED_UNVERIFIED` transitions to `CONTAINING` and never calls the provider.
+- Added a regression that starts with a verified observation and then supplies `source_verified="false"`; it confirms the old Jev result is not reused. The full suite now reports 97 passed.
+
 ## Jev incident session review closure (2026-09-23)
 
 - Independent review found four P2 risks: same-session updates could race, ledger-blocked writes bypassed `max_sessions`, three normalized semantic values did not trigger a re-query, and parent evidence changes could reuse an old binding.
@@ -13,6 +19,12 @@
 - A second review found that independent session locks still allowed two different incidents to execute `EvidenceLedger.verify()` and `append()` concurrently. That could compute the same previous hash and invalidate the append-only chain, turning a concurrency burst into a system-wide `LEDGER_BLOCKED` condition.
 - Added a short-lived manager-level ledger lock around the verification-plus-append transaction. It does not cover provider calls or local judgment, so independent incident sessions retain parallel query execution.
 - Added a deterministic two-session concurrency test with an instrumented ledger; it proves appends do not overlap and the final chain verifies. The session suite is now 13 passed and the complete suite is 95 passed.
+
+## Bounded session-context closure (2026-09-23)
+
+- The remote advisor already bounded text and list fields, but the new session ID and context signature initially read raw values. A crafted long component, temporal code, or active-component list could therefore consume unbounded local CPU and memory before the request was sent.
+- Session identity and query signatures now reuse `SemanticContext.to_state()` normalization, then apply the same sorting/deduplication and invalid-numeric markers used by session gating. Event IDs, sequence numbers, and summaries remain excluded.
+- Added a regression with 10,000-character summaries and long temporal-code tails; the bounded prefix reuses the same session and provider call. The full suite now reports 96 passed after this hardening.
 
 ## Jev incident session design (2026-09-23)
 

@@ -328,7 +328,7 @@ class JevIncidentSession:
         now: float,
     ) -> JevSessionState:
         safety_state = str(context.safety_state or "UNKNOWN").upper()
-        if result.route == JevRoute.LOCAL_ENFORCED or safety_state in {"SAFE_STOP", "CONTAINING"}:
+        if result.route in {JevRoute.LOCAL_ENFORCED, JevRoute.SKIPPED_UNVERIFIED} or safety_state in {"SAFE_STOP", "CONTAINING"}:
             record.below_review_since = None
             return JevSessionState.CONTAINING
         assessment = result.assessment
@@ -430,34 +430,37 @@ class JevIncidentSession:
         return max(0.0, min(1.0, score))
 
     @staticmethod
+    def _normalized_context_state(context: SemanticContext) -> dict[str, Any]:
+        state = context.to_state()
+        state.pop("event_id", None)
+        state.pop("sequence", None)
+        state.pop("summary", None)
+        state["temporal_codes"] = sorted(set(str(code).upper() for code in state.get("temporal_codes", ())))
+        state["active_components"] = sorted(set(str(item) for item in state.get("active_components", ())))
+        state["attack_type"] = str(state.get("attack_type", "")).lower()
+        state["safety_state"] = str(state.get("safety_state", "UNKNOWN")).upper()
+        state["source_verified"] = context.source_verified if type(context.source_verified) is bool else None
+        for field in ("graph_risk", "mission_criticality", "event_confidence"):
+            valid, number = _unit(getattr(context, field, None))
+            state[field] = round(number, 12) if valid else None
+        return state
+
+    @staticmethod
     def _session_id(context: SemanticContext, incident_key: str | None) -> str:
         if incident_key and str(incident_key).strip():
             return str(incident_key).strip()[:128]
+        state = JevIncidentSession._normalized_context_state(context)
         payload = {
-            "component": str(context.component or ""),
-            "attack_type": str(context.attack_type or "").lower(),
-            "active_components": sorted(str(item) for item in (context.active_components or ())),
+            "component": state.get("component", ""),
+            "attack_type": state.get("attack_type", ""),
+            "active_components": state.get("active_components", []),
         }
         return f"incident-{hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:24]}"
 
     @staticmethod
     def _context_signature(context: SemanticContext, parent_evidence_id: str | None = None) -> str:
-        def normalized_unit(value: Any) -> float | None:
-            valid, number = _unit(value)
-            return round(number, 12) if valid else None
-
-        payload = {
-            "component": str(context.component or ""),
-            "attack_type": str(context.attack_type or "").lower(),
-            "temporal_codes": sorted(str(code).upper() for code in (context.temporal_codes or ())),
-            "active_components": sorted(str(item) for item in (context.active_components or ())),
-            "safety_state": str(context.safety_state or "UNKNOWN").upper(),
-            "source_verified": bool(context.source_verified),
-            "graph_risk": normalized_unit(context.graph_risk),
-            "mission_criticality": normalized_unit(context.mission_criticality),
-            "event_confidence": normalized_unit(context.event_confidence),
-            "parent_evidence_id": str(parent_evidence_id or "")[:256],
-        }
+        payload = JevIncidentSession._normalized_context_state(context)
+        payload["parent_evidence_id"] = str(parent_evidence_id or "")[:256]
         return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
     @staticmethod

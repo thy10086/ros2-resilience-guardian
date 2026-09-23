@@ -1,5 +1,9 @@
 # Progress
 
+- 2026-09-23: Closed a source-verification type confusion found in review. Strict native-boolean handling now forces re-evaluation and `CONTAINING` for `False` or non-boolean values; the regression and full suite pass with `97 passed`.
+
+- 2026-09-23: Hardened the Jev session boundary against oversized context fields. Session IDs and signatures now reuse the advisor's bounded `to_state()` representation, preserve invalid numeric markers, and exclude free-form summaries, event IDs, and sequence numbers. A long-input regression passed; full tests now report `96 passed`.
+
 - 2026-09-23: Independent review of the Jev session layer found four P2 issues. Added per-session serialization, unified bounded session write-back, complete normalized semantic signatures, and parent-evidence-change rebind semantics.
 - 2026-09-23: Added four regression tests for same-session concurrency, ledger-blocked capacity, mission/confidence-triggered re-query, and parent evidence rebinding. Red phase reproduced all four failures; the green phase passed session tests `12/12` and full tests `94 passed`.
 - 2026-09-23: Session experiments, efficient Jev experiments, the six-group innovation suite, the five-group patent suite, and Python compileall all passed after review hardening. Development remains local on `main`; no GitHub push was made.
