@@ -202,7 +202,8 @@ class JevIncidentSession:
         incident_key: str | None = None,
         now: float | None = None,
     ) -> JevSessionDecision:
-        observed_at = self._observed_at(now)
+        started_at = self._observed_at(None)
+        observed_at = started_at if now is None else self._observed_at(now)
         session_id = self._session_id(context, incident_key)
         with self._lock:
             record = self._sessions.get(session_id)
@@ -259,32 +260,36 @@ class JevIncidentSession:
                 created_at=observed_at,
                 last_seen=observed_at,
             )
-        next_state = self._transition(record, context, result, effective_score, observed_at)
         ledger_bound = False
         ledger_evidence_id: str | None = None
-        ledger_blocked = False
-        if queried and self._eligible_soft_advice(result, allow_cached=parent_changed):
-            ledger_bound, ledger_evidence_id, ledger_blocked = self._append_soft_evidence(
-                record,
-                session_id,
-                context,
-                parent_evidence_id,
-                observed_at,
-                result,
-            )
-            if ledger_blocked:
-                next_state = JevSessionState.CONTAINING
-                record.below_review_since = None
+        with self._ledger_lock:
+            # Include provider/coalescing and ledger-lock wait time, even when
+            # the caller uses a replay timestamp with a different clock origin.
+            completed_at = observed_at + max(0.0, self._observed_at(None) - started_at)
+            parent = self._active_parent_unlocked(parent_evidence_id, completed_at)
+            ledger_blocked = parent is None
+            if parent is not None and queried and self._eligible_soft_advice(result, allow_cached=parent_changed):
+                ledger_bound, ledger_evidence_id, ledger_blocked = self._append_soft_evidence_unlocked(
+                    record, session_id, context, parent, observed_at, completed_at, result,
+                )
+        if ledger_blocked:
+            next_state = JevSessionState.CONTAINING
+            record.below_review_since = None
+            effective_score = 1.0
+        else:
+            next_state = self._transition(record, context, result, effective_score, completed_at)
 
         record.state = next_state
-        record.last_seen = observed_at
+        record.last_seen = completed_at
         record.last_local_score = local_score
         record.last_context_signature = context_signature
         record.last_safety_state = str(context.safety_state or "UNKNOWN").upper()
         record.last_result = None if ledger_blocked else result
         record.last_parent_evidence_id = parent_evidence_id
         record.observation_count += 1
-        if queried:
+        if ledger_blocked:
+            record.last_query_at = None
+        elif queried:
             record.last_query_at = observed_at
         self._store_record(session_id, record)
 
@@ -303,9 +308,9 @@ class JevIncidentSession:
             ledger_bound=ledger_bound,
             ledger_evidence_id=ledger_evidence_id,
             observation_count=record.observation_count,
-            expires_at=observed_at + self.config.session_ttl_sec,
+            expires_at=completed_at + self.config.session_ttl_sec,
             reason=reason,
-            assessment=result,
+            assessment=None if ledger_blocked else result,
         )
 
     def _should_query(
@@ -384,17 +389,17 @@ class JevIncidentSession:
             and (allow_cached or (result.remote_called and result.assessment.status == JevAssessmentStatus.OK))
         )
 
-    def _append_soft_evidence(
+    def _append_soft_evidence_unlocked(
         self,
         record: _SessionRecord,
         session_id: str,
         context: SemanticContext,
-        parent_evidence_id: str | None,
+        parent: Evidence,
         observed_at: float,
+        completed_at: float,
         result: JevEfficientAssessment,
     ) -> tuple[bool, str | None, bool]:
-        if not parent_evidence_id:
-            return False, None, True
+        """Append with the ledger lock held and a completion-validated parent."""
         assessment = result.assessment
         assert assessment is not None
         advice_payload = assessment.audit_payload()
@@ -410,43 +415,39 @@ class JevIncidentSession:
             if record.last_advice_identity != advice_identity or record.last_evidence_expires_at is None:
                 return False, None, False
             expires_at = record.last_evidence_expires_at
-        if expires_at <= observed_at:
+        expires_at = min(expires_at, parent.expires_at)
+        if expires_at <= completed_at:
             return False, None, False
         material = json.dumps(
             {
                 "session": session_id,
                 "fingerprint": result.fingerprint,
-                "observed_at": observed_at,
+                "observed_at": completed_at,
                 "count": record.observation_count,
             },
             sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
         evidence_id = f"jev-{hashlib.sha256(material).hexdigest()[:24]}"
-        with self._ledger_lock:
-            parent = self._active_parent_unlocked(parent_evidence_id, observed_at)
-            if parent is None:
-                return False, None, True
-            expires_at = min(expires_at, parent.expires_at)
-            try:
-                evidence = Evidence(
-                    evidence_id=evidence_id,
-                    source="jev",
-                    kind="semantic_advice",
-                    node=str(context.component or "unknown"),
-                    observed_at=observed_at,
-                    expires_at=expires_at,
-                    confidence=assessment.confidence,
-                    severity=assessment.score,
-                    policy_version=self.config.policy_version,
-                    parent_ids=(parent_evidence_id,),
-                    supersedes=record.last_evidence_id,
-                    verified=True,
-                    hard_stop=False,
-                )
-                self.ledger.append(evidence)
-            except (TypeError, ValueError):
-                return False, None, True
+        try:
+            evidence = Evidence(
+                evidence_id=evidence_id,
+                source="jev",
+                kind="semantic_advice",
+                node=str(context.component or "unknown"),
+                observed_at=completed_at,
+                expires_at=expires_at,
+                confidence=assessment.confidence,
+                severity=assessment.score,
+                policy_version=self.config.policy_version,
+                parent_ids=(parent.evidence_id,),
+                supersedes=record.last_evidence_id,
+                verified=True,
+                hard_stop=False,
+            )
+            self.ledger.append(evidence)
+        except (TypeError, ValueError):
+            return False, None, True
         record.last_evidence_id = evidence_id
         record.last_advice_identity = advice_identity
         record.last_evidence_expires_at = expires_at

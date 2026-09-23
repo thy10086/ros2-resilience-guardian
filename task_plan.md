@@ -1,5 +1,28 @@
 # Implementation plan
 
+## Current heartbeat: validate parent lifetime after judgment (2026-09-24 02:00 CST)
+
+- [complete] Reproduce expiry during provider execution and parent invalidation on failed provider results.
+- [complete] Sample elapsed session-clock time after judgment; validate all results against an active parent before transition/append in the short ledger transaction.
+- [complete] Keep soft TTL anchored to the request observation; translate elapsed time for explicit replay timestamps and preserve valid delayed responses.
+- [complete] Add an offline delayed-provider scenario, run relevant/full tests, all experiments, ROS 2 build, syntax/diff checks, update HANDOFF/progress/findings, obtain review, and commit locally on main.
+- Scope: existing advisory session only. No live API, credentials, control changes, database migrations, or GitHub push.
+
+## Validation evidence: completion-time parent validation
+
+- [complete] Session timing/integrity regressions: `47 passed`.
+- [complete] `run_jev_session_experiments.py`: delayed parent expires during provider call and returns `LEDGER_BLOCKED/CONTAINING` without soft evidence.
+- [complete] Full WSL2 test suite, all offline experiments, ROS 2 Jazzy build, frontend syntax, diff check, `.env` tracking, and independent review.
+
+## Final validation evidence: completion-time parent validation
+
+- WSL2 `Ubuntu-24.04` `python3 -m pytest -q tests`: `145 passed`.
+- `run_jev_session_experiments.py`, `run_jev_efficiency_experiments.py`, `run_innovation_experiments.py`, and `run_patent_innovation_experiments.py`: all passed; delayed parent evidence returned `LEDGER_BLOCKED/CONTAINING` with one provider call.
+- ROS 2 Jazzy `colcon build --symlink-install`: `guardian_interfaces` and `guardian_core` finished successfully.
+- Windows `compileall`, frontend `node --check`, `git diff --check`, and tracked `.env` check: passed.
+- Independent review: no P0–P2 findings. Local `main` commit recorded after validation.
+
+
 ## Current heartbeat: preserve Jev outcomes across reuse (2026-09-24 01:00 CST)
 
 - [complete] Reproduce failed single-flight results being promoted to `CACHED` and cache hits dropping disagreement flags with deterministic tests.

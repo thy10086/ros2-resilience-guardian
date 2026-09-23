@@ -218,6 +218,35 @@ def main() -> int:
         incident_key="incident-lease",
     )
 
+    # The parent must still be active when a delayed provider result returns.
+    delayed_clock = Clock()
+    delayed_transport = StubTransport()
+    delayed_ledger = EvidenceLedger()
+    delayed_ledger.append(Evidence(
+        evidence_id="short-event-proof",
+        source="verifier",
+        kind="verified_event",
+        node="nav",
+        observed_at=0.0,
+        expires_at=1.0,
+        confidence=1.0,
+        severity=0.6,
+        policy_version="p1",
+        verified=True,
+    ))
+
+    def delayed_provider(*args):
+        delayed_clock.now = 1.5
+        return delayed_transport(*args)
+
+    delayed_session = make_session(delayed_clock, delayed_provider, delayed_ledger)
+    delayed = delayed_session.observe(
+        make_context("delayed", 50),
+        parent_evidence_id="short-event-proof",
+        incident_key="incident-delayed-parent",
+        now=0.0,
+    )
+
     evidence = {
         "burst_provider_calls": transport.calls,
         "burst_routes": [item.route.value for item in burst],
@@ -232,6 +261,9 @@ def main() -> int:
         "lease_rebound_expires_at": lease_bound[0].expires_at,
         "lease_expired_route": lease_expired.route.value,
         "lease_active_records_at_deadline": len([item for item in lease_ledger.active(5.0) if item.source == "jev"]),
+        "delayed_parent_route": delayed.route.value,
+        "delayed_parent_state": delayed.state.value,
+        "delayed_parent_provider_calls": delayed_transport.calls,
     }
     assert transport.calls == 2
     assert burst[0].route == JevSessionRoute.QUERIED
@@ -248,6 +280,11 @@ def main() -> int:
     assert lease_bound and lease_bound[0].expires_at == 5.0
     assert lease_expired.ledger_bound is False
     assert evidence["lease_active_records_at_deadline"] == 0
+    assert delayed.route == JevSessionRoute.LEDGER_BLOCKED
+    assert delayed.state == JevSessionState.CONTAINING
+    assert delayed.assessment is None
+    assert delayed.ledger_bound is False
+    assert delayed_transport.calls == 1
     print(json.dumps({"passed": True, "experiment": "jev_incident_session", "evidence": evidence}, indent=2))
     return 0
 

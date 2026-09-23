@@ -154,3 +154,15 @@ be committed or printed.
 - Open-source reference: Go `golang/sync/singleflight` returns the original value/error to both owner and followers while reporting sharing separately (`return c.val, c.err, true`, `Result{c.val, c.err, c.dups > 0}`). This informs the result contract only; no code is copied.
 
 - The follower path now preserves failed assessment status/reason and returns `UNAVAILABLE` for a shared failure; only usable advice is labelled `COALESCED`/`CACHED`. Cache hits recompute the disagreement predicate for the current local triage, so review-required conflicts are not lost when event IDs or sequences change.
+## Jev completion-time parent validation (2026-09-24)
+
+- Both existing parent checks use the initial observation timestamp. Advancing the injected session clock while the provider executes is therefore invisible to the append gate; evidence can be bound after its parent has expired.
+- The post-provider check is inside the eligible-soft-advice branch, so failed provider responses skip it entirely, even when the provider execution coincides with parent replacement or ledger invalidation.
+- Proposed boundary: retain the observation time for the soft-evidence deadline, translate elapsed session-clock time into the caller's timeline, and validate parent activity at completion for every result. Explicit replay timestamps can have a different origin from the injected clock; comparing their absolute values would break replay callers.
+
+- Implemented boundary: completion validation now runs for successful and failed results under the ledger lock. The session adds elapsed internal-clock time to the requested observation origin; delayed valid advice uses the remaining lease, while an expired parent or exhausted lease cannot be appended.
+
+## Open-source landscape check (2026-09-24)
+
+- A fresh unauthenticated GitHub repository search revisited `rajavardhan28/IDS_ROS2`, `seergiromero/ROS2-Intrusion-Detection`, `debrup393/ros2-intrusion-detection-iot`, `giacomozanatta/sros2-policy-clustering`, and related ROS 2 security-monitoring projects.
+- These references cover intrusion detection, SROS 2 policy work, or application monitoring. None provides the current combination of completion-time parent-lineage validation, bounded Jev advisory evidence, and append-only ledger binding; they remain prior-art references only. No external code or dependency was copied.

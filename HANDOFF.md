@@ -36,6 +36,7 @@
 - `JevSemanticAdvisor` 与 `JevEfficientJudge` 的注入时钟现在都经过有限、单调不减的保护；非法、NaN、无穷或回退时间不会制造负延迟、倒退缓存 TTL 或提前重置调用预算。
 - advisor 和高效判断层的缓存租约彼此独立；高效层只接受新鲜 `OK` 结果启动自己的 TTL，advisor 返回的 `CACHED` 结果不会续租高效层，避免下层缓存让上层缓存无限存活。
 - single-flight 等待者会保留 owner 的失败状态和原因；只有可用的 `OK`/`CACHED` 建议才标记为 `COALESCED`，缓存命中和并发复用都会按当前本地 triage 重新计算 Jev 冲突，避免 `REVIEW_REQUIRED` 信号丢失。
+- 会话用完成时刻重新验证父证据和完整 lineage；provider 期间过期、被替代、祖先失效或账本篡改时，成功和失败结果都不会写回软证据。显式回放时间保留调用方原点，provider 等待耗时从软证据剩余 TTL 中扣除。
 
 本轮专利化安全核心新增：
 
@@ -376,3 +377,10 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 文件：`ros2_ws/src/guardian_core/guardian_core/jev_efficiency.py`、`tests/test_jev_efficiency.py`、`tests/test_jev_incident_session.py`、`docs/jev_advisor.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
 - 验证：新增 5 种失败状态的并发复用、成功冲突复用、普通缓存冲突和会话复核回归；定向 Jev/会话测试 `54 passed`；WSL2 全量测试 `130 passed`；事件会话、高效判断、原有创新和专利化实验全部通过；ROS 2 Jazzy 两包构建成功；Windows `compileall`、前端 `node --check`、`git diff --check` 和 `.env` 跟踪检查通过。
 - 安全边界：结果传播修复只恢复失败和冲突的审计语义，Jev 仍不能发布 `/cmd_vel`、解除 `SAFE_STOP`、修改速度限制或批准恢复。
+
+### 2026-09-24 — Jev completion-time parent validation
+
+- 改动：修复 provider 执行期间父证据过期或 lineage 失效仍可能通过初始时间检查的问题。会话在判断完成后用内部时钟测量经过时间，将其映射到显式回放时间的原点，并在统一账本临界区重新验证 parent/ancestor/ledger；失败 provider 也必须通过该检查。软证据的截止时间仍从观测时刻计算，但迟到结果只能使用剩余租约，已耗尽的 TTL 不会写入。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/jev_incident_session.py`、`tests/test_jev_incident_session.py`、`experiments/run_jev_session_experiments.py`、`docs/jev_session_design.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：新增 provider 延迟导致父/祖先过期、替代、篡改、失败返回和显式回放时间边界测试；session 测试 `47 passed`，WSL2 Ubuntu-24.04 全量测试 `145 passed`，延迟父证据实验返回 `LEDGER_BLOCKED/CONTAINING` 且 provider 仅调用一次；四组离线实验、ROS 2 Jazzy 两包构建、Windows compileall、前端 `node --check`、`git diff --check` 和 `.env` 跟踪检查均通过。独立复审未发现 P0–P2 风险。
+- 安全边界：完成时刻校验只收紧软证据有效性，不授予 Jev 控制机器人、解除 `SAFE_STOP`、修改速度限制或批准恢复的权限。

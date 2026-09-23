@@ -751,3 +751,109 @@ def test_new_session_retains_review_requirement_when_cached_advice_conflicts():
     assert cached.assessment.disagreement
     assert not cached.ledger_bound
     assert transport.calls == 1
+
+
+@pytest.mark.parametrize("delay", [1.0, 1.5])
+@pytest.mark.parametrize("provider_fails", [False, True])
+@pytest.mark.parametrize("explicit_time", [False, True])
+def test_parent_expiring_during_judgment_blocks_at_completion(delay, provider_fails, explicit_time):
+    # Explicit replay time need not share the clock's origin.
+    origin = 10.0 if explicit_time else 0.0
+    clock = Clock(now=1000.0 if explicit_time else origin)
+    transport = Transport(error=TimeoutError("offline timeout") if provider_fails else None)
+    ledger = EvidenceLedger()
+    ledger.append(Evidence("event-proof", "verifier", "verified_event", "nav", origin, origin + 1.0, 1.0, 0.6, "p1", verified=True))
+    before = ledger.anchor()
+
+    def delayed_transport(*args):
+        clock.now += delay
+        return transport(*args)
+
+    session = make_session(clock, delayed_transport, ledger=ledger)
+    decision = session.observe(context(), parent_evidence_id="event-proof", incident_key="delayed-parent", now=origin if explicit_time else None)
+
+    assert decision.route == JevSessionRoute.LEDGER_BLOCKED
+    assert decision.state == JevSessionState.CONTAINING
+    assert decision.queried and transport.calls == 1
+    assert decision.assessment is None
+    assert not decision.ledger_bound and decision.ledger_evidence_id is None
+    assert decision.expires_at == origin + delay + session.config.session_ttl_sec
+    assert ledger.anchor() == before
+
+
+def test_ancestor_expiring_during_judgment_blocks_append():
+    clock, transport = Clock(), Transport()
+    ledger = EvidenceLedger()
+    ancestor = Evidence("ancestor", "verifier", "verified_event", "nav", 0.0, 1.0, 1.0, 0.6, "p1", verified=True)
+    ledger.append(ancestor)
+    ledger.append(replace(ancestor, evidence_id="event-proof", expires_at=100.0, parent_ids=("ancestor",)))
+    before = ledger.anchor()
+
+    def delayed_transport(*args):
+        clock.now = 1.0
+        return transport(*args)
+
+    session = make_session(clock, delayed_transport, ledger=ledger)
+    decision = session.observe(context(), parent_evidence_id="event-proof")
+    assert decision.route == JevSessionRoute.LEDGER_BLOCKED
+    assert decision.state == JevSessionState.CONTAINING
+    assert decision.assessment is None
+    assert ledger.anchor() == before
+
+
+@pytest.mark.parametrize("problem", ["replacement", "tamper"])
+def test_failed_provider_still_rechecks_parent_integrity(problem):
+    clock, ledger = Clock(), parent_ledger()
+    transport = Transport(error=TimeoutError("offline timeout"))
+    root = Evidence(**ledger.export()[0]["evidence"])
+
+    def invalidating_transport(*args):
+        if problem == "replacement":
+            ledger.append(replace(root, evidence_id="replacement", supersedes="event-proof"))
+        else:
+            ledger._records[0] = replace(root, confidence=0.5)
+        return transport(*args)
+
+    session = make_session(clock, invalidating_transport, ledger=ledger)
+    decision = session.observe(context(), parent_evidence_id="event-proof")
+    assert transport.calls == 1
+    assert decision.route == JevSessionRoute.LEDGER_BLOCKED
+    assert decision.state == JevSessionState.CONTAINING
+    assert decision.assessment is None
+    assert not decision.ledger_bound
+    assert not any(item["evidence"]["source"] == "jev" for item in ledger.export())
+
+
+@pytest.mark.parametrize("delay", [3.0, 4.0])
+def test_provider_wait_cannot_restart_an_exhausted_soft_evidence_lifetime(delay):
+    clock, transport, ledger = Clock(), Transport(), parent_ledger()
+    before = ledger.anchor()
+
+    def delayed_transport(*args):
+        clock.now += delay
+        return transport(*args)
+
+    session = make_session(clock, delayed_transport, ledger=ledger, soft_evidence_ttl_sec=3.0)
+    decision = session.observe(context(), parent_evidence_id="event-proof")
+    assert decision.route == JevSessionRoute.QUERIED
+    assert not decision.ledger_bound and decision.ledger_evidence_id is None
+    assert ledger.anchor() == before
+
+
+@pytest.mark.parametrize("explicit_time", [False, True])
+def test_valid_delayed_advice_consumes_ttl_without_mixing_clock_origins(explicit_time):
+    origin = 10.0 if explicit_time else 0.0
+    clock = Clock(now=1000.0 if explicit_time else origin)
+    transport, ledger = Transport(), parent_ledger()
+
+    def delayed_transport(*args):
+        clock.now += 2.0
+        return transport(*args)
+
+    session = make_session(clock, delayed_transport, ledger=ledger, soft_evidence_ttl_sec=3.0)
+    decision = session.observe(context(), parent_evidence_id="event-proof", now=origin if explicit_time else None)
+    assert decision.ledger_bound
+    soft = next(item for item in ledger.active(origin + 2.0) if item.source == "jev")
+    assert soft.observed_at == origin + 2.0
+    assert soft.expires_at == origin + 3.0
+    assert ledger.verify()
