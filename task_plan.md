@@ -1,5 +1,29 @@
 # Implementation plan
 
+## Current task: provenance-bound predictive safety research (2026-09-23)
+
+- [complete] Implement the user-approved architecture in docs/patent_implementation_plan.md.
+- [complete] Test graph provenance, evidence integrity, predictive braking and two-phase recovery.
+- [complete] Run controlled comparisons; prepare technical disclosure with implementation mapping.
+- [complete] Run full verification, update HANDOFF, and create the main commit.
+
+## Verification record: provenance-bound predictive safety research (2026-09-23)
+
+- [complete] Implement the user-approved architecture in `docs/patent_implementation_plan.md`.
+- [complete] Test graph provenance, evidence integrity, predictive braking and two-phase recovery.
+- [complete] Run controlled comparisons; prepare technical disclosure with implementation mapping.
+- [complete] Fix review findings for stale recovery proofs, proof-ID replay, and exported-ledger lineage validation.
+- [complete] Validate WSL2/ROS 2 and update handoff before the `main` commit.
+
+## Current validation evidence
+
+- WSL2 `python3 -m pytest -q tests/test_patent_core.py`: `38 passed`.
+- WSL2 `python3 -m pytest -q tests`: `73 passed`.
+- `experiments/run_innovation_experiments.py`: 6 groups passed.
+- `experiments/run_patent_innovation_experiments.py`: 5 groups passed.
+- Windows `compileall`, frontend `node --check`, and `git diff --check`: passed.
+- WSL2 ROS 2 Jazzy `colcon build --symlink-install`: `guardian_interfaces` and `guardian_core` built successfully.
+
 ## Current task: optional Jev semantic security advisor
 
 - [complete] Define a bounded, fail-safe Jev integration that cannot directly actuate or release the robot.

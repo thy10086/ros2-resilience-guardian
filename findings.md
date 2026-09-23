@@ -1,5 +1,12 @@
 # Findings
 
+## Patent-oriented research (2026-09-23)
+
+- User approved implementation of the proposed four-module architecture. Existing baseline is clean `e9c4932` on main, including Jev advisory and dashboard test features.
+- Read official GitHub repository metadata and README for `ros2/sros2` (DDS-Security tooling) and `nickovic/rtamt` (online/offline STL monitoring); Nav2 metadata confirms the navigation framework. These existing building blocks are prior-art leads, not novelty clearance.
+- Research scope: operational dependency paths, not statistically inferred causality; latency-aware stopping under an explicit 1-D braking model; recovery credentials bound to topology, policy, evidence anchor and command epoch.
+- Public GitHub content predates this work. New disclosure must distinguish already-public features from the new combination; patent search and professional review remain necessary before filing.
+
 ## Repository facts
 
 - The project already has a ROS 2 Jazzy `guardian_node` publishing risk,
@@ -55,3 +62,10 @@ be committed or printed.
   redirect cannot carry the Authorization header to another host. API keys are
   restricted to printable ASCII before entering that header; state text keeps
   Unicode support and is still bounded/redacted by the advisor.
+
+## Patent-core review closure (2026-09-23)
+
+- Recovery authorization is bound to both the protocol state and the latest observation. A proof issued for `g1` is rejected after a `g2` observation, a failed observation, or any intervening observation, even if the caller presents an older observation within the proof TTL.
+- `proof_id` is now included in the proof signature material, so replacing the identifier cannot bypass the one-time-use set.
+- Export verification reconstructs the same parent and replacement constraints as in-memory verification. A hash-correct export with a missing parent, expired/unverified parent, cross-policy parent, or soft replacement of a hard-stop record is rejected.
+- These closure tests are included in `tests/test_patent_core.py`; the final WSL2 run reported 73 total tests passing. The implementation remains a pure Python safety-core validation and does not imply cryptographic identity, DDS authorization, or physical actuator certification.

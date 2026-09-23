@@ -32,6 +32,30 @@ from .dashboard_jev import (
     JevRequestError,
     parse_request,
 )
+from .assurance import AssuranceController, AssuranceDecision, Counterfactual
+from .causal_graph import (
+    CausalEdge,
+    CausalNode,
+    GraphChange,
+    GraphSnapshot,
+    RiskTrace,
+    compare_graphs,
+    trace_risk,
+)
+from .evidence_ledger import Evidence, EvidenceLedger, LedgerAnchor
+from .predictive_envelope import (
+    MotionSample,
+    PredictiveConfig,
+    PredictiveDecision,
+    PredictiveEnvelope,
+)
+from .recovery_protocol import (
+    RecoveryConfig,
+    RecoveryDecision as RecoveryProtocolDecision,
+    RecoveryObservation,
+    RecoveryProof,
+    RecoveryProtocol,
+)
 
 __all__ = [
     "ActionType", "AttackEvent", "AuditLogger", "GuardianConfig", "MitigationPlan",
@@ -43,4 +67,10 @@ __all__ = [
     "SafetyEnvelopeController", "SafetyEnvelopeDecision",
     "JevAdvisorConfig", "JevAssessment", "JevAssessmentStatus", "JevSemanticAdvisor", "SemanticContext",
     "JevDashboardService", "JevProxyResponse", "JevRequestError", "parse_request",
+    "AssuranceController", "AssuranceDecision", "Counterfactual",
+    "CausalEdge", "CausalNode", "GraphChange", "GraphSnapshot", "RiskTrace",
+    "compare_graphs", "trace_risk", "Evidence", "EvidenceLedger", "LedgerAnchor",
+    "MotionSample", "PredictiveConfig", "PredictiveDecision", "PredictiveEnvelope",
+    "RecoveryConfig", "RecoveryProtocolDecision", "RecoveryObservation", "RecoveryProof",
+    "RecoveryProtocol",
 ]

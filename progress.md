@@ -1,5 +1,14 @@
 # Progress
 
+- 2026-09-23: Resumed approved patent-oriented development from clean main e9c4932. Read planning/TDD/verification skills, checked relevant open-source references, and recorded exact interfaces and validation in docs/patent_implementation_plan.md. No secrets or global environment variables changed.
+
+- 2026-09-23: Added red tests for causal graph provenance, evidence lineage/tamper detection, predictive envelope, assurance counterfactuals, and two-phase recovery; initial collection failed because the new modules were absent.
+- 2026-09-23: Implemented five research-core modules and exported their typed APIs. Target patent tests passed with 9 passed; deterministic patent experiment passed all five groups, including 0.315 m/s fixed-envelope versus 0.175 m/s growing-risk prediction and replay/context invalidation.
+- 2026-09-23: Added adversarial regression tests for graph cycles/duplicates, lineage expiry and policy binding, ledger export/tamper failure, risk dilution, braking infeasibility, invalid motion input, forged/replayed recovery proofs, risk/context changes, observation gaps, and legacy export compatibility.
+- 2026-09-23: Fixed the discovered boundary failures; patent-core tests now pass with 32 passed, and the five-group patent innovation experiment passes again.
+- 2026-09-23: Closed the review findings in the recovery and evidence boundaries. Recovery authorization now requires the protocol to remain in `RECOVERY_CANDIDATE`, binds the proof to the latest observation, rejects intervening observations and failed observations, and signs `proof_id` to prevent identifier substitution/replay. Exported ledgers now recheck parent existence, expiry, verification, policy lineage, and hard-stop replacement rules.
+- 2026-09-23: Revalidated after the fixes: `tests/test_patent_core.py` passed with 38 tests; the full WSL2 suite passed with 73 tests; both innovation experiment suites passed; Windows compileall, frontend `node --check`, `git diff --check`, and ROS 2 Jazzy `colcon build --symlink-install` passed for both packages.
+
 - 2026-09-18: Inspected repository, current commit, tracked `.env`, ROS 2
   packages, and existing plan.
 - 2026-09-18: Queried GitHub repository search for ROS 2 security, SROS 2, and

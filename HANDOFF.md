@@ -24,6 +24,14 @@
 - `RecoveryGate` 要求无活动攻击、图稳定、传感器新鲜、策略有效、命令清空和驻留时间完成后才允许恢复。
 - `JevSemanticAdvisor` 提供可选的语义安全旁路：只接收已验证事件的限长摘要，返回有界的攻击类型、任务影响、置信度和人工复核建议；默认关闭，不参与实时控制。
 
+本轮专利化安全核心新增：
+
+- CausalGraph 为 ROS 2 节点—话题—执行器路径生成带出处的图指纹、风险路径和图变更记录。
+- EvidenceLedger 保存父子证据、策略版本、哈希链锚点和替代关系；账本验证失败时 AssuranceController 强制 SAFE_STOP。
+- PredictiveEnvelope 把控制/传感器延迟、制动距离、不确定度和风险增长纳入预测速度包络。
+- AssuranceController 输出证据保障等级和只读反事实解释；硬停车证据不能被普通证据平均稀释。
+- RecoveryProtocol 使用 RECOVERY_PROBING → RECOVERY_CANDIDATE → RESUMABLE 和绑定图/策略/账本/命令代次的一次性凭据。
+
 ### 2.2 ROS 2 集成
 
 - `guardian_interfaces` 提供 `AttackEvent`、`RiskState`、`MitigationCommand` 和 `SafetyStatus` 消息。
@@ -80,7 +88,16 @@ API Key 不从环境变量读取，也不会写入浏览器存储、ROS 消息�
 | `docs/fusion_experiment_plan.md` | 图传播、时序规则、证据融合和安全速度的后续实验设计 |
 | `docs/innovation_validation.md` | 当前创新实验的结果、原理和判定过程 |
 | `docs/jev_advisor.md` | Jev 旁路的使用方式、隐私边界和离线验证说明 |
-| `tests/` | 核心引擎、驾驶舱状态缓存和 Jev 代理契约测试 |
+| `ros2_ws/src/guardian_core/guardian_core/causal_graph.py` | 带出处的运行时因果风险图和图指纹 |
+| `ros2_ws/src/guardian_core/guardian_core/evidence_ledger.py` | 父子证据、哈希链锚点和完整性验证 |
+| `ros2_ws/src/guardian_core/guardian_core/predictive_envelope.py` | 延迟补偿、风险增长和制动距离安全包络 |
+| `ros2_ws/src/guardian_core/guardian_core/assurance.py` | 保障等级、硬停车和反事实解释 |
+| `ros2_ws/src/guardian_core/guardian_core/recovery_protocol.py` | 双阶段恢复和上下文绑定凭据 |
+| `experiments/run_patent_innovation_experiments.py` | 专利化架构的五组确定性对照实验 |
+| `docs/patent_disclosure.md` | 技术交底书草案和权利要求方向 |
+| `docs/patent_prior_art.md` | SROS 2、Nav2 Collision Monitor、RTAMT 等参考边界 |
+| `docs/patent_experiments.md` | 新架构实验结果、限制和后续指标 |
+| `tests/` | 核心引擎、驾驶舱、Jev 代理和专利化内核契约测试 |
 | `.env` | 已跟踪的安全默认配置；不要写入真实密钥 |
 
 ## 4. 环境和运行命令
@@ -130,7 +147,7 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 ## 5. 已执行的验证
 
 - Windows Python 语法编译和 `DashboardState` 状态缓存 smoke test 通过。
-- WSL2 中 `python3 -m pytest -q tests` 通过，当前结果为 `23 passed`，包含 Jev 适配器的禁用、脱敏、缓存、错误回退、配置校验、响应类型校验和未验证事件跳过测试。
+- WSL2 中 `python3 -m pytest -q tests` 通过，当前结果为 `73 passed`，包含 Jev 适配器、跨层融合、因果路径、账本完整性、预测包络、保障解释和双阶段恢复测试。
 - ROS 2 Jazzy `colcon build --symlink-install` 成功构建 `guardian_interfaces` 和 `guardian_core`。
 - 真实 `guardian_dashboard` 进程已验证 `/api/health`、`/api/state` 和 HTML 页面可访问。
 - 已确认 `.env` 被 Git 跟踪，远程 GitHub 树中也存在 `.env`。
@@ -139,6 +156,8 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - WSL2 Ubuntu-24.04 中 `python3 -m pytest -q tests` 通过，当前结果为 `35 passed`；新增 `tests/test_dashboard_jev.py` 覆盖 Jev 代理请求限制、成功响应、401/429、超时、非法响应、控制字符 key、provider echo 脱敏、endpoint allowlist、redirect 防护和 API Key 不泄露。Windows Python `compileall` 也通过。
 - 使用确定性 fake transport 的 dashboard HTTP smoke test 验证 `/api/jev/test` 成功响应、坏 JSON 的 400 和超大请求的 413；真实无效 key 请求实际到达 TypeSafe 并返回 401，页面显示安全失败状态；前端 `node --check` 通过。
 - 纯 Python 图传播、时序规则、证据融合、安全速度包络和恢复门控已经实现并通过单元测试；它们仍未接入真实 ROS 2 live graph、`guardian_node`、SROS 2/DDS 权限或 Webots 底盘。
+- 专利化五组实验 `python3 experiments/run_patent_innovation_experiments.py` 已通过：固定包络 `0.315 m/s` 对比风险增长预测包络 `0.175 m/s`；图变更、篡改、恢复凭据重放和反事实解释均有结果。
+- `python -m compileall` 和 ROS 2 Jazzy `colcon build --symlink-install` 已通过；新增模块仍是纯 Python 安全内核，没有宣称已接入实机控制或 DDS 权限执行。
 
 ## 6. GitHub 发布状态
 
@@ -231,3 +250,18 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 安全边界：API Key 只由用户在单次浏览器请求中提供，暂存于进程内并放入上游 `Authorization` header；不写入 `.env`、浏览器存储、ROS 状态、审计记录、响应或日志。Dashboard transport 禁止自动 HTTP 重定向，且只允许官方 endpoint 或显式 localhost 测试 endpoint。Jev 结果不能改变安全状态、速度限制、恢复门控或机器人命令。
 - 验证：WSL2 `python3 -m pytest -q tests` 为 `35 passed`；`python -m compileall -q ros2_ws/src/guardian_core/guardian_core tests` 和 `node --check ros2_ws/src/guardian_core/guardian_core/frontend/app.js` 通过；fake transport HTTP smoke test 验证成功、400 和 413 路径，真实无效 key 验证上游 401 映射，浏览器验证空 key、失败、成功和清空状态。未用真实 API Key 做线上成功调用。
 - 风险或后续：TypeSafe 是早期体验远程服务，真实延迟、配额和准确率未评估；生产部署应继续只绑定本机、使用短生命周期密钥，并在需要时增加异步队列、速率限制和更严格的 endpoint allowlist。
+
+### 2026-09-23 — `feat: add provenance-bound predictive safety core`
+
+- 改动：新增带出处因果图、哈希链证据账本、延迟补偿预测安全包络、保障反事实解释和上下文绑定双阶段恢复协议；增加专利化技术交底、现有技术边界和五组确定性对照实验。
+- 文件：新增 causal_graph.py、evidence_ledger.py、predictive_envelope.py、assurance.py、recovery_protocol.py、test_patent_core.py、run_patent_innovation_experiments.py 以及 docs/patent_*.md；更新 guardian_core 导出、README、task_plan、findings、progress。
+- 验证：全量 WSL2 测试 73 passed；原有六组创新实验和新五组专利化实验通过；Windows compileall 通过；ROS 2 Jazzy 两包构建完成；.env 仍被 Git 跟踪。
+- 边界：新增模块仍是纯 Python 研究内核，未接入真实 ROS 2 live graph、DDS 权限执行、Webots 底盘或实机制动；交底书不是专利法律意见，正式申请前需检索和专业审查。
+
+### 2026-09-23 — 修复恢复凭据与导出账本审查缺口
+
+- 改动：恢复协议授权现在要求当前状态仍为 `RECOVERY_CANDIDATE`，并检查最新观测的上下文、时间和风险必须与 proof 一致；中间观测、图/策略/账本变化、失败观测都会使旧 proof 失效。proof ID 纳入签名材料，修改 ID 或复制已使用 proof 不能再次授权。`EvidenceLedger.verify_export` 现在重建父证据 lineage，检查父证据存在、已验证、未过期、策略一致，以及 `supersedes` 的来源和硬停车约束。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/recovery_protocol.py`、`evidence_ledger.py`、`tests/test_patent_core.py`、`progress.md`、`task_plan.md`。
+- 验证：专利核心测试 `38 passed`；全量 WSL2 测试 `73 passed`；原有六组和专利化五组实验全部通过；Windows `compileall`、前端 `node --check`、`git diff --check` 通过；ROS 2 Jazzy 两包 `colcon build --symlink-install` 成功。
+- 风险或后续：当前 proof 签名仍属于进程内完整性校验，尚未接入 DDS 身份、硬件密钥或外部可信执行环境；恢复协议和账本模块仍需接入真实 ROS 2 节点后做端到端时序与故障注入验证。
+- 发布状态：本地 `main` 已创建提交；尝试推送 `origin/main` 时 GitHub 返回 `Permission denied (publickey)`，因此本轮变更尚未同步到远程。未复用旧令牌，也未将凭据写入仓库、远程地址或日志。

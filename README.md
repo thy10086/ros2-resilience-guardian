@@ -93,9 +93,15 @@ Guardian 安全状态、速度限制或机器人命令。
 python3 experiments/run_innovation_experiments.py
 ```
 
+运行专利化安全核心的五组对照实验：
+
+    python3 experiments/run_patent_innovation_experiments.py
+
 可选的 Jev 语义安全顾问见 [docs/jev_advisor.md](docs/jev_advisor.md)。它只对已经通过确定性验证的事件摘要做分类和人工复核建议，默认关闭，不进入 `guardian_node` 的实时控制循环，也不能解除停车或直接控制底盘。离线实验使用 stub provider，不需要 API Key。
 
 跨层融合扩展的实验设计见 [docs/fusion_experiment_plan.md](docs/fusion_experiment_plan.md)，实现边界和后续 ROS 2 接入步骤见 [docs/fusion_implementation_plan.md](docs/fusion_implementation_plan.md)。当前跨层模块已完成纯 Python 离线验证，但还没有直接接管真实底盘、Webots 或 ROS 2 live graph introspection。
+
+专利化研究方案、现有技术边界和对照实验见 [docs/patent_disclosure.md](docs/patent_disclosure.md)、[docs/patent_prior_art.md](docs/patent_prior_art.md) 和 [docs/patent_experiments.md](docs/patent_experiments.md)。当前新增的因果图、证据账本、预测安全包络、反事实解释和双阶段恢复协议已完成纯 Python 离线验证，尚未宣称完成实机认证或专利授权。
 ## Current implementation status
 
 Implemented in this repository:
