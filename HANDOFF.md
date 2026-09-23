@@ -29,6 +29,8 @@
 - 会话身份和查询签名复用 `SemanticContext.to_state()` 的有界文本、列表和数值规范化，防止超长输入在本地哈希和集合操作中放大资源消耗。
 - `source_verified` 只接受原生布尔值；`False` 或非布尔值不能复用已验证会话，统一经过 `SKIPPED_UNVERIFIED` 本地拒绝并进入 `CONTAINING`。
 - `JevSemanticAdvisor` 直连入口也执行同一严格检查，在缓存和网络之前拒绝非布尔或 `False` 来源，避免绕过事件会话层直接外发未验证上下文。
+- 会话观测时间遇到非法或非有限显式输入时回退到注入的内部时钟，内部时钟也无效时才使用 `0.0`，避免调用方格式错误让安全判断异常退出。
+- 同一会话的有限观测时间也必须单调不减；早于 `last_seen` 的输入会被钳制，避免 TTL 延长、负查询间隔或倒退软证据时间。
 
 本轮专利化安全核心新增：
 
@@ -327,3 +329,17 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 文件：`ros2_ws/src/guardian_core/guardian_core/jev_advisor.py`、`tests/test_jev_advisor.py`、`docs/jev_advisor.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
 - 验证：直接适配器回归先失败后通过；全量 WSL2 测试 `98 passed`；会话、高效判断、原有六组创新和专利化五组实验、compileall、ROS 2 Jazzy 两包构建、前端语法检查和 `git diff --check` 均通过。仍只在本地 `main` 开发，不上传 GitHub。
 - 安全边界：此修复只收紧来源门控，不改变 Jev 旁路权限；Jev 仍不能发布 `/cmd_vel`、解除 `SAFE_STOP`、修改速度限制或批准恢复。
+
+### 2026-09-23 — Observation-time input hardening
+
+- 改动：新增有限时间解析路径。`now` 为非数字、`NaN`、无穷或不可转换对象时使用注入时钟，只有时钟也无效时才回退到有限的 `0.0`；正常 TTL 和软证据过期规则保持不变。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/jev_incident_session.py`、`tests/test_jev_incident_session.py`、`docs/jev_session_design.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：非法时间回归先失败后通过；全量 WSL2 测试 `99 passed`；会话、高效判断、原有六组创新和专利化五组实验、compileall、ROS 2 Jazzy 两包构建、前端语法和 `git diff --check` 均通过。仍只在本地 `main` 开发，不上传 GitHub。
+- 安全边界：时间回退只处理输入格式错误，不授予 Jev 控制权，也不会让未来时间延长软证据寿命。
+
+### 2026-09-23 — Monotonic session time hardening
+
+- 改动：修复有限但倒退的时间戳会回写 `last_seen`、延长 TTL 和制造负查询间隔的问题。现在同一事件会话的观测时间在读取记录后钳制到已有 `last_seen`。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/jev_incident_session.py`、`tests/test_jev_incident_session.py`、`docs/jev_session_design.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：时间回退回归先失败后通过；全量 WSL2 测试 `100 passed`；会话、高效判断、原有六组创新和专利化五组实验、compileall、ROS 2 Jazzy 两包构建、前端语法和 `git diff --check` 均通过。仍只在本地 `main` 开发，不上传 GitHub。
+- 安全边界：钳制只保护会话时间线和软证据时效，不改变 Jev 旁路权限或解除安全状态。

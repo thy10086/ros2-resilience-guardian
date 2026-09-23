@@ -1,5 +1,17 @@
 # Findings
 
+## Monotonic session-time closure (2026-09-23)
+
+- Follow-up review found that a finite timestamp earlier than a session's `last_seen` could still move the record backward, extend its effective TTL, and create a negative query interval.
+- Observations now clamp to the existing session `last_seen` before expiry and query decisions. Soft evidence and returned expiry timestamps therefore remain monotonic per session.
+- Added a regression with `10.0` followed by `5.0`; the session keeps the `40.0` expiry and does not write `5.0`. Full validation now reports 100 passed.
+
+## Observation-time input closure (2026-09-23)
+
+- `JevIncidentSession` previously called `float(now)` directly. A malformed explicit timestamp could raise before ledger checks or local containment, allowing an input-driven denial of service.
+- Observation time now uses the injected monotonic clock when the supplied value is invalid or non-finite, with `0.0` as the final fallback if the clock itself is unusable. Valid timestamps and TTL behavior are unchanged.
+- Added a regression with `now="not-a-time"`; the decision completes normally and uses the trusted clock. Full validation after the fix reports 99 passed.
+
 ## Advisor provenance type closure (2026-09-23)
 
 - Direct `JevSemanticAdvisor.evaluate()` previously used truthiness for `source_verified`, so a string such as `"false"` could pass the provenance gate and reach the remote transport.

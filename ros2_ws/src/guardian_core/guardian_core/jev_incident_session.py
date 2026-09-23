@@ -154,6 +154,20 @@ class JevIncidentSession:
         self._sessions: OrderedDict[str, _SessionRecord] = OrderedDict()
         self._session_locks: dict[str, Lock] = {}
 
+    def _observed_at(self, supplied: float | None) -> float:
+        candidate = self._clock() if supplied is None else supplied
+        try:
+            value = float(candidate)
+        except (TypeError, ValueError, OverflowError):
+            value = float("nan")
+        if math.isfinite(value):
+            return value
+        try:
+            fallback = float(self._clock())
+        except (TypeError, ValueError, OverflowError):
+            fallback = 0.0
+        return fallback if math.isfinite(fallback) else 0.0
+
     def observe(
         self,
         context: SemanticContext,
@@ -186,12 +200,12 @@ class JevIncidentSession:
         incident_key: str | None = None,
         now: float | None = None,
     ) -> JevSessionDecision:
-        observed_at = float(self._clock() if now is None else now)
-        if not math.isfinite(observed_at):
-            observed_at = 0.0
+        observed_at = self._observed_at(now)
         session_id = self._session_id(context, incident_key)
         with self._lock:
             record = self._sessions.get(session_id)
+            if record is not None and observed_at < record.last_seen:
+                observed_at = record.last_seen
             expired = record is not None and observed_at - record.last_seen > self.config.session_ttl_sec
             if expired:
                 self._sessions.pop(session_id, None)

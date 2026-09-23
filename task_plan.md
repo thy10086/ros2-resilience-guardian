@@ -1,5 +1,29 @@
 # Implementation plan
 
+## Monotonic session-time hardening (2026-09-23)
+
+- [complete] Reproduce finite timestamp rollback and TTL/query-interval corruption.
+- [complete] Clamp each observation to the current session `last_seen` before state or ledger updates.
+- [complete] Run full tests, experiments, compile checks, ROS 2 build, and handoff updates before the local `main` commit.
+
+## Validation evidence: monotonic session time (2026-09-23)
+
+- Timestamp rollback regression passed.
+- `python3 -m pytest -q tests`: `100 passed`.
+- Session, efficient Jev, original innovation, and patent innovation experiments, compileall, ROS 2 build, frontend syntax, and diff check passed.
+
+## Observation-time input hardening (2026-09-23)
+
+- [complete] Reproduce malformed explicit timestamp failure in `JevIncidentSession.observe`.
+- [complete] Fall back to the injected clock for invalid/non-finite values and retain a finite final fallback.
+- [complete] Run tests, experiments, compile checks, ROS 2 build, and handoff updates before the local `main` commit.
+
+## Validation evidence: observation-time input (2026-09-23)
+
+- Invalid-time regression passed.
+- `python3 -m pytest -q tests`: `99 passed`.
+- Session, efficient Jev, original innovation, and patent innovation experiments, compileall, ROS 2 build, frontend syntax, and diff check passed.
+
 ## Direct Jev advisor provenance hardening (2026-09-23)
 
 - [complete] Reproduce truthiness-based `source_verified` transport bypass at the base advisor API.

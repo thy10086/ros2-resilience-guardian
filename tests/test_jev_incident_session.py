@@ -559,3 +559,40 @@ def test_non_boolean_source_verification_cannot_reuse_verified_session():
     assert invalid.assessment is not None
     assert invalid.assessment.route == JevRoute.SKIPPED_UNVERIFIED
     assert transport.calls == 1
+
+
+def test_invalid_observation_time_does_not_crash_session_decision():
+    clock = Clock(now=5.0)
+    session = make_session(clock, Transport())
+
+    decision = session.observe(
+        context(),
+        parent_evidence_id="event-proof",
+        incident_key="incident-invalid-time",
+        now="not-a-time",
+    )
+
+    assert decision.route == JevSessionRoute.QUERIED
+    assert decision.expires_at == 35.0
+
+
+def test_session_time_cannot_move_backwards_and_extend_ttl():
+    clock = Clock(now=0.0)
+    session = make_session(clock, Transport(), min_query_interval_sec=10.0)
+
+    first = session.observe(
+        context(),
+        parent_evidence_id="event-proof",
+        incident_key="incident-time-order",
+        now=10.0,
+    )
+    second = session.observe(
+        context(event_id="event-2", sequence=2),
+        parent_evidence_id="event-proof",
+        incident_key="incident-time-order",
+        now=5.0,
+    )
+
+    assert first.expires_at == 40.0
+    assert second.expires_at == 40.0
+    assert session._sessions["incident-time-order"].last_seen == 10.0

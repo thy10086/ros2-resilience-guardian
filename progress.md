@@ -1,5 +1,9 @@
 # Progress
 
+- 2026-09-23: Closed finite timestamp rollback after review. Session observations now clamp to `last_seen`; the rollback regression and full suite pass with `100 passed`, while all experiments and ROS 2 validation remain green.
+
+- 2026-09-23: Hardened session observation-time parsing. Invalid or non-finite explicit timestamps now fall back to the injected clock instead of throwing; the regression, all experiments, and full suite pass with `99 passed`.
+
 - 2026-09-23: Closed the same provenance type-confusion at the direct `JevSemanticAdvisor` boundary. Non-Boolean `source_verified` values are now rejected before cache/network handling; the direct-advisor regression and full suite pass with `98 passed`.
 
 - 2026-09-23: Closed a source-verification type confusion found in review. Strict native-boolean handling now forces re-evaluation and `CONTAINING` for `False` or non-boolean values; the regression and full suite pass with `97 passed`.
