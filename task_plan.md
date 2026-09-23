@@ -1,5 +1,28 @@
 # Implementation plan
 
+## Current heartbeat: concurrent Jev budget/cache rollover (2026-09-24 04:00 CST)
+
+- [complete] Reproduce an older concurrent request resetting a newer budget window after its pre-lock time sample is delayed.
+- [complete] Keep the reservation window monotonic without widening provider locks or changing the configured budget algorithm; verify exhaustion and the next legitimate reset.
+- [complete] Extend the offline efficiency experiment, run relevant/full tests and ROS 2 build, review the diff, update handoff/progress/findings, and commit locally on main.
+- Reference: inspected Go `golang/time/rate` reservation/advance handling (https://github.com/golang/time/blob/master/rate/rate.go); different token-bucket algorithm, reference only, no copied code or new dependency.
+- Scope: existing Jev advisory cache and call budget only; no external provider calls or GitHub push.
+
+## Validation evidence: concurrent Jev budget/cache rollover
+
+- [complete] Red/green regression: `2 failed` before the lock-time fix, `2 passed` after it.
+- [complete] Red/green cache-lifetime regression: `1 failed` before the lock-time fix, `1 passed` after it.
+- [complete] `tests/test_jev_efficiency.py`: `25 passed`; `run_jev_efficiency_experiments.py`: passed with budget routes `REMOTE`, `BUDGET_EXHAUSTED`, `BUDGET_EXHAUSTED`, `REMOTE` and expired-cache route `REMOTE`.
+- [complete] Full WSL2 test suite, all offline experiments, ROS 2 Jazzy build, final review, and local commit.
+
+## Final validation evidence: concurrent Jev budget/cache rollover
+
+- WSL2 `Ubuntu-24.04` `python3 -m pytest -q tests`: `147 passed`.
+- All four offline experiment suites passed; the efficiency experiment reports the budget routes `REMOTE`, `BUDGET_EXHAUSTED`, `BUDGET_EXHAUSTED`, `REMOTE` and expired-cache route `REMOTE`.
+- ROS 2 Jazzy `colcon build --symlink-install`: `guardian_interfaces` and `guardian_core` finished successfully.
+- Windows `compileall`, frontend `node --check`, `git diff --check`, and tracked `.env` check: passed.
+- Independent review: no P0–P2 findings. Local `main` commit follows after staging this record.
+
 ## Current heartbeat: validate parent lifetime after judgment (2026-09-24 02:00 CST)
 
 - [complete] Reproduce expiry during provider execution and parent invalidation on failed provider results.

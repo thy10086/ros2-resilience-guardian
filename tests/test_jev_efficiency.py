@@ -269,6 +269,80 @@ def test_call_budget_returns_local_fallback_after_budget_is_exhausted():
     assert judge.metrics().budget_exhausted == 1
 
 
+@pytest.mark.parametrize("rollover_at", [60.0, 120.0])
+def test_delayed_request_cannot_reset_a_newer_budget_window(monkeypatch, rollover_at):
+    clock = [0.0]
+    transport = Transport()
+    judge = make_judge(transport, clock=lambda: clock[0], max_remote_calls=1, budget_window_sec=60.0)
+    delayed_context = context(summary="older paused ambiguity")
+    delayed_fingerprint = judge._fingerprint(delayed_context)
+    paused, release = threading.Event(), threading.Event()
+    original_get_cache = judge._get_cache
+
+    def pause_after_cache_lookup(fingerprint, now):
+        result = original_get_cache(fingerprint, now)
+        if fingerprint == delayed_fingerprint:
+            paused.set()
+            assert release.wait(5.0), "delayed request was not released"
+        return result
+
+    monkeypatch.setattr(judge, "_get_cache", pause_after_cache_lookup)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        older = executor.submit(judge.evaluate, delayed_context)
+        try:
+            assert paused.wait(2.0), "request did not reach the pre-reservation boundary"
+            clock[0] = rollover_at
+            newer = judge.evaluate(context(event_id="new-window", summary="newer ambiguity"))
+        finally:
+            release.set()
+        delayed = older.result(timeout=2.0)
+
+    following = judge.evaluate(context(event_id="following", summary="another ambiguity"))
+    assert newer.route == JevRoute.REMOTE
+    assert delayed.route == following.route == JevRoute.BUDGET_EXHAUSTED
+    assert not delayed.remote_called and delayed.local_score == newer.local_score
+    assert len(transport.calls) == 1
+    assert judge.metrics().budget_exhausted == 2
+
+    clock[0] = rollover_at + 59.999
+    assert judge.evaluate(context(summary="before next deadline")).route == JevRoute.BUDGET_EXHAUSTED
+    clock[0] = rollover_at + 60.0
+    assert judge.evaluate(context(summary="at next deadline")).route == JevRoute.REMOTE
+    assert len(transport.calls) == 2
+
+
+def test_delayed_cache_lookup_cannot_reuse_expired_efficient_advice(monkeypatch):
+    clock = [0.0]
+    transport = Transport()
+    judge = make_judge(transport, clock=lambda: clock[0], cache_ttl_sec=5.0)
+    cached_context = context(summary="cache race")
+    cached_fingerprint = judge._fingerprint(cached_context)
+    assert judge.evaluate(cached_context).route == JevRoute.REMOTE
+    paused, release = threading.Event(), threading.Event()
+    original_get_cache = judge._get_cache
+
+    def delayed_cache_lookup(fingerprint, now):
+        if fingerprint == cached_fingerprint:
+            paused.set()
+            assert release.wait(5.0), "delayed cache lookup was not released"
+        return original_get_cache(fingerprint, now)
+
+    monkeypatch.setattr(judge, "_get_cache", delayed_cache_lookup)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        delayed = executor.submit(judge.evaluate, cached_context)
+        try:
+            assert paused.wait(2.0), "request did not reach the cache boundary"
+            clock[0] = 6.0
+            judge._now()
+        finally:
+            release.set()
+        result = delayed.result(timeout=2.0)
+
+    assert result.route == JevRoute.REMOTE
+    assert not result.cache_hit
+    assert len(transport.calls) == 1
+
+
 def test_remote_disagreement_is_reported_without_changing_local_enforcement():
     transport = Transport(response(label="benign", impact="low", review=0.0))
     judge = make_judge(transport)

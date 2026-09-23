@@ -37,6 +37,7 @@
 - advisor 和高效判断层的缓存租约彼此独立；高效层只接受新鲜 `OK` 结果启动自己的 TTL，advisor 返回的 `CACHED` 结果不会续租高效层，避免下层缓存让上层缓存无限存活。
 - single-flight 等待者会保留 owner 的失败状态和原因；只有可用的 `OK`/`CACHED` 建议才标记为 `COALESCED`，缓存命中和并发复用都会按当前本地 triage 重新计算 Jev 冲突，避免 `REVIEW_REQUIRED` 信号丢失。
 - 会话用完成时刻重新验证父证据和完整 lineage；provider 期间过期、被替代、祖先失效或账本篡改时，成功和失败结果都不会写回软证据。显式回放时间保留调用方原点，provider 等待耗时从软证据剩余 TTL 中扣除。
+- 高效判断层在缓存/预算状态锁内重新采样时间，暂停在缓存查找阶段的旧请求不能复活过期建议、回滚并重置较新的固定窗口；新的预约时间也用于 provider 缓存租约起点。
 
 本轮专利化安全核心新增：
 
@@ -384,3 +385,17 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 文件：`ros2_ws/src/guardian_core/guardian_core/jev_incident_session.py`、`tests/test_jev_incident_session.py`、`experiments/run_jev_session_experiments.py`、`docs/jev_session_design.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
 - 验证：新增 provider 延迟导致父/祖先过期、替代、篡改、失败返回和显式回放时间边界测试；session 测试 `47 passed`，WSL2 Ubuntu-24.04 全量测试 `145 passed`，延迟父证据实验返回 `LEDGER_BLOCKED/CONTAINING` 且 provider 仅调用一次；四组离线实验、ROS 2 Jazzy 两包构建、Windows compileall、前端 `node --check`、`git diff --check` 和 `.env` 跟踪检查均通过。独立复审未发现 P0–P2 风险。
 - 安全边界：完成时刻校验只收紧软证据有效性，不授予 Jev 控制机器人、解除 `SAFE_STOP`、修改速度限制或批准恢复的权限。
+
+### 2026-09-24 — Concurrent Jev budget rollover hardening
+
+- 改动：修复高效判断层在 cache lookup 后被挂起的旧请求使用过时时间重置新调用预算窗口的问题。预算时间现在在 reservation lock 内重新采样，provider 缓存租约也从该新鲜时间开始；没有改变固定窗口配置、provider 权限或本地安全分流。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/jev_efficiency.py`、`tests/test_jev_efficiency.py`、`experiments/run_jev_efficiency_experiments.py`、`docs/jev_advisor.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：并发预算回归修复前 `2 failed`、修复后 `2 passed`；高效判断定向测试 `24 passed`，离线效率实验通过并验证 `REMOTE → BUDGET_EXHAUSTED → BUDGET_EXHAUSTED → REMOTE` 路由。全量测试、ROS 2 构建、最终复审和本地提交待本轮完成。
+- 安全边界：预算修复只防止 Jev 资源窗口被旧并发请求回滚，不改变 Jev 旁路权限；Jev 仍不能发布 `/cmd_vel`、解除 `SAFE_STOP`、修改速度限制或批准恢复。
+
+### 2026-09-24 — Concurrent Jev budget/cache rollover hardening
+
+- 改动：在同一并发时序中，高效层的旧缓存查找也可能以过时时间复活已过期建议。现在缓存过期判断和预算预约都在状态锁内重新采样有限单调时钟，provider 租约从新鲜预约时间开始。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/jev_efficiency.py`、`tests/test_jev_efficiency.py`、`experiments/run_jev_efficiency_experiments.py`、`docs/jev_advisor.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：预算竞态回归修复前 `2 failed`、修复后 `2 passed`；过期缓存竞态回归修复前 `1 failed`、修复后 `1 passed`；高效判断定向测试 `25 passed`，离线效率实验验证预算窗口和过期缓存两条路径；WSL2 全量测试 `147 passed`，四组离线实验、ROS 2 Jazzy 两包构建、Windows compileall、前端 `node --check`、`git diff --check` 和 `.env` 跟踪检查均通过，独立复审无 P0–P2。
+- 安全边界：本轮只限制 Jev 缓存和调用预算的并发时序，不改变 Jev 旁路权限；Jev 仍不能发布 `/cmd_vel`、解除 `SAFE_STOP`、修改速度限制或批准恢复。

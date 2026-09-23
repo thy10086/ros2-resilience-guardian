@@ -1,5 +1,12 @@
 # Findings
 
+## Concurrent budget-window closure (2026-09-24 04:00 CST)
+
+- `JevEfficientJudge.evaluate()` samples `now` before `_get_cache()` and acquiring the reservation lock. Monotonic clock reads do not imply chronological reservation order across threads.
+- `_reserve_budget_locked()` reset the counter when `now < _window_started`; an older paused request therefore replenished a window another thread already advanced. The new two-thread regression reproduced this twice before the fix.
+- Inspected the open-source Go `golang/time/rate` reservation/advance methods: token updates are serialized, and a timestamp older than the last update adds no elapsed refill. The project's fixed-window budget will keep its existing algorithm; this is a concurrency reference, not imported code.
+- The cache-expiry and reservation timestamps are now sampled while the judge lock is held, and the fresh reservation value starts the provider cache lease. The regressions confirm the newer request is `REMOTE`, both older/same-window requests are `BUDGET_EXHAUSTED`, the next legitimate window is `REMOTE`, and an expired cache race returns `REMOTE` instead of `CACHE`.
+
 ## Monotonic session-time closure (2026-09-23)
 
 - Follow-up review found that a finite timestamp earlier than a session's `last_seen` could still move the record backward, extend its effective TTL, and create a negative query interval.

@@ -304,9 +304,14 @@ class JevEfficientJudge:
 
         budget_exhausted = False
         with self._lock:
+            # A caller can be descheduled between the cache lookup and this
+            # lock. Sample the clock after acquiring the reservation lock so
+            # an older request cannot roll the fixed window back after a
+            # newer request has already advanced it.
+            reservation_now = self._now()
             flight = self._inflight.get(fingerprint)
             owner = flight is None
-            if owner and not self._reserve_budget_locked(now):
+            if owner and not self._reserve_budget_locked(reservation_now):
                 self._budget_exhausted += 1
                 budget_exhausted = True
             if owner:
@@ -388,7 +393,7 @@ class JevEfficientJudge:
         try:
             assessment = self.advisor.evaluate(context)
             if assessment.status in {JevAssessmentStatus.OK, JevAssessmentStatus.CACHED}:
-                self._put_cache(fingerprint, assessment, now)
+                self._put_cache(fingerprint, assessment, reservation_now)
             disagreement = self._is_disagreement(triage, assessment)
             route = JevRoute.DISAGREEMENT if disagreement else (
                 JevRoute.REMOTE if assessment.status in {JevAssessmentStatus.OK, JevAssessmentStatus.CACHED}
@@ -503,6 +508,10 @@ class JevEfficientJudge:
 
     def _get_cache(self, fingerprint: str, now: float) -> JevAssessment | None:
         with self._lock:
+            # Re-sample after acquiring the cache lock. A caller can be
+            # descheduled after its first clock read; using that stale value
+            # could revive an efficient-layer entry past its TTL.
+            now = max(now, self._now())
             entry = self._cache.get(fingerprint)
             if entry is None:
                 return None
