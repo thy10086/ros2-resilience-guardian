@@ -31,6 +31,8 @@
 - `JevSemanticAdvisor` 直连入口也执行同一严格检查，在缓存和网络之前拒绝非布尔或 `False` 来源，避免绕过事件会话层直接外发未验证上下文。
 - 会话观测时间遇到非法或非有限显式输入时回退到注入的内部时钟，内部时钟也无效时才使用 `0.0`，避免调用方格式错误让安全判断异常退出。
 - 同一会话的有限观测时间也必须单调不减；早于 `last_seen` 的输入会被钳制，避免 TTL 延长、负查询间隔或倒退软证据时间。
+- Jev 软证据写回前后都会验证父证据：父记录必须 active、已验证、策略版本匹配、不是 Jev 软证据，且完整父链可验证；父记录缺失、过期、未来生效、被替代或祖先失效时，判断在 provider 前直接阻断。
+- 父证据在 provider 调用期间被替代时，追加阶段的第二次检查会拒绝写回。缓存判断切换到新父证据时继承旧软证据的绝对截止时间；过期缓存不能刷新或复活软证据，只有新的 provider 成功结果能建立新租约。
 
 本轮专利化安全核心新增：
 
@@ -343,3 +345,10 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 文件：`ros2_ws/src/guardian_core/guardian_core/jev_incident_session.py`、`tests/test_jev_incident_session.py`、`docs/jev_session_design.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
 - 验证：时间回退回归先失败后通过；全量 WSL2 测试 `100 passed`；会话、高效判断、原有六组创新和专利化五组实验、compileall、ROS 2 Jazzy 两包构建、前端语法和 `git diff --check` 均通过。仍只在本地 `main` 开发，不上传 GitHub。
 - 安全边界：钳制只保护会话时间线和软证据时效，不改变 Jev 旁路权限或解除安全状态。
+
+### 2026-09-23 — Jev parent-evidence lifetime hardening
+
+- 改动：将父证据生命周期纳入 Jev 会话的前置门控和账本写回事务。父证据必须当前 active、已验证、策略版本一致、来源/类型属于确定性证据，并通过完整 lineage 校验；父证据失效时不查询 provider。provider 运行期间再次验证父证据，发现替代或过期则进入 `LEDGER_BLOCKED/CONTAINING`。缓存的成功判断重新绑定父证据时沿用原软证据绝对截止时间，截止后缓存命中不能续租或复活，新的软证据必须来自新的 provider 成功结果。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/jev_incident_session.py`、`tests/test_jev_incident_session.py`、`experiments/run_jev_session_experiments.py`、`docs/jev_session_design.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：新增父证据缺失/过期/未来/未验证/策略不一致/被替代/祖先失效、调用期间替代、缓存重绑定 TTL 和过期不续租回归；WSL2 全量测试 `114 passed`；事件会话、高效判断、原有创新和专利化实验全部通过；ROS 2 Jazzy 两包构建成功；Windows `compileall`、前端 `node --check`、`git diff --check` 和 `.env` 跟踪检查通过。
+- 安全边界：Jev 仍是旁路建议，不能发布 `/cmd_vel`、解除 `SAFE_STOP`、修改速度限制或批准恢复；本轮没有外部 API 调用或 GitHub 上传。

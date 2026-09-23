@@ -1,5 +1,26 @@
 # Implementation plan
 
+## Current heartbeat: soft-evidence lifetime and live parent binding (2026-09-23 22:00 CST)
+
+- [complete] Reproduce cached parent-rebinding TTL renewal and reuse of expired/superseded parent evidence.
+- [complete] Keep the original soft-evidence deadline when rebinding cached advice; require an active, policy-matching parent before judgment and append.
+- [complete] Run targeted/full tests and ROS 2 build, update HANDOFF and commit locally on main.
+- Scope: existing advisory library only; no external API calls or GitHub push. An attempted read of cachetools TTLCache source timed out; no external implementation is imported.
+
+## Validation evidence: parent-evidence lifetime (2026-09-23)
+
+- [complete] Add focused tests for missing, future, expired, unverified, cross-policy, superseded and ancestor-expired parents, parent replacement during provider calls, cached rebind lease preservation, and expired-cache non-renewal.
+- [complete] Extend `experiments/run_jev_session_experiments.py` with a deterministic parent rebind and lease-expiry comparison.
+- [complete] Run WSL2 targeted/full pytest, session/efficiency/innovation/patent experiments, ROS 2 Jazzy build, frontend syntax, diff check, and tracked `.env` check.
+
+## Final validation evidence: parent-evidence lifetime (2026-09-23)
+
+- WSL2 `python3 -m pytest -q tests`: `114 passed`.
+- `run_jev_session_experiments.py`: passed; 1 provider call for the parent rebind, original and rebound lease deadlines both `5.0`, no active soft evidence at the deadline.
+- `run_jev_efficiency_experiments.py`, `run_innovation_experiments.py`, and `run_patent_innovation_experiments.py`: all passed.
+- WSL2 ROS 2 Jazzy `colcon build --symlink-install`: `guardian_interfaces` and `guardian_core` finished successfully.
+- Windows `compileall`, frontend `node --check`, `git diff --check`, and tracked `.env` check: passed.
+
 ## Monotonic session-time hardening (2026-09-23)
 
 - [complete] Reproduce finite timestamp rollback and TTL/query-interval corruption.

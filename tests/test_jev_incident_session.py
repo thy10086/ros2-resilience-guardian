@@ -1,6 +1,9 @@
 import json
 import threading
 import time
+from dataclasses import replace
+
+import pytest
 
 from guardian_core.evidence_ledger import Evidence, EvidenceLedger
 from guardian_core.jev_advisor import JevAdvisorConfig, JevSemanticAdvisor, SemanticContext
@@ -596,3 +599,132 @@ def test_session_time_cannot_move_backwards_and_extend_ttl():
     assert first.expires_at == 40.0
     assert second.expires_at == 40.0
     assert session._sessions["incident-time-order"].last_seen == 10.0
+
+
+def append_second_parent(ledger):
+    root = Evidence(**ledger.export()[0]["evidence"])
+    return ledger.append(replace(root, evidence_id="event-proof-2"))
+
+
+def test_cached_parent_rebinding_keeps_original_soft_evidence_deadline():
+    clock, transport, ledger = Clock(), Transport(), parent_ledger()
+    append_second_parent(ledger)
+    session = make_session(clock, transport, ledger=ledger, soft_evidence_ttl_sec=3.0)
+    first = session.observe(context(), parent_evidence_id="event-proof", incident_key="lease")
+    clock.now = 2.0
+    rebound = session.observe(context(event_id="next"), parent_evidence_id="event-proof-2", incident_key="lease")
+
+    assert rebound.ledger_bound
+    bound = next(item for item in ledger.active(clock.now) if item.source == "jev")
+    assert bound.supersedes == first.ledger_evidence_id
+    assert bound.parent_ids == ("event-proof-2",)
+    assert bound.observed_at == 2.0
+    assert bound.expires_at == 3.0
+    assert not any(item.source == "jev" for item in ledger.active(3.0))
+    assert transport.calls == 1
+
+
+@pytest.mark.parametrize("at", [3.0, 4.0])
+def test_cached_rebinding_cannot_revive_expired_soft_evidence(at):
+    clock, transport, ledger = Clock(), Transport(), parent_ledger()
+    append_second_parent(ledger)
+    session = make_session(clock, transport, ledger=ledger, soft_evidence_ttl_sec=3.0)
+    session.observe(context(), parent_evidence_id="event-proof", incident_key="lease")
+    before = ledger.anchor()
+    clock.now = at
+    rebound = session.observe(context(event_id="next"), parent_evidence_id="event-proof-2", incident_key="lease")
+
+    assert not rebound.ledger_bound
+    assert rebound.ledger_evidence_id is None
+    assert ledger.anchor() == before
+    assert not any(item.source == "jev" for item in ledger.active(at))
+    assert transport.calls == 1
+
+
+def test_advisor_cache_hit_after_judge_cache_expiry_cannot_renew_soft_evidence():
+    clock, transport, ledger = Clock(), Transport(), parent_ledger()
+    session = make_session(clock, transport, ledger=ledger, soft_evidence_ttl_sec=3.0, session_ttl_sec=60.0)
+    session.observe(context(), parent_evidence_id="event-proof", incident_key="lease")
+    before = ledger.anchor()
+    clock.now = 31.0  # judge cache expired; advisor's independent test clock still reads 100
+    result = session.observe(context(), parent_evidence_id="event-proof", incident_key="lease")
+
+    assert transport.calls == 1
+    assert not result.ledger_bound
+    assert ledger.anchor() == before
+
+
+@pytest.mark.parametrize("problem", ["missing", "expired", "future", "unverified", "policy", "superseded", "ancestor_expired"])
+def test_inactive_parent_blocks_before_query_even_for_local_safe_context(problem):
+    ledger = EvidenceLedger()
+    root = Evidence("event-proof", "verifier", "verified_event", "nav", 0.0, 100.0, 1.0, 0.6, "p1", verified=True)
+    if problem == "expired":
+        root = replace(root, expires_at=1.0)
+    elif problem == "future":
+        root = replace(root, observed_at=5.0)
+    elif problem == "unverified":
+        root = replace(root, verified=False)
+    elif problem == "policy":
+        root = replace(root, policy_version="other")
+    elif problem == "ancestor_expired":
+        ledger.append(replace(root, evidence_id="ancestor", expires_at=1.0))
+        root = replace(root, parent_ids=("ancestor",))
+    if problem != "missing":
+        ledger.append(root)
+    if problem == "superseded":
+        ledger.append(replace(root, evidence_id="replacement", supersedes="event-proof"))
+    clock, transport = Clock(now=2.0), Transport()
+    session = make_session(clock, transport, ledger=ledger)
+    before = ledger.anchor()
+    decision = session.observe(
+        context(graph_risk=0.1, mission_criticality=0.1, event_confidence=0.95, temporal_codes=()),
+        parent_evidence_id="event-proof", incident_key="parent-gate",
+    )
+    assert decision.route == JevSessionRoute.LEDGER_BLOCKED
+    assert decision.state == JevSessionState.CONTAINING
+    assert decision.assessment is None
+    assert not decision.queried and not decision.ledger_bound
+    assert not transport.calls
+    assert ledger.anchor() == before
+
+
+def test_parent_expiry_invalidates_session_reuse_inside_query_interval():
+    clock, transport = Clock(), Transport()
+    ledger = EvidenceLedger()
+    ledger.append(Evidence("event-proof", "verifier", "verified_event", "nav", 0.0, 1.0, 1.0, 0.6, "p1", verified=True))
+    session = make_session(clock, transport, ledger=ledger, min_query_interval_sec=10.0)
+    session.observe(context(), parent_evidence_id="event-proof", incident_key="parent-gate")
+    clock.now = 1.0
+    decision = session.observe(context(event_id="next"), parent_evidence_id="event-proof", incident_key="parent-gate")
+    assert decision.route == JevSessionRoute.LEDGER_BLOCKED
+    assert decision.state == JevSessionState.CONTAINING
+    assert decision.assessment is None
+    assert transport.calls == 1
+
+
+def test_parent_replaced_during_provider_call_blocks_soft_append():
+    clock, transport, ledger = Clock(), Transport(), parent_ledger()
+    root = Evidence(**ledger.export()[0]["evidence"])
+
+    def replacing_transport(*args):
+        ledger.append(replace(root, evidence_id="replacement", supersedes="event-proof"))
+        return transport(*args)
+
+    session = make_session(clock, replacing_transport, ledger=ledger)
+    decision = session.observe(context(), parent_evidence_id="event-proof", incident_key="parent-race")
+    assert decision.route == JevSessionRoute.LEDGER_BLOCKED
+    assert decision.state == JevSessionState.CONTAINING
+    assert not decision.ledger_bound
+    assert len(ledger.export()) == 2
+    assert ledger.verify()
+
+
+def test_fresh_provider_result_after_expiry_can_create_new_soft_evidence():
+    clock, transport, ledger = Clock(), Transport(), parent_ledger()
+    session = make_session(clock, transport, ledger=ledger, soft_evidence_ttl_sec=3.0)
+    session.observe(context(), parent_evidence_id="event-proof", incident_key="lease")
+    clock.now = 4.0
+    fresh = session.observe(context(graph_risk=0.7), parent_evidence_id="event-proof", incident_key="lease")
+    assert fresh.ledger_bound
+    assert transport.calls == 2
+    assert next(item for item in ledger.active(4.0) if item.source == "jev").expires_at == 7.0

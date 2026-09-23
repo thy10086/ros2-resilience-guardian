@@ -132,6 +132,8 @@ class _SessionRecord:
     observation_count: int = 0
     last_evidence_id: str | None = None
     last_parent_evidence_id: str | None = None
+    last_advice_identity: str | None = None
+    last_evidence_expires_at: float | None = None
 
 
 class JevIncidentSession:
@@ -213,10 +215,15 @@ class JevIncidentSession:
             elif record is not None:
                 self._sessions.move_to_end(session_id)
 
-        if not self._ledger_valid():
+        with self._ledger_lock:
+            parent_valid = self._active_parent_unlocked(parent_evidence_id, observed_at) is not None
+        if not parent_valid:
             if record is None:
                 record = _SessionRecord(state=JevSessionState.CONTAINING, created_at=observed_at, last_seen=observed_at)
             record.state = JevSessionState.CONTAINING
+            record.below_review_since = None
+            record.last_result = None
+            record.last_query_at = None
             record.last_seen = observed_at
             record.observation_count += 1
             self._store_record(session_id, record)
@@ -232,14 +239,14 @@ class JevIncidentSession:
                 ledger_evidence_id=None,
                 observation_count=record.observation_count,
                 expires_at=observed_at + self.config.session_ttl_sec,
-                reason="ledger integrity failed; semantic judgment is blocked and containment retained",
+                reason="ledger integrity or active parent binding failed; semantic judgment is blocked",
                 assessment=None,
             )
 
         risk_valid, risk = _unit(context.graph_risk)
         context_signature = self._context_signature(context, parent_evidence_id)
         parent_changed = record is not None and record.last_parent_evidence_id != parent_evidence_id
-        queried = record is None or self._should_query(record, context, context_signature, risk_valid, risk, observed_at)
+        queried = record is None or parent_changed or self._should_query(record, context, context_signature, risk_valid, risk, observed_at)
         result = self.judge.evaluate(context) if queried else replace(record.last_result, event_id=str(context.event_id))
         if result is None:
             queried = True
@@ -267,13 +274,14 @@ class JevIncidentSession:
             )
             if ledger_blocked:
                 next_state = JevSessionState.CONTAINING
+                record.below_review_since = None
 
         record.state = next_state
         record.last_seen = observed_at
         record.last_local_score = local_score
         record.last_context_signature = context_signature
         record.last_safety_state = str(context.safety_state or "UNKNOWN").upper()
-        record.last_result = result
+        record.last_result = None if ledger_blocked else result
         record.last_parent_evidence_id = parent_evidence_id
         record.observation_count += 1
         if queried:
@@ -371,9 +379,9 @@ class JevIncidentSession:
 
     def _eligible_soft_advice(self, result: JevEfficientAssessment, *, allow_cached: bool = False) -> bool:
         return (
-            (result.remote_called or allow_cached)
-            and result.assessment is not None
+            result.assessment is not None
             and result.assessment.status in {JevAssessmentStatus.OK, JevAssessmentStatus.CACHED}
+            and (allow_cached or (result.remote_called and result.assessment.status == JevAssessmentStatus.OK))
         )
 
     def _append_soft_evidence(
@@ -389,6 +397,21 @@ class JevIncidentSession:
             return False, None, True
         assessment = result.assessment
         assert assessment is not None
+        advice_payload = assessment.audit_payload()
+        for field in ("event_id", "status", "reason"):
+            advice_payload.pop(field, None)
+        advice_payload["fingerprint"] = result.fingerprint
+        advice_identity = hashlib.sha256(json.dumps(advice_payload, sort_keys=True).encode()).hexdigest()
+        fresh = result.remote_called and assessment.status == JevAssessmentStatus.OK
+        if fresh:
+            expires_at = observed_at + self.config.soft_evidence_ttl_sec
+        else:
+            # A cache hit may change provenance, but cannot create a new lease.
+            if record.last_advice_identity != advice_identity or record.last_evidence_expires_at is None:
+                return False, None, False
+            expires_at = record.last_evidence_expires_at
+        if expires_at <= observed_at:
+            return False, None, False
         material = json.dumps(
             {
                 "session": session_id,
@@ -400,34 +423,48 @@ class JevIncidentSession:
             separators=(",", ":"),
         ).encode("utf-8")
         evidence_id = f"jev-{hashlib.sha256(material).hexdigest()[:24]}"
-        evidence = Evidence(
-            evidence_id=evidence_id,
-            source="jev",
-            kind="semantic_advice",
-            node=str(context.component or "unknown"),
-            observed_at=observed_at,
-            expires_at=observed_at + self.config.soft_evidence_ttl_sec,
-            confidence=assessment.confidence,
-            severity=assessment.score,
-            policy_version=self.config.policy_version,
-            parent_ids=(parent_evidence_id,),
-            supersedes=record.last_evidence_id,
-            verified=True,
-            hard_stop=False,
-        )
         with self._ledger_lock:
-            if not self._ledger_valid_unlocked():
+            parent = self._active_parent_unlocked(parent_evidence_id, observed_at)
+            if parent is None:
                 return False, None, True
+            expires_at = min(expires_at, parent.expires_at)
             try:
+                evidence = Evidence(
+                    evidence_id=evidence_id,
+                    source="jev",
+                    kind="semantic_advice",
+                    node=str(context.component or "unknown"),
+                    observed_at=observed_at,
+                    expires_at=expires_at,
+                    confidence=assessment.confidence,
+                    severity=assessment.score,
+                    policy_version=self.config.policy_version,
+                    parent_ids=(parent_evidence_id,),
+                    supersedes=record.last_evidence_id,
+                    verified=True,
+                    hard_stop=False,
+                )
                 self.ledger.append(evidence)
             except (TypeError, ValueError):
                 return False, None, True
         record.last_evidence_id = evidence_id
+        record.last_advice_identity = advice_identity
+        record.last_evidence_expires_at = expires_at
         return True, evidence_id, False
 
-    def _ledger_valid(self) -> bool:
-        with self._ledger_lock:
-            return self._ledger_valid_unlocked()
+    def _active_parent_unlocked(self, parent_id: str | None, now: float) -> Evidence | None:
+        if not isinstance(parent_id, str) or not parent_id or not self._ledger_valid_unlocked():
+            return None
+        try:
+            return next((
+                item for item in self.ledger.active(now)
+                if item.evidence_id == parent_id
+                and item.verified is True
+                and item.policy_version == self.config.policy_version
+                and item.source != "jev" and item.kind != "semantic_advice"
+            ), None)
+        except (TypeError, ValueError, RecursionError):
+            return None
 
     def _ledger_valid_unlocked(self) -> bool:
         try:

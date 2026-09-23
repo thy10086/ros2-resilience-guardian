@@ -101,6 +101,13 @@ be committed or printed.
 - Raw high-rate telemetry, credentials, and unredacted logs must not be sent to the external API. The adapter should accept a compact, caller-supplied incident summary and return normalized typed evidence.
 - Final validation on 2026-09-21: 23 tests passed, six deterministic innovation groups passed, and both ROS 2 Jazzy packages built; live Jev accuracy, calibration, latency, cost, and availability remain unmeasured.
 
+## Jev parent-evidence lifetime findings (2026-09-23)
+
+- A parent ID alone is insufficient for a soft Jev lease: the parent must be active at the observation time, verified, policy-matching, non-Jev, and backed by a valid parent lineage. Missing, future, expired, unverified, superseded, cross-policy, or ancestor-expired parents now fail closed before the judge or provider is called.
+- The parent is checked twice: once before semantic judgment and again inside the short ledger transaction. This closes the race where a verifier record is superseded while the provider is still running.
+- Rebinding a cached successful result to a replacement parent is allowed only while the original soft-evidence deadline remains in the future. The replacement record inherits the absolute deadline; a cache hit after that deadline cannot renew or resurrect evidence. A fresh provider success is required for a new lease.
+- The deterministic session experiment now reports the rebind deadline and verifies that the provider is called once, the replacement expires at the original deadline, and no Jev record remains active at that deadline.
+
 ## Dashboard Jev connection findings (2026-09-21)
 
 - The official API is `POST https://api.typesafe.ai/v1/systemone` with a Bearer

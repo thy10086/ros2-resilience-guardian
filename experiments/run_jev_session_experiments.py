@@ -99,6 +99,26 @@ def make_ledger() -> EvidenceLedger:
     return ledger
 
 
+def append_parent(ledger: EvidenceLedger, evidence_id: str) -> None:
+    """Add a second deterministic verifier record for re-binding checks."""
+    root = Evidence(**ledger.export()[0]["evidence"])
+    ledger.append(Evidence(
+        evidence_id=evidence_id,
+        source=root.source,
+        kind=root.kind,
+        node=root.node,
+        observed_at=root.observed_at,
+        expires_at=root.expires_at,
+        confidence=root.confidence,
+        severity=root.severity,
+        policy_version=root.policy_version,
+        parent_ids=root.parent_ids,
+        supersedes=root.supersedes,
+        verified=root.verified,
+        hard_stop=root.hard_stop,
+    ))
+
+
 def make_session(clock: Clock, transport: StubTransport, ledger: EvidenceLedger) -> JevIncidentSession:
     advisor = JevSemanticAdvisor(
         JevAdvisorConfig(enabled=True, api_key="offline-stub", cache_ttl_sec=30.0),
@@ -172,6 +192,32 @@ def main() -> int:
         incident_key="incident-blocked",
     )
 
+    # A cached semantic result may be re-bound to a new verified parent once,
+    # but the new soft record must retain the original lease deadline.
+    lease_clock = Clock()
+    lease_transport = StubTransport()
+    lease_ledger = make_ledger()
+    append_parent(lease_ledger, "event-proof-2")
+    lease_session = make_session(lease_clock, lease_transport, lease_ledger)
+    lease_first = lease_session.observe(
+        make_context("lease-1", 40),
+        parent_evidence_id="event-proof",
+        incident_key="incident-lease",
+    )
+    lease_clock.now = 2.0
+    lease_rebound = lease_session.observe(
+        make_context("lease-2", 41),
+        parent_evidence_id="event-proof-2",
+        incident_key="incident-lease",
+    )
+    lease_bound = [item for item in lease_ledger.active(2.0) if item.source == "jev"]
+    lease_clock.now = 5.0
+    lease_expired = lease_session.observe(
+        make_context("lease-3", 42),
+        parent_evidence_id="event-proof-2",
+        incident_key="incident-lease",
+    )
+
     evidence = {
         "burst_provider_calls": transport.calls,
         "burst_routes": [item.route.value for item in burst],
@@ -181,6 +227,11 @@ def main() -> int:
         "blocked_route": blocked.route.value,
         "blocked_state": blocked.state.value,
         "session_ledger_valid": ledger.verify(),
+        "lease_provider_calls": lease_transport.calls,
+        "lease_first_expires_at": next(item for item in lease_ledger.export() if item["evidence"]["evidence_id"] == lease_first.ledger_evidence_id)["evidence"]["expires_at"],
+        "lease_rebound_expires_at": lease_bound[0].expires_at,
+        "lease_expired_route": lease_expired.route.value,
+        "lease_active_records_at_deadline": len([item for item in lease_ledger.active(5.0) if item.source == "jev"]),
     }
     assert transport.calls == 2
     assert burst[0].route == JevSessionRoute.QUERIED
@@ -192,6 +243,11 @@ def main() -> int:
     assert blocked.route == JevSessionRoute.LEDGER_BLOCKED
     assert blocked.state == JevSessionState.CONTAINING
     assert blocked.ledger_bound is False
+    assert lease_first.ledger_bound and lease_rebound.ledger_bound
+    assert lease_transport.calls == 1
+    assert lease_bound and lease_bound[0].expires_at == 5.0
+    assert lease_expired.ledger_bound is False
+    assert evidence["lease_active_records_at_deadline"] == 0
     print(json.dumps({"passed": True, "experiment": "jev_incident_session", "evidence": evidence}, indent=2))
     return 0
 
