@@ -33,10 +33,10 @@
 
 ## Current task: efficient Jev judgment orchestration (2026-09-23)
 
-- [in_progress] Specify and test local triage, stable incident fingerprints, single-flight deduplication, bounded cache/budget, and quality metrics.
+- [complete] Specify and test local triage, stable incident fingerprints, single-flight deduplication, bounded cache/budget, and quality metrics.
 - [complete] Implement the efficient judgment layer while preserving `JevSemanticAdvisor` and dashboard compatibility.
 - [complete] Add deterministic efficiency comparisons and document API/key boundaries.
-- [in_progress] Run full tests, experiments, compile checks, ROS 2 build, review, and update HANDOFF before committing on `main`.
+- [complete] Run full tests, experiments, compile checks, ROS 2 build, review, and update HANDOFF before committing on `main`.
 
 ## Validation issue
 

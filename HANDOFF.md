@@ -302,3 +302,4 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 文件：`ros2_ws/src/guardian_core/guardian_core/jev_incident_session.py`、`tests/test_jev_incident_session.py`、`docs/jev_session_design.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
 - 验证：跨会话账本竞态测试先失败后通过；会话测试 `13 passed`；全量 WSL2 测试 `95 passed`。事件会话、高效判断、原有六组创新和专利化五组实验仍报告 `passed: true`；ROS 2 Jazzy 两包构建、Python compileall、前端语法检查和 `git diff --check` 通过。当前改动只在本地 `main`，没有上传 GitHub。
 - 安全边界：锁只保证账本完整性，不授予 Jev 控制权；Jev 仍不能发布 `/cmd_vel`、解除 `SAFE_STOP`、修改速度限制或批准恢复。
+- 本地提交：`394a197 fix: harden Jev incident session concurrency`；工作区已清洁，`.env` 仍被 Git 跟踪。
