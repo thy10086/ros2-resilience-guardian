@@ -1,5 +1,20 @@
 # Implementation plan
 
+## Current heartbeat: strict evidence trust flags (2026-09-24 06:00 CST)
+
+- [complete] Reproduce non-Boolean evidence flags passing ledger validation and ancestor checks before Jev judgment.
+- [complete] Require native Boolean `verified` and `hard_stop` at construction and append; validate imported/rehashed records without changing valid Boolean behavior.
+- [complete] Add an offline session lineage experiment, run focused/full tests, all five offline scripts and the ROS 2 build, review locally, update handoff/progress/findings, and commit locally on main.
+- Reference: inspected `python-jsonschema/jsonschema` `_types.is_bool`, which accepts Boolean instances rather than coercing strings or integers. No dependency or source is imported.
+- Scope: evidence trust flags and the existing Jev parent gate; no migration, credentials, provider calls or GitHub upload.
+
+### Validation evidence: strict evidence trust flags
+
+- [complete] Construction, append, live verification, export verification, parent lineage, and replacement checks reject non-native `verified`/`hard_stop` values before state mutation.
+- [complete] Rehashed malformed-ancestor experiment returns `LEDGER_BLOCKED/CONTAINING`, performs zero provider calls, and rejects the export despite matching hashes.
+- [complete] WSL2 `python3 -m pytest -q tests`: `168 passed`; Jev session, patent-core, all five offline scripts, ROS 2 Jazzy two-package build, Windows compileall/frontend syntax/diff/.env checks passed. A first Bash loop was replaced after a PowerShell variable-escaping syntax error; explicit reruns passed.
+- [complete] Independent review is complete with no P0–P2 findings; local `main` commit is the final action and no GitHub upload is performed.
+
 ## Current heartbeat: advisor cache completion-time sampling (2026-09-24 05:00 CST)
 
 - [complete] Reproduce a delayed advisor cache lookup reusing an expired assessment.

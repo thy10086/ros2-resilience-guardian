@@ -37,6 +37,7 @@
 - advisor 和高效判断层的缓存租约彼此独立；高效层只接受新鲜 `OK` 结果启动自己的 TTL，advisor 返回的 `CACHED` 结果不会续租高效层，避免下层缓存让上层缓存无限存活。
 - single-flight 等待者会保留 owner 的失败状态和原因；只有可用的 `OK`/`CACHED` 建议才标记为 `COALESCED`，缓存命中和并发复用都会按当前本地 triage 重新计算 Jev 冲突，避免 `REVIEW_REQUIRED` 信号丢失。
 - 会话用完成时刻重新验证父证据和完整 lineage；provider 期间过期、被替代、祖先失效或账本篡改时，成功和失败结果都不会写回软证据。显式回放时间保留调用方原点，provider 等待耗时从软证据剩余 TTL 中扣除。
+- EvidenceLedger 的 `verified` 与 `hard_stop` 现在只接受原生布尔值；新记录、父链、替代关系和导出验证遇到非布尔信任标记都会失败关闭，哈希一致不能掩盖字段语义异常。
 - 高效判断层在缓存/预算状态锁内重新采样时间，暂停在缓存查找阶段的旧请求不能复活过期建议、回滚并重置较新的固定窗口；新的预约时间也用于 provider 缓存租约起点。
 - 基础 `JevSemanticAdvisor` 也在 `_cache_lock` 内重新采样有限单调时钟，防止暂停的旧请求绕过 advisor 自身 TTL；两层缓存均要求完成时刻仍在租约内。
 
@@ -407,3 +408,10 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 文件：`ros2_ws/src/guardian_core/guardian_core/jev_advisor.py`、`tests/test_jev_advisor.py`、`experiments/run_jev_efficiency_experiments.py`、`docs/jev_advisor.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
 - 验证：advisor 竞态回归修复前 `1 failed`、修复后 `1 passed`；离线效率实验报告 advisor 过期缓存路径 `OK` 且 provider 调用 `2` 次；WSL2 全量测试 `149 passed`，四组离线实验、ROS 2 Jazzy 两包构建、Windows compileall、前端 `node --check`、`git diff --check` 和 `.env` 跟踪检查均通过。第一次全量运行仅因既有回退时钟夹具值不足而失败，扩展为持续回退值后通过。
 - 安全边界：本轮只收紧语义建议缓存时效，不改变 Jev 旁路权限，也不授予其控制 ROS 2 或解除安全状态的能力。
+
+### 2026-09-24 — Strict evidence trust-flag hardening
+
+- 改动：`Evidence` 的 `verified` 与 `hard_stop` 现在必须是原生 Boolean。候选证据在账本任何状态修改前先校验；父证据、活动 lineage、替代关系、实时 `verify()` 和 `verify_export()` 都拒绝非布尔信任标记。即使旧记录被攻击者重新计算哈希，字段语义错误仍会使账本验证失败。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/evidence_ledger.py`、`tests/test_patent_core.py`、`tests/test_jev_incident_session.py`、`experiments/run_jev_session_experiments.py`、`docs/jev_session_design.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：非布尔构造、候选写回不变、重哈希记录实时/导出校验、父子/替代 lineage 和 Jev 新建/复用会话回归均通过；WSL2 `python3 -m pytest -q tests` 为 `168 passed`。离线会话实验报告 `non_boolean_ancestor_route=LEDGER_BLOCKED`、`state=CONTAINING`、`provider_calls=0`、`non_boolean_export_accepted=false`；全部五个离线脚本、ROS 2 Jazzy 两包构建、Windows compileall、前端 `node --check`、`git diff --check` 和 `.env` 跟踪检查均通过。首次 Bash 循环因 PowerShell 变量转义失败，改为显式脚本命令后通过。
+- 安全边界：此修复只收紧证据信任字段的类型和 lineage 完整性；Jev 仍是旁路建议，不能发布 `/cmd_vel`、解除 `SAFE_STOP`、修改速度限制或批准恢复。没有调用外部 provider、写入密钥或上传 GitHub；提交仅进入本地 `main`。

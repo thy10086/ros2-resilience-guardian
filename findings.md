@@ -1,5 +1,12 @@
 # Findings
 
+## Evidence Boolean trust-boundary closure (2026-09-24 06:00 CST)
+
+- `Evidence.__post_init__` now requires `type(verified) is bool` and `type(hard_stop) is bool`; append validates the candidate before mutating records, hashes, or replacement metadata. Parent, active-lineage, replacement, live verification, and export verification preserve the same strict contract.
+- A hash chain proves consistency with its anchor, not correct field semantics. Rehashed malformed records are rejected by construction/verification, so matching hashes cannot make a non-Boolean trust flag acceptable.
+- The Jev session experiment rehashes a malformed ancestor and returns `LEDGER_BLOCKED/CONTAINING` with zero provider calls; a new/reused session cannot append soft evidence through the corrupt lineage.
+- Open-source reference inspected: https://github.com/python-jsonschema/jsonschema/blob/main/jsonschema/_types.py (`is_bool` uses `isinstance(instance, bool)`). No new dependency or copied implementation.
+
 ## Advisor cache completion-time closure (2026-09-24)
 
 - `JevSemanticAdvisor.evaluate()` read `now` before computing the cache key and waiting for `_cache_lock`. A delayed request could therefore compare an expired entry against an older timestamp and return `CACHED` after its TTL.

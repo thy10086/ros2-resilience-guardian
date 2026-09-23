@@ -177,6 +177,71 @@ def _evidence(eid="e1", **changes):
     return Evidence(**values)
 
 
+@pytest.mark.parametrize("field", ["verified", "hard_stop"])
+@pytest.mark.parametrize("value", ["false", 1, 0, None])
+def test_evidence_rejects_non_boolean_trust_flags(field, value):
+    with pytest.raises(ValueError, match=field):
+        _evidence(**{field: value})
+
+
+def test_native_boolean_evidence_preserves_active_and_export_semantics():
+    ledger = EvidenceLedger()
+    unverified = ledger.append(_evidence("unverified", verified=False))
+    soft = ledger.append(_evidence("soft", hard_stop=False))
+    stop = ledger.append(_evidence("stop", hard_stop=True))
+    assert unverified.verified is False
+    assert ledger.active(1.5) == (soft, stop)
+    assert ledger.verify()
+    assert EvidenceLedger.verify_export(ledger.export(), ledger.anchor())
+
+
+@pytest.mark.parametrize("field", ["verified", "hard_stop"])
+def test_rehashed_non_boolean_evidence_fails_live_and_export_validation(field):
+    ledger = EvidenceLedger()
+    record = ledger.append(_evidence(severity=0.0))
+    # Simulate a malformed legacy record with a matching hash, so this tests
+    # field semantics independently of ordinary hash-mismatch detection.
+    object.__setattr__(record, field, "false")
+    ledger._hashes[0] = ledger._hash_entry("GENESIS", record)
+    assert not ledger.verify()
+    assert not EvidenceLedger.verify_export(ledger.export(), ledger.anchor())
+    assert ledger.active(1.5) == ()
+    decision = AssuranceController().assess(ledger, now=1.5)
+    assert decision.level == "SAFE_STOP"
+    assert decision.hard_stop_ids == ("ledger-integrity",)
+
+
+@pytest.mark.parametrize("field", ["verified", "hard_stop"])
+def test_invalid_candidate_cannot_mutate_ledger_or_supersede_evidence(field):
+    ledger = EvidenceLedger()
+    original = ledger.append(_evidence())
+    candidate = _evidence("replacement", supersedes=original.evidence_id)
+    object.__setattr__(candidate, field, "false")
+    before = ledger.anchor(), ledger.export()
+    with pytest.raises(ValueError, match=field):
+        ledger.append(candidate)
+    assert (ledger.anchor(), ledger.export()) == before
+    assert ledger.active(1.5) == (original,)
+    assert ledger.verify()
+
+
+@pytest.mark.parametrize("field", ["verified", "hard_stop"])
+def test_malformed_existing_record_cannot_accept_child_or_replacement(field):
+    ledger = EvidenceLedger()
+    original = ledger.append(_evidence())
+    object.__setattr__(original, field, "false")
+    previous = "GENESIS"
+    for index, record in enumerate(ledger._records):
+        previous = ledger._hash_entry(previous, record)
+        ledger._hashes[index] = previous
+    before = ledger.anchor(), ledger.export()
+    with pytest.raises(ValueError, match="parent|trust flags"):
+        ledger.append(_evidence("child", parent_ids=(original.evidence_id,)))
+    with pytest.raises(ValueError, match="trust flags"):
+        ledger.append(_evidence("replacement", supersedes=original.evidence_id))
+    assert (ledger.anchor(), ledger.export()) == before
+
+
 def test_graph_cycles_have_simple_paths_and_order_independent_fingerprint():
     graph = GraphSnapshot(
         (CausalNode("a", "node", "control"), CausalNode("b", "actuator", "physical", 1.0)),

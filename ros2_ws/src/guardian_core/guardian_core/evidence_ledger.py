@@ -40,6 +40,9 @@ class Evidence:
     hard_stop: bool = False
 
     def __post_init__(self) -> None:
+        for name in ("verified", "hard_stop"):
+            if type(getattr(self, name)) is not bool:
+                raise ValueError(f"{name} must be a native Boolean")
         if not all((self.evidence_id, self.source, self.kind, self.node, self.policy_version)):
             raise ValueError("evidence identity fields cannot be empty")
         observed = _finite(self.observed_at, "observed_at")
@@ -82,12 +85,20 @@ class EvidenceLedger:
         self._superseded: set[str] = set()
 
     def append(self, evidence: Evidence) -> Evidence:
+        # Validate before mutating records, hashes, or replacement metadata.
+        evidence.__post_init__()
         if any(item.evidence_id == evidence.evidence_id for item in self._records):
             raise ValueError("duplicate evidence id")
         by_id = {item.evidence_id: item for item in self._records}
         for parent_id in evidence.parent_ids:
             parent = by_id.get(parent_id)
-            if parent is None or not parent.verified or parent.expires_at <= evidence.observed_at:
+            if (
+                parent is None
+                or type(parent.verified) is not bool
+                or parent.verified is not True
+                or type(parent.hard_stop) is not bool
+                or parent.expires_at <= evidence.observed_at
+            ):
                 raise ValueError("evidence parent is missing, expired, or unverified")
             if parent.policy_version != evidence.policy_version:
                 raise ValueError("evidence parent policy version differs")
@@ -97,6 +108,8 @@ class EvidenceLedger:
             target = by_id.get(evidence.supersedes)
             if target is None:
                 raise ValueError("superseded evidence is missing")
+            if type(target.verified) is not bool or type(target.hard_stop) is not bool:
+                raise ValueError("superseded evidence trust flags are invalid")
             if target.source != evidence.source:
                 raise ValueError("cross-source evidence replacement is forbidden")
             if target.hard_stop and not evidence.hard_stop:
@@ -114,7 +127,7 @@ class EvidenceLedger:
         def lineage_active(item: Evidence, seen: frozenset[str] = frozenset()) -> bool:
             if item.evidence_id in seen:
                 return False
-            if not item.verified or item.evidence_id in self._superseded:
+            if item.verified is not True or type(item.hard_stop) is not bool or item.evidence_id in self._superseded:
                 return False
             if not item.observed_at <= now < item.expires_at:
                 return False
@@ -151,7 +164,7 @@ class EvidenceLedger:
                     return False
                 for parent_id in evidence.parent_ids:
                     parent = known.get(parent_id)
-                    if parent is None or not parent.verified or parent.expires_at <= evidence.observed_at:
+                    if parent is None or parent.verified is not True or parent.expires_at <= evidence.observed_at:
                         return False
                     if parent.policy_version != evidence.policy_version:
                         return False
@@ -159,7 +172,7 @@ class EvidenceLedger:
                     target = known.get(evidence.supersedes)
                     if target is None or not evidence.verified or target.source != evidence.source:
                         return False
-                    if target.hard_stop and not evidence.hard_stop:
+                    if target.hard_stop is True and not evidence.hard_stop:
                         return False
                     expected_superseded.add(target.evidence_id)
                 expected = EvidenceLedger._hash_entry(previous, evidence)

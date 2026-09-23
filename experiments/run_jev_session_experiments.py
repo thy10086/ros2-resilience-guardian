@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -247,6 +248,24 @@ def main() -> int:
         now=0.0,
     )
 
+    # Model a malformed legacy ancestor whose hash chain is internally
+    # consistent. Schema validation must reject it even with matching hashes.
+    typed_ledger = make_ledger()
+    ancestor = typed_ledger._records[0]
+    typed_ledger.append(replace(ancestor, evidence_id="derived-parent", parent_ids=(ancestor.evidence_id,)))
+    object.__setattr__(ancestor, "verified", "false")
+    previous = "GENESIS"
+    for index, record in enumerate(typed_ledger._records):
+        previous = typed_ledger._hash_entry(previous, record)
+        typed_ledger._hashes[index] = previous
+    typed_transport = StubTransport()
+    typed_session = make_session(Clock(), typed_transport, typed_ledger)
+    typed_anchor = typed_ledger.anchor()
+    typed_blocked = typed_session.observe(
+        make_context("non-boolean-ancestor", 60),
+        parent_evidence_id="derived-parent",
+    )
+
     evidence = {
         "burst_provider_calls": transport.calls,
         "burst_routes": [item.route.value for item in burst],
@@ -264,6 +283,10 @@ def main() -> int:
         "delayed_parent_route": delayed.route.value,
         "delayed_parent_state": delayed.state.value,
         "delayed_parent_provider_calls": delayed_transport.calls,
+        "non_boolean_ancestor_route": typed_blocked.route.value,
+        "non_boolean_ancestor_state": typed_blocked.state.value,
+        "non_boolean_ancestor_provider_calls": typed_transport.calls,
+        "non_boolean_export_accepted": EvidenceLedger.verify_export(typed_ledger.export(), typed_anchor),
     }
     assert transport.calls == 2
     assert burst[0].route == JevSessionRoute.QUERIED
@@ -285,6 +308,11 @@ def main() -> int:
     assert delayed.assessment is None
     assert delayed.ledger_bound is False
     assert delayed_transport.calls == 1
+    assert typed_blocked.route == JevSessionRoute.LEDGER_BLOCKED
+    assert typed_blocked.state == JevSessionState.CONTAINING
+    assert typed_blocked.assessment is None and not typed_blocked.ledger_bound
+    assert typed_transport.calls == 0 and typed_ledger.anchor() == typed_anchor
+    assert not evidence["non_boolean_export_accepted"]
     print(json.dumps({"passed": True, "experiment": "jev_incident_session", "evidence": evidence}, indent=2))
     return 0
 

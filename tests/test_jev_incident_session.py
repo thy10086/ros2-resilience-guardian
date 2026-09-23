@@ -857,3 +857,35 @@ def test_valid_delayed_advice_consumes_ttl_without_mixing_clock_origins(explicit
     assert soft.observed_at == origin + 2.0
     assert soft.expires_at == origin + 3.0
     assert ledger.verify()
+
+
+@pytest.mark.parametrize("warm_session", [False, True])
+@pytest.mark.parametrize("risk", [0.1, 0.6])
+def test_non_boolean_ancestor_blocks_new_and_reused_sessions(warm_session, risk):
+    clock, transport, ledger = Clock(), Transport(), EvidenceLedger()
+    ancestor = ledger.append(Evidence(
+        "ancestor", "verifier", "verified_event", "nav", 0.0, 100.0,
+        1.0, 0.6, "p1", verified=True,
+    ))
+    ledger.append(replace(ancestor, evidence_id="event-proof", parent_ids=("ancestor",)))
+    session = make_session(clock, transport, ledger=ledger, min_query_interval_sec=10.0)
+    incident = context(graph_risk=risk, mission_criticality=risk,
+                       event_confidence=0.95, temporal_codes=())
+    if warm_session:
+        session.observe(incident, parent_evidence_id="event-proof", incident_key="ancestor-gate")
+    calls_before = transport.calls
+    # Rehash a malformed legacy ancestor. The immediate parent stays True,
+    # and the hash chain matches; only strict lineage validation can block it.
+    object.__setattr__(ancestor, "verified", "false")
+    previous = "GENESIS"
+    for index, record in enumerate(ledger._records):
+        previous = ledger._hash_entry(previous, record)
+        ledger._hashes[index] = previous
+    before = ledger.anchor()
+    decision = session.observe(incident, parent_evidence_id="event-proof", incident_key="ancestor-gate")
+    assert decision.route == JevSessionRoute.LEDGER_BLOCKED
+    assert decision.state == JevSessionState.CONTAINING
+    assert decision.assessment is None
+    assert not decision.queried and not decision.ledger_bound
+    assert transport.calls == calls_before
+    assert ledger.anchor() == before
