@@ -32,6 +32,10 @@
 
 - 2026-09-24: The dashboard health probe briefly refused connections while WSL had no foreground process; starting the documented hidden `sleep infinity` keepalive let systemd restart both ROS 2 services. Three HTTP health polls over 15 seconds returned `200`, confirming stable local runtime.
 
+- 2026-09-24: Integrated the warehouse AMR case into the web protection laboratory. Added a first-class `warehouse_amr` sample with robot/mission/topic/threat metadata and bounded Jev context; the UI now renders an industrial case card, runs the existing replay endpoint, and transfers the Jev summary to the semantic page without changing Guardian state. Browser smoke verified login, built-in case selection, final `CONTAINING / ISOLATE_COMPONENT / 0.15 m/s`, and the Jev transfer message.
+
+- 2026-09-24: Final regression for the web integration passed `204 tests`; ROS 2 packages rebuilt successfully, frontend/static and secret checks passed, and the deployed dashboard served the industrial card and replay after restart. The remaining action is the local `main` commit; no provider call or GitHub push is performed.
+
 - 2026-09-24 05:00 CST: Closed the same delayed-cache timestamp race in `JevSemanticAdvisor`. The red regression reproduced an expired advisor assessment returning `CACHED`; cache expiry now re-samples the protected clock under `_cache_lock`, and the offline efficiency experiment confirms `OK` with two provider calls. Full validation reports `149 passed`, all four offline experiment suites and ROS 2 Jazzy build pass, Windows checks pass, and local commit is the remaining final action. The first full run needed a longer rollback-clock fixture because the new locked sample is intentional; the adjusted test passes.
 
 - 2026-09-24 04:00 CST: Final validation for concurrent Jev budget/cache rollover passed: WSL2 full suite `147 passed`, all four offline experiment suites passed, ROS 2 Jazzy built both packages, Windows compileall/frontend syntax/diff/.env checks passed, and independent review found no P0–P2 findings. Local `main` commit is the remaining final action.

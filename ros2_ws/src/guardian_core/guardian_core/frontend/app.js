@@ -29,6 +29,7 @@ let authenticated = false;
 let jevKeySaved = false;
 let protectionSamples = [];
 let protectionSample = null;
+let protectionSampleMeta = null;
 
 function showLogin(message = '本地实验账号：admin / admin') {
   authenticated = false;
@@ -66,8 +67,24 @@ function setProtectionFeedback(message, kind = '') {
   target.className = `muted${kind ? ` ${kind}` : ''}`;
 }
 
-function setProtectionSample(sample, label = '样例已载入') {
+function renderIndustrialCase(meta) {
+  const card = $('protection-industrial');
+  if (!card) return;
+  const visible = Boolean(meta && meta.id === 'warehouse_amr');
+  card.hidden = !visible;
+  if (!visible) return;
+  $('protection-industrial-description').textContent = meta.description || '—';
+  $('protection-industrial-mission').textContent = meta.mission || `${meta.robot || '—'} · —`;
+  $('protection-industrial-phase').textContent = meta.phase || '—';
+  $('protection-industrial-topics').textContent = Array.isArray(meta.topics) ? meta.topics.join('、') : '—';
+  $('protection-industrial-threats').textContent = Array.isArray(meta.threats) ? meta.threats.join('、') : '—';
+  $('protection-jev-summary').textContent = meta.jev_context?.summary || '暂无 Jev 摘要';
+}
+
+function setProtectionSample(sample, label = '样例已载入', metadata = null) {
   protectionSample = sample;
+  protectionSampleMeta = metadata;
+  renderIndustrialCase(metadata);
   $('protection-run').disabled = !sample;
   $('protection-result').hidden = true;
   setProtectionFeedback(label, sample ? 'success' : '');
@@ -98,7 +115,7 @@ function loadSelectedProtectionSample() {
   const id = $('protection-sample-select').value;
   const entry = protectionSamples.find((item) => item.id === id);
   if (!entry) return setProtectionSample(null, '没有可导入的内置样例');
-  setProtectionSample(entry.sample, `已导入：${entry.title} · ${entry.expected}`);
+  setProtectionSample(entry.sample, `已导入：${entry.title} · ${entry.expected}`, entry);
 }
 
 async function loadProtectionFile(event) {
@@ -114,6 +131,15 @@ async function loadProtectionFile(event) {
     setProtectionSample(null, '样例必须是有效的 guardian-replay/v1 JSON 文件');
     setProtectionFeedback('样例必须是有效的 guardian-replay/v1 JSON 文件。', 'error');
   }
+}
+
+function loadIndustrialJevContext() {
+  const summary = protectionSampleMeta?.jev_context?.summary;
+  if (!summary) return setProtectionFeedback('当前样例没有可带入 Jev 的语义摘要。', 'error');
+  $('jev-state').value = summary;
+  setWorkspacePanel('jev');
+  setJevStatus('idle', '未测试');
+  setJevFeedback('已从仓储 AMR 案例带入摘要；请检查后再测试连接。');
 }
 
 function renderProtectionReport(report) {
@@ -459,6 +485,7 @@ function setupProtection() {
   $('protection-load').addEventListener('click', loadSelectedProtectionSample);
   $('protection-file').addEventListener('change', loadProtectionFile);
   $('protection-run').addEventListener('click', runProtectionReplay);
+  $('protection-jev-load').addEventListener('click', loadIndustrialJevContext);
 }
 
 function setWorkspacePanel(panel) {

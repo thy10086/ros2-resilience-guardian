@@ -87,15 +87,15 @@ Jev 不能执行以下动作：解除 `CONTAINING` 或 `SAFE_STOP`、修改 `spe
 ## 前端操作步骤
 
 1. 打开 `http://127.0.0.1:8088`，使用 `admin/admin` 登录。
-2. 进入“防护实验室”，点击“导入样例 JSON”，选择
-   `experiments/warehouse_amr_pallet_attack_replay.json`。
-3. 点击“运行回放”，逐步查看四条事件的验证码、风险分数、缓解动作和速度上限。
-4. 进入“Jev 语义分析”，点击“加载样例文件”，选择
-   `experiments/warehouse_amr_jev_context.json`。
+2. 进入“防护实验室”，在“内置防护样例”中选择“仓储 AMR 托盘运输”，点击“导入内置样例”。
+   页面会显示 `amr-07`、`A-12 → P-07`、任务阶段、两个 ROS 2 主题和三类威胁。
+3. 点击“执行防护判断”，逐步查看四条事件的验证码、风险分数、缓解动作和速度上限。
+4. 点击案例卡片中的“带入 Jev 语义分析”，页面会把有界摘要填入 Jev 状态框；也可以进入
+   “Jev 语义分析”后点击“加载样例文件”，选择 `experiments/warehouse_amr_jev_context.json`。
 5. 在确认摘要中没有密钥、原始敏感日志或不必要的高频数据后，再点击“测试连接”。
    结果中的攻击类型、任务影响和人工复核建议属于 Jev 语义输出；防护实验室中的
    `REPLAY`、`CONTAINING`、`ISOLATE_COMPONENT` 和 `0.15 m/s` 属于 Guardian 确定性输出。
-6. 需要改变场景时，复制回放 JSON，修改 `sequence`、`component`、`profile` 或事件
+6. 需要改变场景时，点击“导入样例 JSON”上传回放文件，或复制回放 JSON，修改 `sequence`、`component`、`profile` 或事件
    时间，再次导入。`profile=no_isolation` 可验证无法隔离时是否进入 `SAFE_STOP`。
 
 ## 研究边界

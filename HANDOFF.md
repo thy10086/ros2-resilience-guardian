@@ -15,6 +15,15 @@
 - 提交结果：已在本地 `main` 提交 `61e766a feat: add warehouse AMR safety case`，工作区随后保持干净；本轮未执行 GitHub push。
 - 运行时：WSL 无前台实例时服务会随 distro 生命周期短暂重启，表现为 8088 connection refused。执行 `Start-Process wsl.exe -ArgumentList '-d','Ubuntu-24.04','--','sleep','infinity' -WindowStyle Hidden` 后，两个 systemd 服务恢复，8088 health 连续三次（间隔 5 秒）返回 200。
 
+### 2026-09-24 — 前端工业案例实验台（当前）
+
+- 后端：`sample_catalog()` 新增 `warehouse_amr`，返回机器人、任务阶段、ROS 2 主题、威胁列表、Jev 有界摘要和 `guardian-replay/v1` 回放样例。
+- 前端：防护实验室新增工业案例卡片；选择并导入后可直接执行离线回放，显示 `ACCEPTED → REPLAY → ACCEPTED → ACCEPTED`、`CONTAINING`、`ISOLATE_COMPONENT` 和 `0.15 m/s`。案例卡片的“带入 Jev 语义分析”只复制摘要到 Jev 页面，不自动发送 provider 请求。
+- 测试：新增 dashboard HTTP 契约和前端静态断言；TDD 红色阶段为 2 个预期失败，绿色阶段 `tests/test_dashboard_experiments.py` 为 `18 passed`。ROS 2 两包重新构建后通过浏览器登录、选择案例、运行回放和 Jev 摘要转移验证。
+- 全量验证：WSL2 `python3 -m pytest -q tests` 为 `204 passed`；ROS 2 两包重新构建成功；Node/Python 静态检查、`git diff --check`、`.env` 跟踪和无密钥模式检查通过。
+- 使用：登录 `admin/admin` 后打开“防护实验室”，选择“仓储 AMR 托盘运输”→“导入内置样例”→“执行防护判断”；然后点击“带入 Jev 语义分析”。详细字段和自定义 JSON 见 [docs/warehouse_amr_case.md](docs/warehouse_amr_case.md)。
+- 安全边界：网页模拟只调用本地受保护回放接口，不发布 ROS 2 事件；Guardian 保持最终安全状态和速度控制权，Jev 仅为旁路软证据。
+
 ### 2026-09-24 — 持久 Jev Key 与多页面研究工作区（当前）
 
 - 根因修复：此前 Key 只在 `DashboardAuth` 的进程内会话字典中，退出、会话过期或 dashboard 重启都会丢失；前端还依赖一个默认未勾选的会话保存复选框。

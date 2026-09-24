@@ -23,6 +23,22 @@ class ReplayError(ValueError):
 def sample_catalog() -> list[dict]:
     event = dict(event_id="event-1", source="scenario_injector", component="left_wheels",
                  attack_type="STOP", sequence=1, timestamp=10.0, at=10.0, confidence=1.0)
+    warehouse_events = [
+        dict(event_id="amr-dock-left-wheel-7001", source="scenario_injector", component="left_wheels",
+             attack_type="UNSAFE_COMMAND", sequence=7001, timestamp=0.0, at=0.0, confidence=0.98),
+        dict(event_id="amr-dock-left-wheel-7001-replay", source="scenario_injector", component="left_wheels",
+             attack_type="UNSAFE_COMMAND", sequence=7001, timestamp=0.2, at=0.2, confidence=0.98),
+        dict(event_id="amr-dock-left-wheel-7002", source="scenario_injector", component="left_wheels",
+             attack_type="UNSAFE_COMMAND", sequence=7002, timestamp=0.6, at=0.6, confidence=0.96),
+        dict(event_id="amr-pallet-gripper-7003", source="scenario_injector", component="right_arm",
+             attack_type="SEMANTIC_MISBEHAVIOR", sequence=7003, timestamp=1.2, at=1.2, confidence=0.91),
+    ]
+    warehouse_summary = (
+        "仓储 AMR amr-07 正在从货架 A-12 搬运托盘到装卸位 P-07，处于低速对接阶段。"
+        "Guardian 已验证 /cmd_vel 左轮异常 UNSAFE_COMMAND，第二条消息重复 sequence 7001，"
+        "随后出现 sequence 7002；/gripper/command 右臂又出现抓取力为零的语义异常。"
+        "请判断攻击类型、任务影响等级，并说明是否需要人工复核。"
+    )
     specs = [
         ("normal", "正常基线", "无攻击：NORMAL，速度上限 0.35 m/s。", "navigation", []),
         ("untrusted", "未知来源拦截", "UNKNOWN_SOURCE：事件拒绝进入风险计算。", "navigation",
@@ -32,9 +48,28 @@ def sample_catalog() -> list[dict]:
         ("critical", "关键组件隔离", "ACCEPTED → ISOLATE_COMPONENT → CONTAINING，限制到 0.15 m/s。", "navigation", [event]),
         ("stop", "无隔离能力时停车", "ACCEPTED → SAFE_STOP，任务锁定，速度上限 0。", "no_isolation", [event]),
     ]
-    return [dict(id=id_, title=title, expected=expected,
-                 sample=dict(schema=SCHEMA, name=title, profile=profile, events=[dict(e) for e in events]))
-            for id_, title, expected, profile, events in specs]
+    catalog = [dict(id=id_, title=title, expected=expected,
+                    sample=dict(schema=SCHEMA, name=title, profile=profile, events=[dict(e) for e in events]))
+               for id_, title, expected, profile, events in specs]
+    warehouse_entry = {
+        "id": "warehouse_amr",
+        "title": "仓储 AMR 托盘运输",
+        "expected": "ACCEPTED → REPLAY → ACCEPTED → ACCEPTED；最终 CONTAINING / ISOLATE_COMPONENT / 0.15 m/s",
+        "description": "amr-07 从 A-12 搬运托盘到 P-07，模拟对接速度指令、序列重放和抓取器语义异常。",
+        "robot": "amr-07",
+        "mission": "托盘运输：A-12 → P-07",
+        "phase": "低速对接与托盘稳定",
+        "topics": ["/cmd_vel", "/gripper/command"],
+        "threats": ["速度指令越界", "sequence=7001 重放", "抓取力语义异常"],
+        "jev_boundary": "advisory_only",
+        "jev_context": {"summary": warehouse_summary},
+        "sample": dict(schema=SCHEMA, name="仓储 AMR 托盘运输：对接阶段速度指令重放与抓取器异常",
+                       profile="navigation", events=warehouse_events),
+    }
+    # Keep the existing SAFE_STOP fixture last so research tables retain their
+    # stable terminal case while the industrial case appears before it.
+    catalog.insert(len(catalog) - 1, warehouse_entry)
+    return catalog
 
 
 def _number(value, field: str, low: float, high: float) -> float:

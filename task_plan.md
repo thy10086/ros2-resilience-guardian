@@ -454,3 +454,19 @@ rejects the dashboard origin through CORS.
 - ROS 2 build: `guardian_interfaces` and `guardian_core` finished successfully. Windows compileall, frontend syntax, JSON parse, `git diff --check`, and tracked `.env` checks passed.
 - Local commit evidence: `61e766a feat: add warehouse AMR safety case`; no remote push was attempted.
 - Runtime evidence: after starting a hidden `wsl.exe -d Ubuntu-24.04 -- sleep infinity` keepalive, `http://127.0.0.1:8088/api/health` returned HTTP 200 on three polls five seconds apart. The WSL lifecycle requirement is documented in the existing service instructions.
+
+## Current task: web industrial case laboratory (2026-09-24)
+
+- [complete] Add `warehouse_amr` to the authenticated sample catalog with bounded metadata and Jev context.
+- [complete] Render the industrial case card in the protection laboratory and provide one-click transfer of the Jev summary.
+- [complete] Add red/green backend and frontend contract tests, rebuild ROS 2 packages, restart the dashboard, and verify the browser flow.
+- [complete] Run the full regression and commit this front-end integration to local `main` only.
+- Scope: web-based offline simulation and evidence display; no live ROS 2 command publication, no automatic Jev API call, no GitHub push, and no migration.
+
+### Validation evidence: web industrial case
+
+- TDD red run: new catalog/frontend assertions failed (`2 failed`) before implementation.
+- Green run: `tests/test_dashboard_experiments.py` passed `18`; Node syntax and Python compile checks passed.
+- ROS 2 rebuild: `guardian_interfaces` and `guardian_core` finished successfully; dashboard restart served the new assets.
+- Browser smoke: built-in option visible; case card showed `amr-07`, `A-12 → P-07`, `/cmd_vel`, `/gripper/command`, threats and Jev summary; execution showed `3 / 1`, `CONTAINING`, `ISOLATE_COMPONENT`, `0.15 m/s`; Jev transfer populated the semantic page.
+- Full WSL2 suite: `204 passed`; ROS 2 rebuild completed for `guardian_interfaces` and `guardian_core`; frontend `node --check`, Python compileall, `git diff --check`, tracked `.env`, and no-secret-pattern checks passed.

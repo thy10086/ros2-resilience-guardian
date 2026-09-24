@@ -121,7 +121,8 @@ def test_experiment_http_contract_is_authenticated_and_maps_protection_steps(ser
     status, _, payload = request_json(f"{server}/api/experiments/samples", headers={"Cookie": cookie})
     assert status == 200
     assert payload["schema"] == "guardian-replay/v1"
-    assert {item["id"] for item in payload["samples"]} == {"normal", "untrusted", "replay", "critical", "stop"}
+    assert {item["id"] for item in payload["samples"]} == {"normal", "untrusted", "replay", "critical", "stop", "warehouse_amr"}
+    samples_payload = payload
 
     critical = next(item["sample"] for item in payload["samples"] if item["id"] == "critical")
     status, _, payload = request_json(
@@ -135,8 +136,30 @@ def test_experiment_http_contract_is_authenticated_and_maps_protection_steps(ser
     assert report["final"]["plan"]["action"] == "ISOLATE_COMPONENT"
     assert report["steps"][0]["verification"]["code"] == "ACCEPTED"
 
+    warehouse = next(item for item in samples_payload["samples"] if item["id"] == "warehouse_amr")
+    assert warehouse["robot"] == "amr-07"
+    assert warehouse["topics"] == ["/cmd_vel", "/gripper/command"]
+    assert warehouse["jev_boundary"] == "advisory_only"
+    assert warehouse["jev_context"]["summary"]
+    status, _, payload = request_json(
+        f"{server}/api/experiments/replay", data=json.dumps(warehouse["sample"]).encode(),
+        headers={"Cookie": cookie, "Content-Type": "application/json"})
+    assert status == 200
+    assert payload["report"]["summary"] == {"total": 4, "accepted": 3, "rejected": 1}
+    assert payload["report"]["steps"][1]["verification"]["code"] == "REPLAY"
+    assert payload["report"]["final"]["safety"]["state"] == "CONTAINING"
+
     status, _, payload = request_json(
         f"{server}/api/experiments/replay", data=b'{"schema":"wrong"}',
         headers={"Cookie": cookie, "Content-Type": "application/json"})
     assert status == 400
     assert payload["error"]["code"] == "invalid_sample"
+
+
+def test_frontend_exposes_industrial_case_and_jev_boundary():
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    script = (FRONTEND / "app.js").read_text(encoding="utf-8")
+    assert "仓储 AMR 托盘运输" in html
+    assert "protection-industrial" in html
+    assert "protection-jev-summary" in html
+    assert "jev_context" in script
