@@ -428,4 +428,4 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 
 - 改动：确认仓库完整历史和 `.env` 均在本地 `main`；将 `origin` 切换为 HTTPS，通过 Windows Git Credential Manager 的已保存用户凭据准备同步；创建 WSL 用户级 `guardian-core.service` 和 `guardian-dashboard.service` 以持续运行 ROS 2 核心与只读 dashboard。原 `8080` 被其他服务占用，dashboard 使用 `127.0.0.1:8088`。
 - 验证：Ubuntu-24.04 `python3 -m pytest -q tests` 为 `168 passed`；ROS 2 Jazzy 两包构建成功；`guardian-core.service`、`guardian-dashboard.service` 均为 `active`；`/guardian/risk_state`、`/guardian/mitigation_command`、`/guardian/safety_status` 可见，`/guardian/safety_status --once` 返回 `NORMAL`、`mission_allowed=true`、`speed_limit≈0.35`；Windows `http://127.0.0.1:8088/api/health` 返回 HTTP 200。
-- 发布状态：GitHub API 已确认仓库 `thy10086/ros2-resilience-guardian` 为公开仓库、默认分支为 `main`；完整本地 `main` 已推送到 `origin/main`，当前远端提交为 `be22ded`，远端树包含 87 个文件且保留 `.env`。不上传任何密钥，Jev 面板未执行真实 provider 调用。
+- 发布状态：GitHub API 已确认仓库 `thy10086/ros2-resilience-guardian` 为公开仓库、默认分支为 `main`；完整本地 `main` 已推送到 `origin/main`，远端与本地提交一致，远端树包含 87 个文件且保留 `.env`。不上传任何密钥，Jev 面板未执行真实 provider 调用。
