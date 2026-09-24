@@ -9,7 +9,7 @@
 
 ### Final evidence
 
-- [complete] GitHub API reports `origin/main=f628425f328709320f283a1d6d373577295dd392`, with 87 tracked tree entries including `.env`, `HANDOFF.md`, and `ros2_ws/src/guardian_core/package.xml`.
+- [complete] GitHub API reports `origin/main=be22ded`, with 87 tracked tree entries including `.env`, `HANDOFF.md`, and `ros2_ws/src/guardian_core/package.xml`.
 - [complete] WSL user services `guardian-core.service` and `guardian-dashboard.service` are active; `/guardian/safety_status` returns `NORMAL`, `mission_allowed=true`, and `speed_limit≈0.35`.
 - [complete] Windows `http://127.0.0.1:8088/api/health` returns HTTP 200 and `/api/state` reports NORMAL safety/risk state with a live timeline.
 
