@@ -1,5 +1,22 @@
 # Implementation plan
 
+## Current: deployed dashboard repair and protection test mapping (2026-09-24)
+
+- [complete] Reproduce deployed `/api/jev/key=404` and old open browser document without import controls; repository code alone was not deployment proof.
+- [complete] Add a visible local protection test workbench, strict JSON replay through the existing verifier/registry/risk/planner/supervisor, per-step results and examples; keep live ROS state separate and Jev advisory.
+- [complete] Add direct session-Key save and useful version/auth errors; test HTTP contracts, replay input bounds, UI file import and refresh.
+- [complete] Build the actual service workspace `ros2_ws`, restart dashboard, verify deployed endpoints and browser, update handoff and commit main.
+- Design: five small offline fixtures (normal, untrusted source, replay, critical containment, unavailable isolation); at most 64 events; fixed server-side policy profiles; no SQL, no live attack injection or provider calls in automated verification.
+
+### Validation evidence
+
+- Targeted replay/dashboard tests: `36 passed`; full WSL2 suite: `192 passed`.
+- `colcon build --symlink-install --packages-select guardian_interfaces guardian_core`: both packages finished successfully.
+- Offline scenario, Jev efficiency, Jev session and patent innovation scripts passed; innovation suite passed all groups. A first combined shell loop had a PowerShell `$script` quoting expansion and was rerun with explicit commands successfully.
+- Windows `node --check`, `compileall`, `git diff --check`, and tracked `.env` check passed.
+- Deployed HTTP: login 200; `/api/jev/key` GET/POST/clear returned 200 and correct booleans; samples returned 5 entries; critical replay returned `CONTAINING` and `ISOLATE_COMPONENT`.
+- Browser refresh verification: visible “防护测试台”, “导入内置样例”, “导入样例 JSON”, step flow, and results table; critical sample rendered `ACCEPTED → CONTAINING`, `ISOLATE_COMPONENT`, `0.15 m/s`.
+
 ## Current task: local Jev sample upload and saved-key test path (2026-09-24)
 
 - [complete] Confirm comparable open-source ROS 2 security references and record the boundary: this feature is a local dashboard input path, not a ROS 2 control or security-management replacement.

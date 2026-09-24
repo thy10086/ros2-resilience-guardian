@@ -1,5 +1,17 @@
 # Findings
 
+## Deployed dashboard mismatch (2026-09-24)
+
+- Windows HTTP login succeeds but authenticated `GET /api/jev/key` returns HTML 404. Systemd dashboard PID started at 09:28 and loads `ros2_ws/install/setup.bash`; updating source/symlink assets does not reload Python modules.
+- The open in-app browser document predates the import and saved-key controls, while a new HTTP GET contains them. Both process restart and browser refresh must be verified, including save/read/clear rather than just HTML substring checks.
+- Rechecked public `ros2/sros2` repository metadata (key distribution tooling). Its responsibility differs from this offline decision workbench; no new dependency or copied source is required. No claim about uninspected projects' internals is made.
+
+## Protection replay mapping (2026-09-24)
+
+- The front-end workbench uses the existing deterministic classes in a fresh per-request process: `EventVerifier` produces `ACCEPTED`, `UNKNOWN_SOURCE`, `FUTURE`, `STALE`, or `REPLAY`; accepted events enter `AttackRegistry`; `RiskEngine` calculates `delta/gamma/psi/risk`; `MitigationPlanner` selects isolation or `SAFE_STOP`; `SafetySupervisor` maps the plan to `NORMAL`, `RESUMABLE`, `CONTAINING`, or `SAFE_STOP` and a speed limit.
+- Five built-ins provide deterministic coverage: no event, unknown source, replayed sequence, critical component with isolation, and critical component without isolation. Custom input is schema-checked, bounded to 64 events, uses fixed navigation components and trusted source, and rejects extra fields before any decision.
+- The replay endpoint returns only an audit-like result with `actuation=none`; the Jev provider is not called. This preserves the separation between an experiment explanation and real ROS 2 actuation.
+
 ## Local sample upload and session-key boundary (2026-09-24)
 
 - Comparable public references inspected: [iotsrg/awesome-ros-security](https://github.com/iotsrg/awesome-ros-security) is a ROS security resource index and [Rexyyj/ROS2-SMT](https://github.com/Rexyyj/ROS2-SMT) is a ROS 2 security-management project. Neither treats browser file upload as a real-time safety decision path; the current design keeps that separation.

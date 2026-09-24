@@ -18,6 +18,7 @@ from rclpy.node import Node
 from guardian_interfaces.msg import MitigationCommand, RiskState, SafetyStatus
 
 from .dashboard_state import DashboardState
+from .dashboard_experiments import ReplayError, run_replay, sample_catalog
 from .dashboard_jev import (
     DEFAULT_TIMEOUT_SEC,
     DEFAULT_ENDPOINT,
@@ -75,6 +76,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return
             self._jev_key_status()
             return
+        if parsed.path == "/api/experiments/samples":
+            if not self._require_auth():
+                return
+            self._experiment_samples()
+            return
         self._static(parsed.path)
 
     def do_POST(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
@@ -101,6 +107,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if not self._require_auth():
                 return
             self._jev_test()
+            return
+        if parsed.path == "/api/experiments/replay":
+            if not self._require_auth():
+                return
+            self._experiment_replay()
             return
         self.send_error(404)
 
@@ -265,6 +276,51 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._json({"saved": False, "error": {"code": "auth_required", "message": "Login required"}}, status=401)
             return
         self._json({"saved": True})
+
+    def _experiment_samples(self) -> None:
+        self._json({"schema": "guardian-replay/v1", "samples": sample_catalog()})
+
+    def _experiment_replay(self) -> None:
+        content_length = self.headers.get("Content-Length")
+        try:
+            length = int(content_length or "-1")
+        except (TypeError, ValueError):
+            length = -1
+        if length < 0:
+            self._json(
+                {"status": "INVALID_REQUEST", "error": {"code": "invalid_content_length", "message": "Request body length is invalid"}},
+                status=400,
+            )
+            return
+        if length > MAX_REQUEST_BYTES:
+            self._json(
+                {"status": "INVALID_REQUEST", "error": {"code": "request_too_large", "message": "Request body is too large"}},
+                status=413,
+            )
+            return
+        raw = self.rfile.read(length)
+        if len(raw) != length:
+            self._json(
+                {"status": "INVALID_REQUEST", "error": {"code": "incomplete_body", "message": "Request body is incomplete"}},
+                status=400,
+            )
+            return
+        try:
+            sample = json.loads(raw.decode("utf-8"))
+            report = run_replay(sample)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._json(
+                {"status": "INVALID_REQUEST", "error": {"code": "invalid_json", "message": "样例必须是有效 JSON"}},
+                status=400,
+            )
+            return
+        except ReplayError as error:
+            self._json(
+                {"status": "INVALID_REQUEST", "error": {"code": "invalid_sample", "message": str(error)}},
+                status=400,
+            )
+            return
+        self._json({"status": "OK", "report": report})
 
     def _static(self, request_path: str) -> None:
         relative = unquote(request_path.lstrip("/")) or "index.html"

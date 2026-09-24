@@ -66,6 +66,37 @@
       <div id="timeline" class="timeline"><div class="empty">等待 ROS 2 消息</div></div>
     </section>
 
+    <section class="card protection-card" aria-labelledby="protection-title">
+      <div class="section-title">
+        <div>
+          <h2 id="protection-title">防护测试台</h2>
+          <p class="muted jev-subtitle">离线回放同一套 Guardian 防护逻辑，不注入真实 ROS 2 事件</p>
+        </div>
+        <span class="pill protection-pill">只读实验</span>
+      </div>
+      <div class="protection-flow" aria-label="防护判断流程">
+        <span>① 事件校验</span><b>→</b><span>② 攻击登记</span><b>→</b><span>③ 风险评估</span><b>→</b><span>④ 缓解规划</span><b>→</b><span>⑤ 安全监督</span>
+      </div>
+      <div class="protection-controls">
+        <label class="field" for="protection-sample-select"><span>内置防护样例</span><select id="protection-sample-select"><option value="">正在读取样例…</option></select></label>
+        <button id="protection-load" class="button secondary" type="button">导入内置样例</button>
+        <label class="button secondary compact" for="protection-file">导入样例 JSON</label>
+        <input id="protection-file" type="file" accept=".json,application/json">
+        <button id="protection-run" class="button primary" type="button" disabled>执行防护判断</button>
+      </div>
+      <p id="protection-feedback" class="muted" role="status" aria-live="polite">请选择内置样例或导入 JSON。</p>
+      <div id="protection-result" hidden>
+        <div class="protection-summary" id="protection-summary"></div>
+        <div class="protection-table-wrap">
+          <table class="protection-table">
+            <thead><tr><th>时间</th><th>事件校验</th><th>风险</th><th>缓解动作</th><th>安全状态</th><th>速度上限</th></tr></thead>
+            <tbody id="protection-steps"></tbody>
+          </table>
+        </div>
+        <p class="muted protection-note">本表展示离线决策证据。它不会发布攻击事件、修改实时 ROS 2 状态、解除 SAFE_STOP 或直接控制机器人。</p>
+      </div>
+    </section>
+
     <section class="card jev-card" aria-labelledby="jev-title">
       <div class="section-title">
         <div>

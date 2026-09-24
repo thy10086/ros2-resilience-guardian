@@ -128,6 +128,40 @@ Jev 事件会话层进一步聚合连续告警、对风险和语义变化重新�
 
 跨层融合扩展的实验设计见 [docs/fusion_experiment_plan.md](docs/fusion_experiment_plan.md)，实现边界和后续 ROS 2 接入步骤见 [docs/fusion_implementation_plan.md](docs/fusion_implementation_plan.md)。当前跨层模块已完成纯 Python 离线验证，但还没有直接接管真实底盘、Webots 或 ROS 2 live graph introspection。
 
+### 前端防护测试台
+
+登录驾驶舱后，页面中的“防护测试台”用于验证 Guardian 的确定性安全链路。它把样例依次送入：
+
+`事件校验 → 攻击登记 → 风险评估 → 缓解规划 → 安全监督`
+
+页面提供五个内置样例：正常基线、未知来源拦截、重复序列拦截、关键组件隔离和无隔离能力停车。也可以点击“导入样例 JSON”上传自定义回放；文件只在浏览器内读取，服务端只接受 `guardian-replay/v1`、最多 64 条事件的有界数据。判断结果会显示每一步的验证码、风险分数、缓解动作、安全状态和速度上限。
+
+自定义样例的最小格式如下：
+
+```json
+{
+  "schema": "guardian-replay/v1",
+  "name": "critical wheel test",
+  "profile": "navigation",
+  "events": [
+    {
+      "at": 10,
+      "event_id": "event-1",
+      "source": "scenario_injector",
+      "component": "left_wheels",
+      "attack_type": "STOP",
+      "sequence": 1,
+      "timestamp": 10,
+      "confidence": 1
+    }
+  ]
+}
+```
+
+`profile=navigation` 允许隔离配置中的组件；`profile=no_isolation` 用于验证无法安全隔离时进入 `SAFE_STOP`。该测试台调用的就是 `guardian_node` 使用的 `EventVerifier`、`AttackRegistry`、`RiskEngine`、`MitigationPlanner` 和 `SafetySupervisor` 类，但运行在新建的离线实例中，不发布 ROS 2 事件或控制命令。Jev 面板仍然是独立的语义复核旁路：它可以补充攻击类型和人工复核建议，不能改变测试台或实时 ROS 2 的安全结论。
+
+对应接口为受登录保护的 `GET /api/experiments/samples` 和 `POST /api/experiments/replay`。接口只返回确定性回放结果，不调用外部 Jev provider。
+
 专利化研究方案、现有技术边界和对照实验见 [docs/patent_disclosure.md](docs/patent_disclosure.md)、[docs/patent_prior_art.md](docs/patent_prior_art.md) 和 [docs/patent_experiments.md](docs/patent_experiments.md)。当前新增的因果图、证据账本、预测安全包络、反事实解释和双阶段恢复协议已完成纯 Python 离线验证，尚未宣称完成实机认证或专利授权。
 ## Current implementation status
 

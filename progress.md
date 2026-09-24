@@ -1,5 +1,11 @@
 # Progress
 
+- 2026-09-24: Added the protection test workbench and its bounded replay endpoint. It maps event verification, attack registry, risk engine, mitigation planner and safety supervisor to a visible per-step table; no ROS 2 commands or Jev provider calls are made. The focused HTTP and pure replay regressions passed before deployment verification.
+
+- 2026-09-24: Rebuilt `ros2_ws`, restarted `guardian-dashboard.service`, and verified deployed Key save/read/clear, five samples, and critical replay `CONTAINING/ISOLATE_COMPONENT/0.15 m/s`. Browser refresh now visibly shows the protection workbench, import buttons, flow mapping and results table. Full WSL2 suite passed `192 tests`; all offline experiments, ROS 2 build, frontend syntax, compileall, diff and `.env` checks passed. Local commit remains; no GitHub push or live Jev call.
+
+- 2026-09-24: User reported missing import and successful Jev call followed by failed Key save. Reproduced stale browser document and authenticated deployed Key API 404; previous source tests did not verify process reload. Implementing a visible protection replay workflow and verifying deployment end to end.
+
 - 2026-09-24: Final validation completed for the sample workflow. WSL2 dashboard integration tests passed `6 passed`, the full suite passed `175 passed`, both ROS 2 packages built successfully, all five offline experiment scripts passed, and Windows compileall/frontend syntax/diff/.env checks passed. The live local dashboard returned `/api/health` 200 and served the sample-file and saved-key controls. Existing ROS 2 build output included non-fatal compiler clock-skew warnings only. Changes are ready for a local `main` commit; no GitHub push or live Jev call was made.
 
 - 2026-09-24: Added the dashboard sample-file workflow for local Jev experiments. TXT/LOG/CSV/JSON files are read in the browser with 64 KiB/4096-character bounds and are sent only after the user clicks “测试连接”. Added an HTTP integration regression covering login, session-only Key save, Jev test without an `api_key`, response redaction, clear, and fail-closed reuse. The focused dashboard authentication suite passes `6 passed`; full regression and ROS 2 build are next.
