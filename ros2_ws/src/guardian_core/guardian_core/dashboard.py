@@ -20,6 +20,12 @@ from std_msgs.msg import String
 
 from .dashboard_state import DashboardState
 from .dashboard_experiments import ReplayError, run_replay, sample_catalog
+from .dashboard_code_security import (
+    CODE_SECURITY_SCHEMA,
+    CodeSecurityError,
+    inspect_source,
+    sample_catalog as code_security_sample_catalog,
+)
 from .dashboard_research import run_research_suite
 from .dashboard_jev import (
     DEFAULT_TIMEOUT_SEC,
@@ -34,6 +40,7 @@ from .dashboard_auth import DashboardAuth
 from .dashboard_credentials import CredentialStoreError
 
 MAX_SIMULATION_REQUEST_BYTES = 4096
+MAX_CODE_SECURITY_REQUEST_BYTES = 72 * 1024
 SIMULATION_ATTACK_TYPES = {"speed_abuse", "replay", "gripper_fault"}
 SIMULATION_ACTIONS = {"start", "stop", "reset", "attack"}
 
@@ -97,6 +104,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return
             self._experiment_samples()
             return
+        if parsed.path == "/api/code-security/samples":
+            if not self._require_auth():
+                return
+            self._code_security_samples()
+            return
         if parsed.path == "/api/research/suite":
             if not self._require_auth():
                 return
@@ -139,6 +151,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if not self._require_auth():
                 return
             self._experiment_replay()
+            return
+        if parsed.path == "/api/code-security/inspect":
+            if not self._require_auth():
+                return
+            self._code_security_inspect()
             return
         if parsed.path == "/api/simulation/control":
             if not self._require_auth():
@@ -312,6 +329,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def _experiment_samples(self) -> None:
         self._json({"schema": "guardian-replay/v1", "samples": sample_catalog()})
 
+    def _code_security_samples(self) -> None:
+        self._json({"schema": CODE_SECURITY_SCHEMA, "samples": code_security_sample_catalog()})
+
     def _research_suite(self) -> None:
         self._json(run_research_suite())
 
@@ -352,6 +372,59 @@ class DashboardHandler(BaseHTTPRequestHandler):
         except ReplayError as error:
             self._json(
                 {"status": "INVALID_REQUEST", "error": {"code": "invalid_sample", "message": str(error)}},
+                status=400,
+            )
+            return
+        self._json({"status": "OK", "report": report})
+
+    def _code_security_inspect(self) -> None:
+        content_length = self.headers.get("Content-Length")
+        try:
+            length = int(content_length or "-1")
+        except (TypeError, ValueError):
+            length = -1
+        if length < 0:
+            self._json(
+                {"status": "INVALID_REQUEST", "error": {"code": "invalid_code_security_request", "message": "请求体长度无效"}},
+                status=400,
+            )
+            return
+        if length > MAX_CODE_SECURITY_REQUEST_BYTES:
+            self._json(
+                {"status": "INVALID_REQUEST", "error": {"code": "code_security_request_too_large", "message": "代码文件不能超过 64 KiB"}},
+                status=413,
+            )
+            return
+        raw = self.rfile.read(length)
+        if len(raw) != length:
+            self._json(
+                {"status": "INVALID_REQUEST", "error": {"code": "invalid_code_security_request", "message": "请求体不完整"}},
+                status=400,
+            )
+            return
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._json(
+                {"status": "INVALID_REQUEST", "error": {"code": "invalid_code_security_request", "message": "请求体必须是有效 JSON"}},
+                status=400,
+            )
+            return
+        if not isinstance(payload, dict) or set(payload) - {"source", "filename", "profile"}:
+            self._json(
+                {"status": "INVALID_REQUEST", "error": {"code": "invalid_code_security_request", "message": "仅支持 source、filename、profile 字段"}},
+                status=400,
+            )
+            return
+        try:
+            report = inspect_source(
+                payload.get("source"),
+                filename=payload.get("filename", "uploaded.py"),
+                profile=payload.get("profile", "conveyor_robot_arm"),
+            )
+        except CodeSecurityError as error:
+            self._json(
+                {"status": "INVALID_REQUEST", "error": {"code": "invalid_code_security_request", "message": str(error)}},
                 status=400,
             )
             return

@@ -250,3 +250,12 @@ be committed or printed.
 - 隔离 ROS domain 的真实节点冒烟证明了 `UNSAFE_COMMAND` 从仿真到 Guardian，再由 `safety_status` 回到仿真的闭环；`/cmd_vel` 在 containment 后为零。Jev 不在实时控制链路中，只能对验证后的摘要提供软证据。
 - 当前 8088 的本地部署必须同时启动 `guardian-simulator.service`；仅启动 dashboard 会让控制 API 返回 `simulation_unavailable`。加入 systemd 单元并重启后三服务均 active，HTTP 控制链路可重现 `start → speed_abuse → CONTAINING`。
 - 仿真 `reset` 不应直接清空 Guardian 的活动攻击登记，否则会形成未认证的安全状态降级入口；它只清理数字孪生状态，Guardian 仍按事件 TTL 自然过期。前端明确提示该延迟，遥测清理器允许 `attack_mode: null` 清除旧显示。
+
+## 2026-09-24 — Industrial ROS 2 code safety inspection
+
+- Existing protection replay accepts bounded event JSON and maps to Guardian verification, risk, mitigation and safety state; this is the safest reuse point for a source-code inspection result.
+- The dashboard is an authenticated static frontend served by `dashboard.py`; new inspection routes should use the same authentication and bounded request-body pattern as `/api/experiments/replay`.
+- User-supplied code must remain text-only. The checker will use Python `ast` plus bounded token/text rules and will never call `exec`, `eval`, `importlib`, a subprocess, ROS 2, or a provider.
+- First industrial profile: conveyor + robot-arm palletizing. The profile checks `/cmd_vel`, `/joint_trajectory`, `/gripper/command`, safety-stop calls, command bounds, callback blocking/dynamic execution, and hard-coded credentials.
+- Implemented result contract: `PASS` for no covered high/critical finding, `REVIEW` for medium/high findings, and `BLOCKED` for critical findings. `SAFE_STOP` is only a static deployment-gate recommendation; runtime Guardian remains the authority for ROS 2 actuation.
+- Evidence is line-limited and credential values are masked before JSON response. The report includes `execution=not_executed` to make the boundary visible in the UI and HTTP contract.

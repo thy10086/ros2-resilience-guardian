@@ -28,6 +28,7 @@
       <button class="workspace-tab active" data-panel="realtime" type="button">实时防护</button>
       <button class="workspace-tab" data-panel="protection" type="button">防护实验室</button>
       <button class="workspace-tab" data-panel="simulation" type="button">工程仿真</button>
+      <button class="workspace-tab" data-panel="code-security" type="button">工业代码安全检查</button>
       <button class="workspace-tab" data-panel="jev" type="button">Jev 语义分析</button>
       <button class="workspace-tab" data-panel="research" type="button">安全测试分析</button>
     </nav>
@@ -83,6 +84,33 @@
           <div class="simulation-metric"><span>缓解动作</span><strong id="simulation-mitigation">—</strong></div>
         </div>
         <div class="simulation-explanation"><strong>如何体现 Jev：</strong><span>本闭环的实时安全动作由 Guardian 的确定性验证、风险和状态机完成；Jev 只在防护实验室或 Jev 页面对已验证事件提供语义解释与人工复核建议，不参与速度控制、隔离或恢复。</span></div>
+      </article>
+    </section>
+
+    <section id="panel-code-security" class="workspace-panel" data-panel-section="code-security" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">04 / INDUSTRIAL CODE CHECK</p><h2>工业代码安全检查</h2><p class="muted">导入 ROS 2 Python 控制节点，检查执行器边界、急停门控、动态执行和凭据暴露。</p></div><span class="pill">只读检查</span></div>
+      <article class="card code-security-card">
+        <div class="code-security-controls">
+          <label class="field" for="code-security-sample-select"><span>内置工业样例</span><select id="code-security-sample-select"><option value="">正在读取样例…</option></select></label>
+          <button id="code-security-load" class="button secondary" type="button">导入内置样例</button>
+          <label class="button secondary compact" for="code-security-file">导入 Python 文件</label>
+          <input id="code-security-file" type="file" accept=".py,text/x-python,text/plain">
+          <button id="code-security-run" class="button primary" type="button" disabled>执行安全检查</button>
+        </div>
+        <label class="field code-security-source-field" for="code-security-source"><span>待检查 ROS 2 控制代码</span><textarea id="code-security-source" rows="16" spellcheck="false" placeholder="导入内置样例或上传一个 ROS 2 Python 控制节点…"></textarea></label>
+        <p id="code-security-feedback" class="muted" role="status" aria-live="polite">系统只读取源代码文本，不会执行、导入或启动上传的代码。</p>
+        <div id="code-security-result" hidden>
+          <div class="code-security-summary">
+            <span>检查结论 <strong id="code-security-verdict">—</strong></span>
+            <span>关键 <strong id="code-security-critical">0</strong></span>
+            <span>高风险 <strong id="code-security-high">0</strong></span>
+            <span>中风险 <strong id="code-security-medium">0</strong></span>
+            <span>执行器主题 <strong id="code-security-topics">—</strong></span>
+            <span>Guardian 映射 <strong id="code-security-mapping">—</strong></span>
+          </div>
+          <div class="code-security-table-wrap"><table class="code-security-table"><thead><tr><th>级别</th><th>规则</th><th>行</th><th>证据</th><th>建议</th><th>Guardian 动作</th></tr></thead><tbody id="code-security-findings"></tbody></table></div>
+          <p id="code-security-boundary" class="muted code-security-boundary">—</p>
+        </div>
       </article>
     </section>
 

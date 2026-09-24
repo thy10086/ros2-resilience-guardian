@@ -22,6 +22,8 @@ const JEV_KEY_ENDPOINT = '/api/jev/key';
 const JEV_KEY_CLEAR_ENDPOINT = '/api/jev/key/clear';
 const EXPERIMENT_SAMPLES_ENDPOINT = '/api/experiments/samples';
 const EXPERIMENT_REPLAY_ENDPOINT = '/api/experiments/replay';
+const CODE_SECURITY_SAMPLES_ENDPOINT = '/api/code-security/samples';
+const CODE_SECURITY_INSPECT_ENDPOINT = '/api/code-security/inspect';
 const RESEARCH_ENDPOINT = '/api/research/suite';
 const SIMULATION_CONTROL_ENDPOINT = '/api/simulation/control';
 const MAX_SAMPLE_BYTES = 64 * 1024;
@@ -31,6 +33,8 @@ let jevKeySaved = false;
 let protectionSamples = [];
 let protectionSample = null;
 let protectionSampleMeta = null;
+let codeSecuritySamples = [];
+let codeSecuritySource = '';
 let simulationCommandBusy = false;
 
 function showLogin(message = '本地实验账号：admin / admin') {
@@ -132,6 +136,107 @@ async function loadProtectionFile(event) {
   } catch (_error) {
     setProtectionSample(null, '样例必须是有效的 guardian-replay/v1 JSON 文件');
     setProtectionFeedback('样例必须是有效的 guardian-replay/v1 JSON 文件。', 'error');
+  }
+}
+
+function setCodeSecurityFeedback(message, kind = '') {
+  const target = $('code-security-feedback');
+  if (!target) return;
+  target.textContent = message;
+  target.className = `muted${kind ? ` ${kind}` : ''}`;
+}
+
+function setCodeSecuritySource(source, label = '代码已载入') {
+  codeSecuritySource = String(source || '');
+  $('code-security-source').value = codeSecuritySource;
+  $('code-security-run').disabled = !codeSecuritySource.trim();
+  $('code-security-result').hidden = true;
+  setCodeSecurityFeedback(label, codeSecuritySource ? 'success' : '');
+}
+
+function renderCodeSecuritySamples(payload) {
+  codeSecuritySamples = Array.isArray(payload?.samples) ? payload.samples : [];
+  const select = $('code-security-sample-select');
+  select.innerHTML = codeSecuritySamples.length
+    ? codeSecuritySamples.map((item) => `<option value="${esc(item.id)}">${esc(item.title)}</option>`).join('')
+    : '<option value="">暂无内置工业样例</option>';
+  if (codeSecuritySamples.length) setCodeSecuritySource('', '请选择“导入内置样例”或上传 Python 文件');
+  else setCodeSecurityFeedback('内置工业样例读取失败，请上传 Python 文件。', 'error');
+}
+
+async function loadCodeSecuritySamples() {
+  try {
+    const response = await fetch(CODE_SECURITY_SAMPLES_ENDPOINT, {cache: 'no-store'});
+    const payload = await parseJsonResponse(response);
+    if (!response.ok) throw new Error(payload?.error?.message || `HTTP ${response.status}`);
+    renderCodeSecuritySamples(payload);
+  } catch (error) {
+    setCodeSecurityFeedback(`无法读取工业代码样例：${redactJevMessage(error.message)}`, 'error');
+  }
+}
+
+function loadSelectedCodeSecuritySample() {
+  const id = $('code-security-sample-select').value;
+  const entry = codeSecuritySamples.find((item) => item.id === id);
+  if (!entry) return setCodeSecuritySource('', '没有可导入的工业代码样例');
+  setCodeSecuritySource(entry.source, `已导入：${entry.title} · 点击“执行安全检查”`);
+}
+
+async function loadCodeSecurityFile(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  if (file.size > MAX_SAMPLE_BYTES) {
+    setCodeSecuritySource('', '代码文件不能超过 64 KiB。');
+    return setCodeSecurityFeedback('代码文件不能超过 64 KiB。', 'error');
+  }
+  try {
+    setCodeSecuritySource(await file.text(), `已加载：${file.name} · 点击“执行安全检查”`);
+  } catch (_error) {
+    setCodeSecuritySource('', '无法读取代码文件。');
+    setCodeSecurityFeedback('无法读取代码文件，请使用 UTF-8 编码的 Python 文件。', 'error');
+  }
+}
+
+function renderCodeSecurityReport(report) {
+  const summary = report.summary || {};
+  const mapping = report.guardian_mapping || {};
+  $('code-security-verdict').textContent = String(summary.verdict || '—');
+  $('code-security-critical').textContent = String(summary.critical || 0);
+  $('code-security-high').textContent = String(summary.high || 0);
+  $('code-security-medium').textContent = String(summary.medium || 0);
+  $('code-security-topics').textContent = Array.isArray(report.topics) && report.topics.length ? report.topics.join('、') : '无';
+  $('code-security-mapping').textContent = `${mapping.state || '—'} / ${mapping.action || '—'}`;
+  $('code-security-findings').innerHTML = (Array.isArray(report.findings) ? report.findings : []).map((item) => (
+    `<tr><td class="${protectionClass(item.severity)}">${esc(item.severity)}</td><td>${esc(item.rule_id)} · ${esc(item.title)}</td><td>${Number(item.line || 0)}</td><td class="code-security-evidence">${esc(item.evidence || '—')}</td><td>${esc(item.recommendation || '—')}</td><td>${esc(item.guardian_action || '—')}</td></tr>`
+  )).join('') || '<tr><td colspan="6" class="empty">未发现当前规则覆盖的风险。</td></tr>';
+  $('code-security-boundary').textContent = `Guardian 映射：${mapping.reason || '—'} 代码执行状态：${report.execution || '—'}。检查结果只用于上线前复核，不会自动修改代码或控制机器人。`;
+  $('code-security-result').hidden = false;
+}
+
+async function runCodeSecurityInspection() {
+  const source = $('code-security-source').value;
+  if (!source.trim()) return setCodeSecurityFeedback('请先导入或粘贴 ROS 2 Python 控制代码。', 'error');
+  const button = $('code-security-run');
+  button.disabled = true;
+  setCodeSecurityFeedback('正在进行只读安全检查…');
+  try {
+    const response = await fetch(CODE_SECURITY_INSPECT_ENDPOINT, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      cache: 'no-store',
+      body: JSON.stringify({source, filename: 'dashboard-input.py', profile: 'conveyor_robot_arm'}),
+    });
+    const payload = await parseJsonResponse(response);
+    if (!response.ok || payload?.status !== 'OK' || !payload.report) throw new Error(payload?.error?.message || `HTTP ${response.status}`);
+    codeSecuritySource = source;
+    renderCodeSecurityReport(payload.report);
+    const verdict = payload.report.summary?.verdict || 'REVIEW';
+    setCodeSecurityFeedback(`安全检查完成：${verdict}。已生成 Guardian 防护映射。`, verdict === 'PASS' ? 'success' : 'error');
+  } catch (error) {
+    setCodeSecurityFeedback(`安全检查失败：${redactJevMessage(error.message)}`, 'error');
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -299,6 +404,7 @@ async function login(event) {
   showApp();
   await loadJevKeyStatus();
   await loadProtectionSamples();
+  await loadCodeSecuritySamples();
   refresh();
 }
 
@@ -316,6 +422,7 @@ async function setupAuth() {
       showApp();
       await loadJevKeyStatus();
       await loadProtectionSamples();
+      await loadCodeSecuritySamples();
       refresh();
     } else {
       showLogin();
@@ -490,6 +597,18 @@ function setupProtection() {
   $('protection-jev-load').addEventListener('click', loadIndustrialJevContext);
 }
 
+function setupCodeSecurity() {
+  const select = $('code-security-sample-select');
+  if (!select) return;
+  $('code-security-load').addEventListener('click', loadSelectedCodeSecuritySample);
+  $('code-security-file').addEventListener('change', loadCodeSecurityFile);
+  $('code-security-run').addEventListener('click', runCodeSecurityInspection);
+  $('code-security-source').addEventListener('input', () => {
+    codeSecuritySource = $('code-security-source').value;
+    $('code-security-run').disabled = !codeSecuritySource.trim();
+  });
+}
+
 function simulationFeedback(message, kind = '') {
   const target = $('simulation-feedback');
   if (!target) return;
@@ -552,7 +671,7 @@ function renderSimulation(simulation) {
 }
 
 function setWorkspacePanel(panel) {
-  const allowed = new Set(['realtime', 'protection', 'simulation', 'jev', 'research']);
+  const allowed = new Set(['realtime', 'protection', 'simulation', 'code-security', 'jev', 'research']);
   const selected = allowed.has(panel) ? panel : 'realtime';
   document.querySelectorAll('.workspace-tab').forEach((tab) => {
     const active = tab.dataset.panel === selected;
@@ -677,6 +796,7 @@ async function refresh() {
 
 setupJev();
 setupProtection();
+setupCodeSecurity();
 setupSimulation();
 setupWorkspace();
 setupResearch();

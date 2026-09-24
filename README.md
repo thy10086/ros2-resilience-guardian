@@ -241,14 +241,16 @@ python3 experiments/run_warehouse_amr_case.py
 
 对应接口为受登录保护的 `GET /api/experiments/samples` 和 `POST /api/experiments/replay`。接口只返回确定性回放结果，不调用外部 Jev provider。
 
-### 多页面工作区与研究套件
+### 多页面工作区与安全测试分析
 
-前端按职责分为四页：
+前端按职责分为六页：
 
 - **实时防护**：查看 ROS 2 风险、活动组件、缓解方案、速度上限和时间线。
 - **防护实验室**：导入或上传 `guardian-replay/v1` 样例，查看五阶段逐步结果。
+- **工程仿真**：启动仓储 AMR 数字孪生，观察攻击注入和 Guardian 安全反馈如何影响实际速度。
+- **工业代码安全检查**：导入 ROS 2 Python 控制节点，检查执行器边界、急停门控、动态执行、凭据暴露和阻塞调用；代码只读分析，不会执行上传内容。规则和操作见 [docs/industrial_code_security.md](docs/industrial_code_security.md)。
 - **Jev 语义分析**：手动执行有界旁路请求，保存/更新或删除本机 Key；Jev 不进入控制闭环。
-- **研究与创新**：运行 `/api/research/suite` 的离线套件，展示高效判断路径、调用减少、会话复用、超时回退、父证据阻断和 ROS 2 安全案例。
+- **安全测试分析**：运行 `/api/research/suite` 的离线测试套件，展示高效判断路径、调用减少、会话复用、超时回退、父证据阻断和 ROS 2 安全案例。
 
 研究套件使用生产 `JevEfficientJudge`、`JevIncidentSession`、`EvidenceLedger` 和防护回放类，
 但使用确定性 stub provider，因此 `real_api_calls=0`、`actuation=none`。当前可复现实验为：

@@ -500,3 +500,20 @@ rejects the dashboard origin through CORS.
 - Green run: `19 passed` for the dashboard/experiment selection in WSL2.
 - Static checks: `node --check ros2_ws/src/guardian_core/guardian_core/frontend/app.js` passed; forbidden proposal terms were absent from `frontend/index.html` and `frontend/app.js`.
 - Compatibility: existing `research` hash route, `/api/research/suite`, DOM IDs and JavaScript handlers were preserved.
+
+## Current task: industrial ROS 2 code safety inspection (2026-09-24)
+
+- [complete] Define a bounded, read-only inspection contract for ROS 2 Python production samples.
+- [complete] Add deterministic AST/token checks for unsafe actuator control, missing safety boundaries, secret leakage and dangerous dynamic execution.
+- [complete] Add built-in conveyor/robot-arm sample and authenticated dashboard endpoint for code inspection.
+- [complete] Add a frontend “工业代码安全检查” workspace with file import, findings table and Guardian control mapping.
+- [complete] Run TDD red/green tests, full regression, static checks and ROS 2 build; update handoff evidence.
+- Scope: inspect source text only; never execute, import or publish user-supplied code. No automatic code rewrite, no live hardware control, no provider call and no credential changes.
+
+### Validation evidence: industrial ROS 2 code safety inspection
+
+- TDD red run: the new contract initially failed because the module, authenticated routes and frontend workspace were absent (`2 failed` during the first implementation run).
+- Green run: `tests/test_dashboard_code_security.py` passed `8`; full WSL2 suite passed `220`.
+- Safety cases: the safe conveyor/arm fixture returned `PASS`; the unsafe fixture returned `BLOCKED` and mapped to `SAFE_STOP`; hard-coded credential evidence was redacted before returning the report.
+- ROS 2 build: `guardian_interfaces` and `guardian_core` finished successfully with `colcon build --symlink-install`.
+- Static checks: frontend `node --check`, `git diff --check`, and tracked `.env` verification passed. Service restart from the unprivileged WSL user reported `Interactive authentication required`; the unit remained active and the endpoint contract is covered by authenticated HTTP tests.

@@ -523,3 +523,12 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 兼容性：保留 `research` hash 路由、`/api/research/suite` 接口、现有 DOM ID 和 JavaScript 调用函数；只改变展示层文本，不改变 ROS 2 状态话题、Guardian 安全决策、Jev 旁路边界、登录、Key 存储或实验逻辑。
 - 文件：`ros2_ws/src/guardian_core/guardian_core/frontend/index.html`、`ros2_ws/src/guardian_core/guardian_core/frontend/app.js`、`tests/test_dashboard_experiments.py`、`progress.md`、`task_plan.md`。
 - 验证：前端契约测试按红/绿流程完成，WSL2 在加载 `/opt/ros/jazzy/setup.bash` 和当前 workspace 后相关测试为 `19 passed`；Windows `node --check` 通过；前端 HTML/JS 不再包含上述申请导向词；`.env` 仍受 Git 跟踪，未写入或输出任何密钥。
+
+### 2026-09-24 — Industrial ROS 2 code safety inspection
+
+- 改动：新增 `dashboard_code_security.py`，对输送线/机械臂 ROS 2 Python 控制代码执行有界、只读的 AST/文本检查；新增规则覆盖语法错误、动态执行、外部进程、硬编码凭据、执行器主题缺少安全边界/停车门控和阻塞等待。
+- 接口：新增受登录保护的 `GET /api/code-security/samples` 和 `POST /api/code-security/inspect`。请求只接受 `source`、`filename`、`profile`，源代码最大 64 KiB；服务不执行、不导入、不发布上传代码，也不把源代码发送给 Jev。凭据证据在返回前脱敏。
+- 前端：增加“工业代码安全检查”工作区，支持内置样例、Python 文件导入、源码查看、风险表格和 Guardian 映射；内部保留现有 `research` hash 路由和 API，不影响原有页面。
+- 示例与文档：`experiments/industrial_conveyor_arm_safe.py`、`experiments/industrial_conveyor_arm_unsafe.py`、`docs/industrial_code_security.md`、README 工作区说明。
+- 验证：TDD 红测在缺少模块/接口/UI 时失败，绿测 `tests/test_dashboard_code_security.py` 为 `8 passed`；WSL2 全量 `220 passed`；ROS 2 Jazzy 两包构建成功；Windows `node --check`、`git diff --check` 和 `.env` 跟踪检查通过。安全样例为 `PASS`，待整改样例为 `BLOCKED → SAFE_STOP`。本轮没有真实 provider 调用、没有输出密钥、没有 GitHub 推送。
+- 运行边界：`SAFE_STOP` 是代码上线前的防护映射建议，不会直接修改 Guardian 运行状态；真实机器人仍必须通过 Guardian `safety_status` 和硬件/仿真适配器执行限速、隔离或停车。当前 WSL 用户无 systemd 重启权限，服务重启命令返回 `Interactive authentication required`，但既有 unit 保持 active，HTTP 行为由认证契约测试覆盖。
