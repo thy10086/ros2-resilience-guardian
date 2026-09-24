@@ -143,7 +143,15 @@ python3 -m pytest -q tests
 ros2 launch guardian_core guardian.launch.py
 ```
 
-然后访问 `http://127.0.0.1:8080`。
+默认启动文件使用 `8080`。如果端口已被其他服务占用，可按本次本地运行配置使用 ROS 2 用户服务和 `8088`：
+
+```bash
+systemctl --user status guardian-core.service guardian-dashboard.service
+systemctl --user restart guardian-core.service guardian-dashboard.service
+# 浏览器打开 http://127.0.0.1:8088
+```
+
+本次验证中 `8080` 已被其他本地进程占用，因此 dashboard 以 `host=127.0.0.1`、`port=8088` 运行。服务单元位于 WSL 用户目录 `~/.config/systemd/user/`，不是仓库文件；停止命令为 `systemctl --user stop guardian-core.service guardian-dashboard.service`。
 
 只启动驾驶舱：
 
@@ -183,8 +191,8 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 
 - 仓库：[thy10086/ros2-resilience-guardian](https://github.com/thy10086/ros2-resilience-guardian)
 - 默认分支：`main`
-- 发布方式：GitHub API 写入 Git 对象；本机 Git HTTPS 通道曾出现连接超时。
-- 本地 `origin` 仅保存 SSH 地址：`git@github.com:thy10086/ros2-resilience-guardian.git`。
+- 发布方式：使用 Windows Git Credential Manager 中已保存的 `thy10086` 凭据，经本机 HTTPS 代理同步到 `origin/main`；认证信息不写入远程 URL、仓库或日志。
+- 本地 `origin` 使用 HTTPS 地址：`https://github.com/thy10086/ros2-resilience-guardian.git`。SSH 公钥认证仍不可用，因此不使用 SSH 推送。
 - GitHub Token 不得写入仓库、`.env`、远程 URL、脚本或日志。曾用于发布的临时 Token 应在发布后撤销。
 
 ## 7. 后续开发建议
@@ -415,3 +423,9 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 文件：`ros2_ws/src/guardian_core/guardian_core/evidence_ledger.py`、`tests/test_patent_core.py`、`tests/test_jev_incident_session.py`、`experiments/run_jev_session_experiments.py`、`docs/jev_session_design.md`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
 - 验证：非布尔构造、候选写回不变、重哈希记录实时/导出校验、父子/替代 lineage 和 Jev 新建/复用会话回归均通过；WSL2 `python3 -m pytest -q tests` 为 `168 passed`。离线会话实验报告 `non_boolean_ancestor_route=LEDGER_BLOCKED`、`state=CONTAINING`、`provider_calls=0`、`non_boolean_export_accepted=false`；全部五个离线脚本、ROS 2 Jazzy 两包构建、Windows compileall、前端 `node --check`、`git diff --check` 和 `.env` 跟踪检查均通过。首次 Bash 循环因 PowerShell 变量转义失败，改为显式脚本命令后通过。
 - 安全边界：此修复只收紧证据信任字段的类型和 lineage 完整性；Jev 仍是旁路建议，不能发布 `/cmd_vel`、解除 `SAFE_STOP`、修改速度限制或批准恢复。没有调用外部 provider、写入密钥或上传 GitHub；提交仅进入本地 `main`。
+
+### 2026-09-24 — GitHub publication and local ROS 2 runtime
+
+- 改动：确认仓库完整历史和 `.env` 均在本地 `main`；将 `origin` 切换为 HTTPS，通过 Windows Git Credential Manager 的已保存用户凭据准备同步；创建 WSL 用户级 `guardian-core.service` 和 `guardian-dashboard.service` 以持续运行 ROS 2 核心与只读 dashboard。原 `8080` 被其他服务占用，dashboard 使用 `127.0.0.1:8088`。
+- 验证：Ubuntu-24.04 `python3 -m pytest -q tests` 为 `168 passed`；ROS 2 Jazzy 两包构建成功；`guardian-core.service`、`guardian-dashboard.service` 均为 `active`；`/guardian/risk_state`、`/guardian/mitigation_command`、`/guardian/safety_status` 可见，`/guardian/safety_status --once` 返回 `NORMAL`、`mission_allowed=true`、`speed_limit≈0.35`；Windows `http://127.0.0.1:8088/api/health` 返回 HTTP 200。
+- 发布状态：GitHub API 已确认仓库 `thy10086/ros2-resilience-guardian` 为公开仓库、默认分支为 `main`，当前凭据具有 push 权限；本次提交后将完整本地 `main` 推送到 `origin/main`。不上传任何密钥，Jev 面板未执行真实 provider 调用。

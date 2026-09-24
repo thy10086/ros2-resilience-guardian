@@ -1,5 +1,12 @@
 # Implementation plan
 
+## GitHub publication and local runtime (2026-09-24)
+
+- [complete] Verify local main, remote authentication and remote history; preserve tracked .env and exclude generated build/runtime artifacts.
+- [complete] Run tests and ROS 2 build; start guardian_node and dashboard without disturbing the existing port 8080 service; verify Windows HTTP access and ROS data flow.
+- [in_progress] Update handoff/runtime evidence, commit on main, push the full project history to origin/main, and verify the remote revision.
+- Authorization: the user explicitly requested GitHub upload and local execution after the overnight development deadline. No new research features or live Jev API calls are included.
+
 ## Current heartbeat: strict evidence trust flags (2026-09-24 06:00 CST)
 
 - [complete] Reproduce non-Boolean evidence flags passing ledger validation and ancestor checks before Jev judgment.

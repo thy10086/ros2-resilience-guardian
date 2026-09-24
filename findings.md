@@ -1,5 +1,11 @@
 # Findings
 
+## Publication and runtime facts (2026-09-24)
+
+- Current local main is f5ac099; .env remains tracked. User now authorizes publication of all accumulated local commits to GitHub main and local ROS 2 execution.
+- Ubuntu-24.04 runs as rob with a working systemd user manager. Port 8080 is occupied; the launch file hardcodes that port, while guardian_dashboard supports ROS parameters for host and port.
+- Overnight autonomous feature development has reached its deadline. Current work is limited to publication, startup and reviewable operational documentation.
+
 ## Evidence Boolean trust-boundary closure (2026-09-24 06:00 CST)
 
 - `Evidence.__post_init__` now requires `type(verified) is bool` and `type(hard_stop) is bool`; append validates the candidate before mutating records, hashes, or replacement metadata. Parent, active-lineage, replacement, live verification, and export verification preserve the same strict contract.
