@@ -1,0 +1,11 @@
+{
+  "schema": "guardian-replay/v1",
+  "name": "仓储 AMR 托盘运输：对接阶段速度指令重放与抓取器异常",
+  "profile": "navigation",
+  "events": [
+    {"at": 0.0, "event_id": "amr-dock-left-wheel-7001", "source": "scenario_injector", "component": "left_wheels", "attack_type": "UNSAFE_COMMAND", "sequence": 7001, "timestamp": 0.0, "confidence": 0.98},
+    {"at": 0.2, "event_id": "amr-dock-left-wheel-7001-replay", "source": "scenario_injector", "component": "left_wheels", "attack_type": "UNSAFE_COMMAND", "sequence": 7001, "timestamp": 0.2, "confidence": 0.98},
+    {"at": 0.6, "event_id": "amr-dock-left-wheel-7002", "source": "scenario_injector", "component": "left_wheels", "attack_type": "UNSAFE_COMMAND", "sequence": 7002, "timestamp": 0.6, "confidence": 0.96},
+    {"at": 1.2, "event_id": "amr-pallet-gripper-7003", "source": "scenario_injector", "component": "right_arm", "attack_type": "SEMANTIC_MISBEHAVIOR", "sequence": 7003, "timestamp": 1.2, "confidence": 0.91}
+  ]
+}

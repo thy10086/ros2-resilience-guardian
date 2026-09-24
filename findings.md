@@ -218,6 +218,15 @@ be committed or printed.
 
 - A fresh unauthenticated GitHub repository search revisited `rajavardhan28/IDS_ROS2`, `seergiromero/ROS2-Intrusion-Detection`, `debrup393/ros2-intrusion-detection-iot`, `giacomozanatta/sros2-policy-clustering`, and related ROS 2 security-monitoring projects.
 - These references cover intrusion detection, SROS 2 policy work, or application monitoring. None provides the current combination of completion-time parent-lineage validation, bounded Jev advisory evidence, and append-only ledger binding; they remain prior-art references only. No external code or dependency was copied.
+
+## Warehouse AMR industrial case (2026-09-24)
+
+- The new fixture represents a plausible pallet-transfer phase: `amr-07` moves a pallet from `A-12` to `P-07`, with `/cmd_vel` and `/gripper/command` as the safety-relevant topics.
+- The deterministic Guardian path accepts the first unsafe command, rejects the duplicate `sequence=7001` as `REPLAY`, accepts the new unsafe command and gripper semantic mismatch, then remains `CONTAINING` with `ISOLATE_COMPONENT` and a `0.15 m/s` bound.
+- `experiments/warehouse_amr_jev_context.json` is deliberately a bounded, redacted semantic summary. Jev can classify attack type, mission impact, and review needs after local verification; it cannot change the safety state, speed limit, or ROS 2 command stream.
+- The front-end workflow is intentionally split: import the replay fixture in “防护实验室” for deterministic safety evidence, then import the Jev context in “Jev 语义分析” for optional semantic advice. A real provider call is not part of the offline regression.
+- The scenario is a reproducible integration boundary, not a claim of physical safety certification. Follow-up evaluation should add labelled ROS 2/Webots traces, detection delay, false-positive rate, isolation success, and provider availability/cost measurements.
+- The full test suite imports `rclpy` and the built `guardian_interfaces` package. Reproduction requires sourcing both the ROS 2 distribution and `ros2_ws/install/setup.bash`; invoking pytest from an unsourced shell produces collection-only import errors and does not test the product.
 # 2026-09-24 持久 Key 与 Jev 研究工作区
 
 - 根因：DashboardAuth._jev_keys 按 session digest 存在内存，logout/prune 自动删除；前端保存依赖未默认勾选的复选框和成功的 provider 调用。输入框不回填也容易被误认为丢失。

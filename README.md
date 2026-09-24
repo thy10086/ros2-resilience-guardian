@@ -44,6 +44,8 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 运行测试：
 
 ```bash
+source /opt/ros/jazzy/setup.bash
+source ros2_ws/install/setup.bash
 python3 -m pytest -q tests
 ```
 
@@ -161,6 +163,28 @@ Jev 事件会话层进一步聚合连续告警、对风险和语义变化重新�
 ```
 
 `profile=navigation` 允许隔离配置中的组件；`profile=no_isolation` 用于验证无法安全隔离时进入 `SAFE_STOP`。该测试台调用的就是 `guardian_node` 使用的 `EventVerifier`、`AttackRegistry`、`RiskEngine`、`MitigationPlanner` 和 `SafetySupervisor` 类，但运行在新建的离线实例中，不发布 ROS 2 事件或控制命令。Jev 面板仍然是独立的语义复核旁路：它可以补充攻击类型和人工复核建议，不能改变测试台或实时 ROS 2 的安全结论。
+
+### 仓储 AMR 托盘运输案例
+
+为了让风险分析贴近真实工业任务，仓库中提供了一个 AMR 对接和托盘稳定案例：
+`amr-07` 从 `A-12` 搬运托盘到 `P-07`，事件来自 `/cmd_vel` 和
+`/gripper/command`。案例包含速度指令越界、`sequence=7001` 重放、后续异常速度
+指令和抓取器力值为零四类记录。直接运行：
+
+```bash
+python3 experiments/run_warehouse_amr_case.py
+```
+
+预期验证序列为 `ACCEPTED → REPLAY → ACCEPTED → ACCEPTED`，最终安全状态为
+`CONTAINING`，缓解动作是 `ISOLATE_COMPONENT`，速度上限为 `0.15 m/s`。这几个结论
+来自 Guardian 的确定性校验和安全状态机；Jev 只接收验证后的限长摘要，用来补充攻击
+类型、任务影响和人工复核建议。它不能解除隔离、改变速度上限或发布 `/cmd_vel`。
+
+可操作的导入步骤、字段映射和风险解释见
+[docs/warehouse_amr_case.md](docs/warehouse_amr_case.md)。防护实验室选择
+`experiments/warehouse_amr_pallet_attack_replay.json`，Jev 语义分析页选择
+`experiments/warehouse_amr_jev_context.json`。两个文件都只用于本地实验；案例脚本不
+发布 ROS 2 事件，也不调用真实 Jev provider。
 
 对应接口为受登录保护的 `GET /api/experiments/samples` 和 `POST /api/experiments/replay`。接口只返回确定性回放结果，不调用外部 Jev provider。
 

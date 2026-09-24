@@ -436,3 +436,19 @@ rejects the dashboard origin through CORS.
 验收：已保存 Key 无 TTL，刷新/退出/重启后仍能复用；只有用户更新/删除改变持久记录。输入框留空时必须明确显示已保存状态。不得把模型 stub 结果称为真实 Jev 准确率或加速比。既有 `.env` 保持 Git 跟踪，不写系统环境变量，不新增数据库迁移。
 
 完成证据：WSL2 201 passed；研究 7/7；ROS 2 两包构建；真实 8088 保存/重启/清除冒烟和浏览器工作区验证通过。
+
+## Current task: warehouse AMR industrial case (2026-09-24)
+
+- [complete] Map a realistic pallet-transfer task to `/cmd_vel` and `/gripper/command` records, including speed-command abuse, sequence replay, and gripper semantic inconsistency.
+- [complete] Add bounded replay and Jev-context fixtures plus a runnable offline case script and regression tests.
+- [complete] Document the exact Guardian/Jev boundary, expected state transition, front-end import steps, and industrial limitations.
+- [complete] Run focused/full tests, the industrial case script, ROS 2 build, frontend/static checks, and tracked-secret checks.
+- [pending] Commit the completed case and documentation to the local `main` branch only.
+- Scope: industrial scenario analysis and user guidance; no live `/cmd_vel` publication, no real Jev provider call, no GitHub upload, and no migration.
+
+### Validation evidence: warehouse AMR case
+
+- Focused WSL2 case tests: `2 passed`.
+- Industrial script: `ACCEPTED → REPLAY → ACCEPTED → ACCEPTED`; summary `accepted=3/rejected=1`; final `CONTAINING`, `ISOLATE_COMPONENT`, `0.15 m/s`; topics `/cmd_vel` and `/gripper/command`.
+- Full WSL2 suite: `203 passed` after sourcing both `/opt/ros/jazzy/setup.bash` and `ros2_ws/install/setup.bash`. A first run without the ROS 2 environment failed during collection with `rclpy`/`guardian_interfaces` import errors; no product code was changed for that environment-only failure.
+- ROS 2 build: `guardian_interfaces` and `guardian_core` finished successfully. Windows compileall, frontend syntax, JSON parse, `git diff --check`, and tracked `.env` checks passed.

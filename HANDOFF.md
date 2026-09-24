@@ -2,6 +2,17 @@
 
 > 本文件是项目的持续交接记录。每次代码、实验、部署或仓库配置发生变化时，必须在同一个提交中更新本文件的“变更日志”和必要的运行说明，然后再提交到 `main`。
 
+### 2026-09-24 — 仓储 AMR 托盘运输工业案例（当前）
+
+- 场景：`amr-07` 从货架 `A-12` 搬运托盘到装卸位 `P-07`，处于低速对接和托盘稳定阶段，涉及 `/cmd_vel` 与 `/gripper/command`。
+- 新增文件：`experiments/warehouse_amr_pallet_attack_replay.json`（Guardian 回放输入）、`experiments/warehouse_amr_jev_context.json`（限长 Jev 摘要）、`experiments/run_warehouse_amr_case.py`（离线工业适配器）和 `tests/test_warehouse_amr_case.py`。
+- 案例事件：左轮收到超过对接上限的 `UNSAFE_COMMAND`；第二条消息复用 `sequence=7001`；随后收到 `sequence=7002` 的新异常速度；右臂抓取器出现 `grip_force=0` 但仍有负载的语义异常。
+- 预期结果：`ACCEPTED → REPLAY → ACCEPTED → ACCEPTED`；最终 `CONTAINING`、`ISOLATE_COMPONENT`、`0.15 m/s`，接受 3 条、拒绝 1 条。回放脚本不会发布 ROS 2 事件或执行底盘动作。
+- Jev 边界：Guardian 先负责来源、时序、重放、风险和安全状态；Jev 只接收验证后的有界摘要，用于攻击类型、任务影响和人工复核建议。Jev 不能解除隔离、修改速度上限或发布 `/cmd_vel`；离线测试不调用真实 provider。
+- 使用说明：详见 [docs/warehouse_amr_case.md](docs/warehouse_amr_case.md)。前端先在“防护实验室”导入回放 JSON，再在“Jev 语义分析”导入 Jev context JSON。README 已添加相同命令和结果边界。
+- 当前验证状态：代码、文档和测试已写入工作区；本条目完成前必须执行 focused/full pytest、工业脚本、ROS 2 build、静态检查、`.env` 跟踪检查和本地 `main` 提交。
+- 验证结果：定向案例 `2 passed`；工业脚本输出 `ACCEPTED → REPLAY → ACCEPTED → ACCEPTED`、最终 `CONTAINING / ISOLATE_COMPONENT / 0.15 m/s`；全量 WSL2 `203 passed`；五组离线实验通过；`guardian_interfaces` 与 `guardian_core` 构建成功；Windows compileall、前端 `node --check`、JSON、`git diff --check` 和 `.env` 跟踪检查通过。全量 pytest 必须先 source ROS 2 和 `ros2_ws/install`，否则会在收集阶段缺少 `rclpy`/`guardian_interfaces`。
+
 ### 2026-09-24 — 持久 Jev Key 与多页面研究工作区（当前）
 
 - 根因修复：此前 Key 只在 `DashboardAuth` 的进程内会话字典中，退出、会话过期或 dashboard 重启都会丢失；前端还依赖一个默认未勾选的会话保存复选框。
