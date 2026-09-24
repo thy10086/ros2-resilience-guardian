@@ -1,5 +1,7 @@
 # Progress
 
+- 2026-09-24: Revalidated the local dashboard after the login/runtime fix: WSL `python3 -m pytest -q tests` passed 171 tests, both selected ROS 2 packages built successfully, and the Windows 8088 smoke flow returned health 200, unauthenticated state 401, admin/admin login 200, authenticated state 200, and post-logout state 401. Added root-level colcon output ignores because the verification build was run from the repository root.
+
 - 2026-09-24: Reproduced the user's 8088 failure: the WSL system was being reaped when no foreground WSL process remained, and stale user/system dashboard units overlapped. Added TDD coverage for local admin/admin sessions; authentication implementation and frontend gate are green. WSL system services now run without the duplicate user units, and a hidden `sleep infinity` process keeps the distro alive for Windows localhost forwarding.
 
 - 2026-09-24: Started user-requested GitHub publication and local startup from clean main f5ac099. WSL Ubuntu-24.04 and the user service manager are available; port 8080 is already occupied, so select an unused local dashboard port and document the override. Windows gh is not installed; verify existing Git authentication before choosing a fallback.

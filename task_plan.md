@@ -7,6 +7,7 @@
 - [complete] Implement in-memory HttpOnly/SameSite sessions, frontend login gate, protected state/Jev routes, and address reuse.
 - [complete] Move local runtime to WSL system services, remove the overlapping user units, keep WSL alive with a hidden long-running process, rebuild, and verify Windows HTTP plus ROS status.
 - [in_progress] Update handoff, commit on main, push GitHub, and perform final remote/runtime verification.
+- [complete] Re-run the full test/build/smoke regression and ignore root-level colcon outputs created by the verification command.
 - Scope: local demo authentication and runtime persistence only; no real Jev API call, no robot control changes, and no credentials written to the repository.
 
 ## GitHub publication and local runtime (2026-09-24)

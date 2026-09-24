@@ -438,3 +438,8 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 文件：`ros2_ws/src/guardian_core/guardian_core/dashboard_auth.py`、`dashboard.py`、`frontend/index.html`、`frontend/app.js`、`frontend/styles.css`、`tests/test_dashboard_auth.py`、`README.md`、`HANDOFF.md`、`task_plan.md`、`findings.md`、`progress.md`。
 - 验证：认证定向测试 `3 passed`，全量测试 `171 passed`，ROS 2 Jazzy 两包重新构建成功，Windows `node --check`/compileall/diff 检查通过。HTTP smoke test 验证未登录 `/api/state` 为 401、`admin/admin` 登录为 200、登录后状态读取为 200、退出后再次为 401；Windows `http://127.0.0.1:8088/api/health` 返回 200，状态为 `NORMAL`。
 - 安全边界：这是本机实验登录，不是生产身份认证；默认凭据只用于本地 demo，未写入 `.env` 或任何外部日志。Jev 仍为旁路建议，未执行真实 provider 调用，也不能控制机器人。
+
+### 2026-09-24 — Final local access regression
+
+- 验证：WSL `python3 -m pytest -q tests` 为 `171 passed`；`colcon build --symlink-install --packages-select guardian_interfaces guardian_core` 两包构建成功；Windows 8088 smoke test 验证 `/api/health=200`、未登录 `/api/state=401`、`admin/admin` 登录为 200、登录后状态为 200、退出后状态为 401。
+- 工程维护：验证命令从仓库根目录运行时会生成根级 `build/`、`install/`、`log/`，已加入 `.gitignore`，避免构建产物污染提交；`.env` 继续由 Git 跟踪。
