@@ -600,10 +600,10 @@ async function runResearchSuite() {
     if (!response.ok || !payload || !Array.isArray(payload.cases)) throw new Error(payload?.error?.message || `HTTP ${response.status}`);
     renderResearchReport(payload);
     const passed = payload.cases.filter((item) => item.passed).length;
-    $('research-feedback').textContent = `研究套件完成：${passed}/${payload.cases.length} 个 Jev 调度案例通过；未调用真实 API，未产生执行器动作。`;
+    $('research-feedback').textContent = `测试套件完成：${passed}/${payload.cases.length} 个 Jev 调度案例通过；未调用真实 API，未产生执行器动作。`;
     $('research-feedback').className = 'muted success';
   } catch (error) {
-    $('research-feedback').textContent = `研究套件失败：${redactJevMessage(error.message)}`;
+    $('research-feedback').textContent = `测试套件失败：${redactJevMessage(error.message)}`;
     $('research-feedback').className = 'muted error';
   } finally {
     button.disabled = false;

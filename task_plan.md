@@ -486,3 +486,17 @@ rejects the dashboard origin through CORS.
 - Isolated ROS 2 domain smoke: `guardian_node` + `amr_simulator` accepted an `amr_simulator` `UNSAFE_COMMAND` event and emitted zero-valued `/cmd_vel` after safety feedback.
 - Full WSL2 regression: `211 passed`; all five offline experiment scripts and warehouse AMR case returned `passed: true`; ROS 2 Jazzy build finished for both packages; Windows `node --check` and `git diff --check` passed.
 - Local deployment: added and enabled `guardian-simulator.service`; `guardian-core`, `guardian-dashboard` and `guardian-simulator` are active. HTTP smoke verified health/login/state, `simulation.phase=IDLE`, page markers, and authenticated `start → speed_abuse` produced `CONTAINING`, `ISOLATE_COMPONENT`, requested `0.62`, actual `0.0`, limit `0.15`.
+
+## Current task: application-facing safety dashboard copy (2026-09-24)
+
+- [complete] Rename the visible fifth workspace to “安全测试分析” while keeping the existing `research` route and API contract.
+- [complete] Replace proposal-oriented labels with security testing terms and make the test path, metrics and system boundary explicit.
+- [complete] Add a frontend contract assertion, run the red/green test cycle, and record the verification evidence.
+- Scope: presentation-only frontend wording; no ROS 2 topic, safety decision, Jev boundary, endpoint, credential or database behavior changes.
+
+### Validation evidence: application-facing safety dashboard copy
+
+- Red run: the new frontend copy test could not run in the Windows interpreter because `pytest` is not installed there; the same test was then run in WSL2 after sourcing ROS 2 Jazzy and the workspace.
+- Green run: `19 passed` for the dashboard/experiment selection in WSL2.
+- Static checks: `node --check ros2_ws/src/guardian_core/guardian_core/frontend/app.js` passed; forbidden proposal terms were absent from `frontend/index.html` and `frontend/app.js`.
+- Compatibility: existing `research` hash route, `/api/research/suite`, DOM IDs and JavaScript handlers were preserved.

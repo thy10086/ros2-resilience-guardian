@@ -516,3 +516,10 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 复位语义：仿真节点的 `reset` 会立即清除任务、位置和攻击模式；Guardian 不接受一个无认证的“清空攻击”旁路，已登记攻击仍按 `max_event_age_sec`（默认 5 秒）自然过期后才回到 `NORMAL`。页面已明确提示这一点。
 - 边界：当前是笔记本级 ROS 2 数字孪生，不是 Webots 物理仿真；Webots R2025a 已存在但 `webots_ros2` 未安装，后续可替换运动适配层。没有真实 Jev provider 调用，没有输出或写入密钥，没有 GitHub 上传，也没有数据库迁移。
 - 最终状态：服务已重启并保持 `IDLE/NORMAL` 基线；最后一次实时 HTTP 闭环已验证超速 containment 和 TTL 后 reset 恢复，页面可直接开始下一轮实验。
+
+### 2026-09-24 — Application-facing safety dashboard copy
+
+- 改动：将前端第五个工作区从“研究与创新”调整为“安全测试分析”，并把页面内容改成安全系统展示语言：安全路径、执行机制、测试模式、验证指标、处理流程和系统边界。移除了前端可见的“专利”“创新”“可申请方向”“研究套件”等申请导向文案。
+- 兼容性：保留 `research` hash 路由、`/api/research/suite` 接口、现有 DOM ID 和 JavaScript 调用函数；只改变展示层文本，不改变 ROS 2 状态话题、Guardian 安全决策、Jev 旁路边界、登录、Key 存储或实验逻辑。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/frontend/index.html`、`ros2_ws/src/guardian_core/guardian_core/frontend/app.js`、`tests/test_dashboard_experiments.py`、`progress.md`、`task_plan.md`。
+- 验证：前端契约测试按红/绿流程完成，WSL2 在加载 `/opt/ros/jazzy/setup.bash` 和当前 workspace 后相关测试为 `19 passed`；Windows `node --check` 通过；前端 HTML/JS 不再包含上述申请导向词；`.env` 仍受 Git 跟踪，未写入或输出任何密钥。

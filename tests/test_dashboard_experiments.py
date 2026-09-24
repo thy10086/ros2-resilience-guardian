@@ -163,3 +163,18 @@ def test_frontend_exposes_industrial_case_and_jev_boundary():
     assert "protection-industrial" in html
     assert "protection-jev-summary" in html
     assert "jev_context" in script
+
+
+def test_frontend_uses_security_testing_copy_without_proposal_language():
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    script = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+    assert "安全测试分析" in html
+    assert "安全策略说明" in html
+    assert "运行测试套件" in html
+    assert "研究与创新" not in html
+    assert "工程创新与可申请方向" not in html
+    assert "专利边界" not in html
+    assert "研究套件" not in html
+    assert "创新组合" not in html
+    assert "研究套件" not in script
