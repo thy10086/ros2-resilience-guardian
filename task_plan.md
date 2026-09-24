@@ -4,8 +4,14 @@
 
 - [complete] Verify local main, remote authentication and remote history; preserve tracked .env and exclude generated build/runtime artifacts.
 - [complete] Run tests and ROS 2 build; start guardian_node and dashboard without disturbing the existing port 8080 service; verify Windows HTTP access and ROS data flow.
-- [in_progress] Update handoff/runtime evidence, commit on main, push the full project history to origin/main, and verify the remote revision.
+- [complete] Update handoff/runtime evidence, commit on main, push the full project history to origin/main, and verify the remote revision.
 - Authorization: the user explicitly requested GitHub upload and local execution after the overnight development deadline. No new research features or live Jev API calls are included.
+
+### Final evidence
+
+- [complete] GitHub API reports `origin/main=f628425f328709320f283a1d6d373577295dd392`, with 87 tracked tree entries including `.env`, `HANDOFF.md`, and `ros2_ws/src/guardian_core/package.xml`.
+- [complete] WSL user services `guardian-core.service` and `guardian-dashboard.service` are active; `/guardian/safety_status` returns `NORMAL`, `mission_allowed=true`, and `speed_limit≈0.35`.
+- [complete] Windows `http://127.0.0.1:8088/api/health` returns HTTP 200 and `/api/state` reports NORMAL safety/risk state with a live timeline.
 
 ## Current heartbeat: strict evidence trust flags (2026-09-24 06:00 CST)
 
