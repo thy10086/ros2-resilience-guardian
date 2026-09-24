@@ -453,3 +453,4 @@ rejects the dashboard origin through CORS.
 - Full WSL2 suite: `203 passed` after sourcing both `/opt/ros/jazzy/setup.bash` and `ros2_ws/install/setup.bash`. A first run without the ROS 2 environment failed during collection with `rclpy`/`guardian_interfaces` import errors; no product code was changed for that environment-only failure.
 - ROS 2 build: `guardian_interfaces` and `guardian_core` finished successfully. Windows compileall, frontend syntax, JSON parse, `git diff --check`, and tracked `.env` checks passed.
 - Local commit evidence: `61e766a feat: add warehouse AMR safety case`; no remote push was attempted.
+- Runtime evidence: after starting a hidden `wsl.exe -d Ubuntu-24.04 -- sleep infinity` keepalive, `http://127.0.0.1:8088/api/health` returned HTTP 200 on three polls five seconds apart. The WSL lifecycle requirement is documented in the existing service instructions.
