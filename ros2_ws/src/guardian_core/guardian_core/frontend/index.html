@@ -7,14 +7,26 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="shell">
+  <section id="auth-gate" class="auth-gate" aria-labelledby="login-title">
+    <form id="login-form" class="auth-card" novalidate>
+      <p class="eyebrow">LOCAL SECURITY GATE</p>
+      <h1 id="login-title">登录安全驾驶舱</h1>
+      <p class="muted">请输入本地管理员账号后查看 ROS 2 安全状态。</p>
+      <label class="field" for="login-username"><span>用户名</span><input id="login-username" name="username" value="admin" autocomplete="username" required></label>
+      <label class="field" for="login-password"><span>密码</span><input id="login-password" name="password" type="password" autocomplete="current-password" required></label>
+      <button class="button primary" type="submit">登录</button>
+      <p id="login-feedback" class="auth-feedback" role="status" aria-live="polite">本地实验账号：admin / admin</p>
+    </form>
+  </section>
+
+  <main id="app-shell" class="shell" hidden>
     <header class="topbar">
       <div>
         <p class="eyebrow">ROS 2 SECURITY OPERATIONS</p>
         <h1>Resilience Guardian</h1>
         <p class="subtitle">面向室内移动机器人的任务感知安全防护驾驶舱</p>
       </div>
-      <div id="connection" class="connection pending">连接中</div>
+      <div class="topbar-actions"><div id="connection" class="connection pending">连接中</div><button id="logout" class="button secondary" type="button">退出登录</button></div>
     </header>
 
     <section class="hero-grid">

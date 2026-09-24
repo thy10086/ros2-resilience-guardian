@@ -2,6 +2,14 @@
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 980px; background: radial-gradient(circle at 10% 0%, #17284a 0, var(--bg) 38rem); color: var(--text); font: 15px/1.5 Inter, "Segoe UI", "Microsoft YaHei", sans-serif; }
 .shell { width: min(1280px, calc(100% - 64px)); margin: 0 auto; padding: 42px 0 28px; }
+.auth-gate { min-height: 100vh; display: grid; place-items: center; padding: 32px; }
+.auth-card { width: min(420px, 100%); display: grid; gap: 14px; padding: 30px; background: linear-gradient(145deg, rgba(24,36,64,.98), rgba(16,24,44,.98)); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 50px rgba(0,0,0,.2); }
+.auth-card h1 { font-size: 28px; }
+.auth-card .button { margin-top: 6px; }
+.auth-feedback { color: var(--muted); font-size: 13px; }
+.auth-feedback.error { color: var(--red); }
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+[hidden] { display: none !important; }
 .topbar, .state-row, .metric-row, .section-title, .speed, footer { display: flex; align-items: center; justify-content: space-between; }
 .topbar { margin-bottom: 28px; }
 h1, h2, p { margin: 0; } h1 { font-size: 34px; letter-spacing: -.04em; } h2 { font-size: 17px; }

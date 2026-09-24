@@ -17,6 +17,63 @@ function formatTime(value) {
 }
 
 const JEV_TEST_ENDPOINT = '/api/jev/test';
+const LOGIN_ENDPOINT = '/api/login';
+
+function showLogin(message = '本地实验账号：admin / admin') {
+  $('app-shell').hidden = true;
+  $('auth-gate').hidden = false;
+  $('login-feedback').textContent = message;
+  $('login-feedback').className = message.includes('错误') ? 'auth-feedback error' : 'auth-feedback';
+  $('login-password').value = '';
+  $('login-password').focus();
+}
+
+function showApp() {
+  $('auth-gate').hidden = true;
+  $('app-shell').hidden = false;
+}
+
+async function login(event) {
+  event.preventDefault();
+  const username = $('login-username').value.trim();
+  const password = $('login-password').value;
+  if (!username || !password) {
+    showLogin('请输入用户名和密码');
+    return;
+  }
+  const response = await fetch(LOGIN_ENDPOINT, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, cache: 'no-store',
+    body: JSON.stringify({username, password}),
+  });
+  const payload = await parseJsonResponse(response);
+  if (!response.ok || !payload || payload.authenticated !== true) {
+    showLogin('用户名或密码错误');
+    return;
+  }
+  showApp();
+  refresh();
+}
+
+async function logout() {
+  await fetch('/api/logout', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}', cache: 'no-store'});
+  showLogin();
+}
+
+async function setupAuth() {
+  $('login-form').addEventListener('submit', login);
+  $('logout').addEventListener('click', logout);
+  try {
+    const response = await fetch('/api/session', {cache: 'no-store'});
+    if (response.ok) {
+      showApp();
+      refresh();
+    } else {
+      showLogin();
+    }
+  } catch (_error) {
+    showLogin('无法连接本地服务');
+  }
+}
 
 function finiteNumber(value, fallback = 0) {
   if (value === null || value === undefined || value === '') return fallback;
@@ -196,6 +253,7 @@ function render(data) {
 async function refresh() {
   try {
     const response = await fetch('/api/state', {cache: 'no-store'});
+    if (response.status === 401) { showLogin('登录已过期，请重新登录'); return; }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     render(await response.json());
     $('connection').textContent = 'ROS 2 已连接';
@@ -207,5 +265,5 @@ async function refresh() {
 }
 
 setupJev();
-refresh();
+setupAuth();
 setInterval(refresh, 1000);

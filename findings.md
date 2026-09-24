@@ -1,5 +1,12 @@
 # Findings
 
+## Dashboard access and login closure (2026-09-24)
+
+- The dashboard service configuration specified 8088, but the browser failure was caused by WSL instance lifecycle: without a foreground process, the distro/systemd process group was reclaimed. Old user-level units also overlapped with the system service and caused intermittent port ownership.
+- The runtime now uses system-level `/etc/systemd/system/guardian-core.service` and `guardian-dashboard.service`, both running ROS 2 as `rob`; a hidden `sleep infinity` WSL process keeps the distro alive for localhost forwarding. `DashboardHTTPServer.allow_reuse_address` reduces restart bind races.
+- The dashboard has a local-only in-memory session gate. Defaults are `admin`/`admin`; tokens are stored as SHA-256 digests, cookies are HttpOnly and SameSite=Strict, `/api/state` and `/api/jev/test` require a valid session, and health remains public.
+- No production identity assurance is claimed. Credentials are not written to `.env`, GitHub, ROS messages, or logs; the default is intended only for this single-laptop demo.
+
 ## Publication and runtime facts (2026-09-24)
 
 - Current local main is f5ac099; .env remains tracked. User now authorizes publication of all accumulated local commits to GitHub main and local ROS 2 execution.

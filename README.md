@@ -57,7 +57,7 @@ ros2 run guardian_core guardian_node
 
 ```bash
 ros2 run guardian_core guardian_dashboard
-# 浏览器打开 http://127.0.0.1:8080
+# 浏览器打开 http://127.0.0.1:8088（本地服务配置）
 ```
 
 也可以一次启动守护节点和前端桥接：
@@ -66,7 +66,9 @@ ros2 run guardian_core guardian_dashboard
 ros2 launch guardian_core guardian.launch.py
 ```
 
-驾驶舱通过 `GET /api/state` 提供当前状态，订阅 `/guardian/risk_state`、
+本机当前配置将 dashboard 运行在 `127.0.0.1:8088`；`8080` 已被其他本地进程占用。
+首次打开页面需要登录，用户名和密码均为 `admin`。登录会话只保存在 dashboard
+内存中，服务重启后失效，不写入 `.env`、GitHub 或日志。驾驶舱通过 `GET /api/state` 提供当前状态，订阅 `/guardian/risk_state`、
 `/guardian/mitigation_command` 和 `/guardian/safety_status`。默认只监听
 `127.0.0.1`，不会把控制接口暴露到局域网；后续接入 Webots 时应继续由
 `safety_status` 输出边界驱动实际控制器。
@@ -84,6 +86,20 @@ Guardian 安全状态、速度限制或机器人命令。
 64 KiB，状态文本上限为 4096 个字符。成功返回 HTTP 200；输入错误返回
 400/413；上游拒绝或返回非法内容返回 502；超时返回 504。真实 API Key
 不应提交到版本库，也不应放入 `.env`。
+
+如果 Windows 访问不到 WSL dashboard，先保持一个 WSL 实例运行，再启动系统级 ROS 2 服务：
+
+```powershell
+Start-Process wsl.exe -ArgumentList @('-d','Ubuntu-24.04','--','sleep','infinity') -WindowStyle Hidden
+wsl.exe -d Ubuntu-24.04 -u root -- systemctl start guardian-core.service guardian-dashboard.service
+```
+
+服务状态和停止命令：
+
+```bash
+systemctl status guardian-core.service guardian-dashboard.service
+systemctl stop guardian-core.service guardian-dashboard.service
+```
 
 详细设计见 [docs/design.md](docs/design.md)，实验和指标见 [docs/experiments.md](docs/experiments.md)。
 

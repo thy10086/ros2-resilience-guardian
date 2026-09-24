@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
@@ -25,6 +26,7 @@ from .dashboard_jev import (
     MAX_REQUEST_BYTES,
     parse_request,
 )
+from .dashboard_auth import DashboardAuth
 
 
 def _frontend_dir() -> Path:
@@ -56,26 +58,87 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._json({"status": "ok", "service": "guardian_dashboard"})
             return
         if parsed.path == "/api/state":
+            if not self._require_auth():
+                return
             self._json(self.dashboard_server.state.snapshot())
+            return
+        if parsed.path == "/api/session":
+            token = self._session_token()
+            if self.dashboard_server.auth.validate(token):
+                self._json({"authenticated": True, "username": self.dashboard_server.auth.username})
+            else:
+                self._json({"authenticated": False, "error": {"code": "auth_required", "message": "Login required"}}, status=401)
             return
         self._static(parsed.path)
 
     def do_POST(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
         parsed = urlparse(self.path)
+        if parsed.path == "/api/login":
+            self._login()
+            return
+        if parsed.path == "/api/logout":
+            self.dashboard_server.auth.logout(self._session_token())
+            self._json({"authenticated": False}, headers={"Set-Cookie": self._clear_cookie()})
+            return
         if parsed.path == "/api/jev/test":
+            if not self._require_auth():
+                return
             self._jev_test()
             return
         self.send_error(404)
 
-    def _json(self, payload: object, *, status: int = 200) -> None:
+    def _json(self, payload: object, *, status: int = 200, headers: dict[str, str] | None = None) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Length", str(len(body)))
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)
+
+    def _session_token(self) -> str | None:
+        cookie = SimpleCookie()
+        try:
+            cookie.load(self.headers.get("Cookie", ""))
+        except (TypeError, ValueError):
+            return None
+        morsel = cookie.get("guardian_session")
+        return morsel.value if morsel is not None else None
+
+    def _require_auth(self) -> bool:
+        if self.dashboard_server.auth.validate(self._session_token()):
+            return True
+        self._json({"authenticated": False, "error": {"code": "auth_required", "message": "Login required"}}, status=401)
+        return False
+
+    @staticmethod
+    def _clear_cookie() -> str:
+        return "guardian_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict"
+
+    def _login(self) -> None:
+        content_length = self.headers.get("Content-Length")
+        try:
+            length = int(content_length or "-1")
+        except (TypeError, ValueError):
+            length = -1
+        if length < 0 or length > 4096:
+            self._json({"authenticated": False, "error": {"code": "invalid_login_request", "message": "Login request is invalid"}}, status=400)
+            return
+        try:
+            payload = json.loads(self.rfile.read(length))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            payload = None
+        username = payload.get("username") if isinstance(payload, dict) else None
+        password = payload.get("password") if isinstance(payload, dict) else None
+        token = self.dashboard_server.auth.login(username, password)
+        if token is None:
+            self._json({"authenticated": False, "error": {"code": "invalid_credentials", "message": "用户名或密码错误"}}, status=401)
+            return
+        cookie = f"guardian_session={token}; Max-Age={int(self.dashboard_server.auth.ttl_sec)}; Path=/; HttpOnly; SameSite=Strict"
+        self._json({"authenticated": True, "username": self.dashboard_server.auth.username}, headers={"Set-Cookie": cookie})
 
     def _jev_test(self) -> None:
         content_length = self.headers.get("Content-Length")
@@ -177,6 +240,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 class DashboardHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
+    allow_reuse_address = True
 
     def __init__(
         self,
@@ -184,11 +248,13 @@ class DashboardHTTPServer(ThreadingHTTPServer):
         state: DashboardState,
         frontend_dir: Path,
         jev_service: JevDashboardService | None = None,
+        auth: DashboardAuth | None = None,
     ) -> None:
         super().__init__(address, DashboardHandler)
         self.state = state
         self.frontend_dir = frontend_dir
         self.jev_service = jev_service or JevDashboardService()
+        self.auth = auth or DashboardAuth.from_environment()
 
 
 class DashboardNode(Node):
@@ -218,7 +284,7 @@ class DashboardNode(Node):
         except (TypeError, ValueError) as error:
             self.get_logger().warning(f"Invalid Jev dashboard configuration; using defaults: {error}")
             jev_service = JevDashboardService()
-        self.http_server = DashboardHTTPServer((host, port), self.state, frontend_dir, jev_service=jev_service)
+        self.http_server = DashboardHTTPServer((host, port), self.state, frontend_dir, jev_service=jev_service, auth=DashboardAuth.from_environment())
         self.http_thread = Thread(target=self.http_server.serve_forever, name="guardian-dashboard-http", daemon=True)
         self.http_thread.start()
 

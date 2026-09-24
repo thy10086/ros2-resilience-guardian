@@ -1,5 +1,7 @@
 # Progress
 
+- 2026-09-24: Reproduced the user's 8088 failure: the WSL system was being reaped when no foreground WSL process remained, and stale user/system dashboard units overlapped. Added TDD coverage for local admin/admin sessions; authentication implementation and frontend gate are green. WSL system services now run without the duplicate user units, and a hidden `sleep infinity` process keeps the distro alive for Windows localhost forwarding.
+
 - 2026-09-24: Started user-requested GitHub publication and local startup from clean main f5ac099. WSL Ubuntu-24.04 and the user service manager are available; port 8080 is already occupied, so select an unused local dashboard port and document the override. Windows gh is not installed; verify existing Git authentication before choosing a fallback.
 - 2026-09-24: Local ROS 2 runtime is active through WSL user services `guardian-core.service` and `guardian-dashboard.service`; dashboard uses `127.0.0.1:8088`. ROS topics publish NORMAL safety state and Windows HTTP health check returns 200. GitHub API confirms stored Credential Manager authentication has push permission; publication is the remaining action after this documentation commit.
 - 2026-09-24: Pushed `f628425f328709320f283a1d6d373577295dd392` to GitHub `origin/main`; GitHub tree contains 87 files including tracked `.env`. Final local smoke checks report both WSL services active, ROS `safety_status=NORMAL`, and Windows dashboard `/api/health` HTTP 200. This runtime uses port 8088 because 8080 was already occupied.

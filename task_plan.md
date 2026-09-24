@@ -1,5 +1,14 @@
 # Implementation plan
 
+## Dashboard access and local login (2026-09-24)
+
+- [complete] Reproduce the inaccessible 8088 behavior and identify WSL instance reaping plus stale user-service overlap as the causes.
+- [complete] Add red/green tests for admin/admin login, session expiry, protected state, login cookie, and logout revocation.
+- [complete] Implement in-memory HttpOnly/SameSite sessions, frontend login gate, protected state/Jev routes, and address reuse.
+- [complete] Move local runtime to WSL system services, remove the overlapping user units, keep WSL alive with a hidden long-running process, rebuild, and verify Windows HTTP plus ROS status.
+- [in_progress] Update handoff, commit on main, push GitHub, and perform final remote/runtime verification.
+- Scope: local demo authentication and runtime persistence only; no real Jev API call, no robot control changes, and no credentials written to the repository.
+
 ## GitHub publication and local runtime (2026-09-24)
 
 - [complete] Verify local main, remote authentication and remote history; preserve tracked .env and exclude generated build/runtime artifacts.

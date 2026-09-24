@@ -54,7 +54,7 @@
 - `guardian_interfaces` 提供 `AttackEvent`、`RiskState`、`MitigationCommand` 和 `SafetyStatus` 消息。
 - `guardian_node` 订阅 `/guardian/attack_events`，发布风险、缓解和安全状态话题。
 - `guardian_dashboard` 订阅三个状态话题，维护线程安全缓存并提供本地 HTTP API。
-- `guardian_dashboard` 提供 `/api/jev/test` 本地代理，可用一次性 API Key
+- `guardian_dashboard` 提供本地登录和 `/api/jev/test` 代理；默认本地实验账号用户名和密码均为 `admin`，会话只保存在内存中。
   和短状态文本执行 Jev 连接测试；结果只作为旁路建议。
 - `guardian.launch.py` 可同时启动核心守护节点和驾驶舱。
 
@@ -69,10 +69,11 @@
 - 风险评估、缓解规划和安全监督时间线。
 - Jev 连接测试状态、标准化攻击类型、任务影响、分数、置信度和人工复核建议。
 
-后端默认只监听 `127.0.0.1:8080`，提供：
+后端默认只监听 `127.0.0.1:8080`；本次本地系统服务配置监听 `127.0.0.1:8088`，提供：
 
 - `GET /`：静态驾驶舱页面；
 - `GET /api/health`：服务健康检查；
+- `POST /api/login`、`GET /api/session`、`POST /api/logout`：本地 dashboard 会话登录、检查和退出；
 - `GET /api/state`：当前状态和时间线 JSON。
 - `POST /api/jev/test`：使用本次请求提供的 API Key 和状态文本调用固定
   TypeSafe endpoint，返回有界连接/评估结果。
@@ -143,15 +144,15 @@ python3 -m pytest -q tests
 ros2 launch guardian_core guardian.launch.py
 ```
 
-默认启动文件使用 `8080`。如果端口已被其他服务占用，可按本次本地运行配置使用 ROS 2 用户服务和 `8088`：
+默认启动文件使用 `8080`。如果端口已被其他服务占用，本次本地系统服务使用 `8088`：
 
 ```bash
-systemctl --user status guardian-core.service guardian-dashboard.service
-systemctl --user restart guardian-core.service guardian-dashboard.service
+systemctl status guardian-core.service guardian-dashboard.service
+systemctl restart guardian-core.service guardian-dashboard.service
 # 浏览器打开 http://127.0.0.1:8088
 ```
 
-本次验证中 `8080` 已被其他本地进程占用，因此 dashboard 以 `host=127.0.0.1`、`port=8088` 运行。服务单元位于 WSL 用户目录 `~/.config/systemd/user/`，不是仓库文件；停止命令为 `systemctl --user stop guardian-core.service guardian-dashboard.service`。
+本次验证中 `8080` 已被其他本地进程占用，因此 dashboard 以 `host=127.0.0.1`、`port=8088` 运行。服务单元位于 WSL 系统目录 `/etc/systemd/system/`，不是仓库文件；停止命令为 `systemctl stop guardian-core.service guardian-dashboard.service`。Windows 端需要保持一个 WSL 实例运行，否则 WSL 会自动回收整个 ROS 2 进程组；可用 `Start-Process wsl.exe -ArgumentList @('-d','Ubuntu-24.04','--','sleep','infinity') -WindowStyle Hidden` 保持实例。
 
 只启动驾驶舱：
 
@@ -159,7 +160,7 @@ systemctl --user restart guardian-core.service guardian-dashboard.service
 ros2 run guardian_core guardian_dashboard
 ```
 
-启动后访问 `http://127.0.0.1:8080`，在“Jev 连接测试”面板输入 TypeSafe
+启动后访问 `http://127.0.0.1:8088`，先使用 `admin/admin` 登录，再在“Jev 连接测试”面板输入 TypeSafe
 API Key 和简短状态文本即可执行一次测试。请求也可直接发送到
 `POST /api/jev/test`，JSON 形如
 `{"api_key":"<key>","state":"verified command anomaly"}`。请求体上限为
@@ -426,6 +427,14 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 
 ### 2026-09-24 — GitHub publication and local ROS 2 runtime
 
-- 改动：确认仓库完整历史和 `.env` 均在本地 `main`；将 `origin` 切换为 HTTPS，通过 Windows Git Credential Manager 的已保存用户凭据准备同步；创建 WSL 用户级 `guardian-core.service` 和 `guardian-dashboard.service` 以持续运行 ROS 2 核心与只读 dashboard。原 `8080` 被其他服务占用，dashboard 使用 `127.0.0.1:8088`。
+- 改动：确认仓库完整历史和 `.env` 均在本地 `main`；将 `origin` 切换为 HTTPS，通过 Windows Git Credential Manager 的已保存用户凭据准备同步；创建 WSL 系统级 `guardian-core.service` 和 `guardian-dashboard.service` 运行 ROS 2 核心与 dashboard。原 `8080` 被其他服务占用，dashboard 使用 `127.0.0.1:8088`。
 - 验证：Ubuntu-24.04 `python3 -m pytest -q tests` 为 `168 passed`；ROS 2 Jazzy 两包构建成功；`guardian-core.service`、`guardian-dashboard.service` 均为 `active`；`/guardian/risk_state`、`/guardian/mitigation_command`、`/guardian/safety_status` 可见，`/guardian/safety_status --once` 返回 `NORMAL`、`mission_allowed=true`、`speed_limit≈0.35`；Windows `http://127.0.0.1:8088/api/health` 返回 HTTP 200。
 - 发布状态：GitHub API 已确认仓库 `thy10086/ros2-resilience-guardian` 为公开仓库、默认分支为 `main`；完整本地 `main` 已推送到 `origin/main`，远端与本地提交一致，远端树包含 87 个文件且保留 `.env`。不上传任何密钥，Jev 面板未执行真实 provider 调用。
+
+### 2026-09-24 — Dashboard login and WSL runtime persistence
+
+- 改动：新增 dashboard 本地会话认证，默认用户名和密码均为 `admin`；`/api/state`、`/api/jev/test` 需要 HttpOnly、SameSite 会话 Cookie，健康检查保持公开，退出登录立即撤销会话。前端增加登录门、退出按钮和登录过期处理。`DashboardHTTPServer` 允许地址复用，减少服务重启时的端口占用窗口。
+- 根因修复：用户访问失败是因为 WSL 没有前台长进程时会回收实例，systemd 和 8088 一起消失。运行配置改为 WSL 系统级服务，并用隐藏的 `sleep infinity` 保持实例运行；服务仍以普通用户 `rob` 执行 ROS 2 进程。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/dashboard_auth.py`、`dashboard.py`、`frontend/index.html`、`frontend/app.js`、`frontend/styles.css`、`tests/test_dashboard_auth.py`、`README.md`、`HANDOFF.md`、`task_plan.md`、`findings.md`、`progress.md`。
+- 验证：认证定向测试 `3 passed`，全量测试 `171 passed`，ROS 2 Jazzy 两包重新构建成功，Windows `node --check`/compileall/diff 检查通过。HTTP smoke test 验证未登录 `/api/state` 为 401、`admin/admin` 登录为 200、登录后状态读取为 200、退出后再次为 401；Windows `http://127.0.0.1:8088/api/health` 返回 200，状态为 `NORMAL`。
+- 安全边界：这是本机实验登录，不是生产身份认证；默认凭据只用于本地 demo，未写入 `.env` 或任何外部日志。Jev 仍为旁路建议，未执行真实 provider 调用，也不能控制机器人。
