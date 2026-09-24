@@ -443,3 +443,9 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 
 - 验证：WSL `python3 -m pytest -q tests` 为 `171 passed`；`colcon build --symlink-install --packages-select guardian_interfaces guardian_core` 两包构建成功；Windows 8088 smoke test 验证 `/api/health=200`、未登录 `/api/state=401`、`admin/admin` 登录为 200、登录后状态为 200、退出后状态为 401。
 - 工程维护：验证命令从仓库根目录运行时会生成根级 `build/`、`install/`、`log/`，已加入 `.gitignore`，避免构建产物污染提交；`.env` 继续由 Git 跟踪。
+
+### 2026-09-24 — Login input race fix
+
+- 根因：未登录页面仍由全局一秒定时器请求受保护的 `/api/state`；每次 401 都调用 `showLogin()` 并清空密码框，导致输入过程被定时刷新打断。
+- 改动：`frontend/app.js` 增加内存中的 `authenticated` 状态；未登录时暂停状态轮询，登录成功后恢复轮询，退出或会话过期后再次暂停。认证接口和后端会话策略不变。
+- 验证：浏览器 DOM 检查确认用户名、密码控件均可见且未禁用；修复后可输入 `admin/admin` 并进入 dashboard。随后应继续执行 HTTP 登录 smoke test 和全量测试。

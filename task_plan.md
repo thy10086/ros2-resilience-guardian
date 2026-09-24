@@ -2,6 +2,7 @@
 
 ## Dashboard access and local login (2026-09-24)
 
+- [complete] Fix the unauthenticated polling loop that cleared the password field while the user typed.
 - [complete] Reproduce the inaccessible 8088 behavior and identify WSL instance reaping plus stale user-service overlap as the causes.
 - [complete] Add red/green tests for admin/admin login, session expiry, protected state, login cookie, and logout revocation.
 - [complete] Implement in-memory HttpOnly/SameSite sessions, frontend login gate, protected state/Jev routes, and address reuse.

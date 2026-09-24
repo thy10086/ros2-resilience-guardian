@@ -18,8 +18,10 @@ function formatTime(value) {
 
 const JEV_TEST_ENDPOINT = '/api/jev/test';
 const LOGIN_ENDPOINT = '/api/login';
+let authenticated = false;
 
 function showLogin(message = '本地实验账号：admin / admin') {
+  authenticated = false;
   $('app-shell').hidden = true;
   $('auth-gate').hidden = false;
   $('login-feedback').textContent = message;
@@ -29,6 +31,7 @@ function showLogin(message = '本地实验账号：admin / admin') {
 }
 
 function showApp() {
+  authenticated = true;
   $('auth-gate').hidden = true;
   $('app-shell').hidden = false;
 }
@@ -251,6 +254,7 @@ function render(data) {
 }
 
 async function refresh() {
+  if (!authenticated) return;
   try {
     const response = await fetch('/api/state', {cache: 'no-store'});
     if (response.status === 401) { showLogin('登录已过期，请重新登录'); return; }
