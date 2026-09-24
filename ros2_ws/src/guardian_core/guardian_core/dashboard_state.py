@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from collections import deque
 from copy import deepcopy
+import json
+import math
 from threading import Lock
 from typing import Any
 
@@ -42,6 +44,26 @@ class DashboardState:
                 "mission_allowed": False,
                 "reason": "等待 Guardian ROS 2 状态",
                 "plan_id": "",
+            },
+            "simulation": {
+                "robot_id": "amr-07",
+                "mission": "pallet_transfer",
+                "route": "A-12 → P-07",
+                "phase": "SIMULATOR_OFFLINE",
+                "mission_running": False,
+                "pallet_loaded": False,
+                "x": 0.0,
+                "y": 0.0,
+                "elapsed": 0.0,
+                "requested_speed": 0.0,
+                "actual_speed": 0.0,
+                "speed_limit": 0.35,
+                "safety_state": "STARTING",
+                "mission_allowed": False,
+                "mitigation_action": "NONE",
+                "mitigation_components": [],
+                "attack_mode": None,
+                "grip_force": 45.0,
             },
             "timeline": [],
         }
@@ -82,6 +104,33 @@ class DashboardState:
         }
         self._update("safety", payload, payload["timestamp"])
 
+    def update_simulation(self, message: Any) -> None:
+        """Cache bounded simulator telemetry without flooding the timeline."""
+        try:
+            payload = json.loads(str(message.data))
+        except (AttributeError, TypeError, json.JSONDecodeError):
+            return
+        if not isinstance(payload, dict):
+            return
+        clean: dict[str, Any] = {}
+        for key, value in payload.items():
+            if key == "attack_mode":
+                if value is None or isinstance(value, str):
+                    clean[key] = value if value is None else value[:128]
+            elif key in {"robot_id", "mission", "route", "phase", "safety_state", "mitigation_action"}:
+                if isinstance(value, str):
+                    clean[key] = value[:128]
+            elif key in {"mission_running", "pallet_loaded", "mission_allowed"}:
+                if isinstance(value, bool):
+                    clean[key] = value
+            elif key in {"x", "y", "elapsed", "requested_speed", "actual_speed", "speed_limit", "grip_force"}:
+                if isinstance(value, (int, float)) and math.isfinite(float(value)):
+                    clean[key] = float(value)
+            elif key == "mitigation_components" and isinstance(value, list):
+                clean[key] = [str(item)[:64] for item in value[:8]]
+        with self._lock:
+            self._state["simulation"].update(clean)
+
     def _update(self, category: str, payload: dict[str, Any], timestamp: float) -> None:
         with self._lock:
             self._state[category] = payload
@@ -92,4 +141,3 @@ class DashboardState:
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             return deepcopy(self._state)
-

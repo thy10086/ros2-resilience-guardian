@@ -500,3 +500,19 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 根因：未登录页面仍由全局一秒定时器请求受保护的 `/api/state`；每次 401 都调用 `showLogin()` 并清空密码框，导致输入过程被定时刷新打断。
 - 改动：`frontend/app.js` 增加内存中的 `authenticated` 状态；未登录时暂停状态轮询，登录成功后恢复轮询，退出或会话过期后再次暂停。认证接口和后端会话策略不变。
 - 验证：浏览器 DOM 检查确认用户名、密码控件均可见且未禁用；修复后可输入 `admin/admin` 并进入 dashboard。随后应继续执行 HTTP 登录 smoke test 和全量测试。
+
+### 2026-09-24 — ROS 2 AMR closed-loop engineering simulation
+
+- 改动：新增 `amr_simulator` 笔记本级闭环节点，包含差速轮位置、托盘/抓取力、请求速度与实际速度、`speed_abuse`/`replay`/`gripper_fault` 三类受控故障，以及对 Guardian `safety_status`/`mitigation_command` 的反馈限速；新增 dashboard 的认证仿真控制 API 和 `guardian/sim_state` 遥测缓存；启动文件加入 `amr_simulator`；前端新增“工程仿真”页面和六个控制按钮。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/amr_simulator.py`、`dashboard.py`、`dashboard_state.py`、`guardian_node.py`、`launch/guardian.launch.py`、`frontend/index.html`、`frontend/app.js`、`frontend/styles.css`、`tests/test_amr_simulator.py`、`tests/test_dashboard_simulation.py`、`README.md`、`docs/warehouse_amr_case.md`、`docs/amr_closed_loop_simulation.md`、`task_plan.md`、`progress.md`。
+- 验证：新增 simulator/dashboard 定向测试 `4 passed`；前端契约测试先红后绿，绿色阶段 `2 passed`；`node --check` 和 `git diff --check` 通过；ROS 2 Jazzy `colcon build --symlink-install --packages-select guardian_interfaces guardian_core` 两包成功；隔离 `ROS_DOMAIN_ID=42` 的真实节点冒烟观察到 `amr_simulator` `UNSAFE_COMMAND` 事件和安全反馈后的零值 `/cmd_vel`。
+- 安全边界：仿真只在本机数字孪生中运行，不连接真实执行器；控制 API 仅允许四个动作和三种攻击类型，并要求 dashboard 登录。Jev 仍为已验证事件的语义旁路，不能发布 `/cmd_vel`、修改速度上限、解除 `CONTAINING/SAFE_STOP` 或批准恢复；本轮无真实 provider 调用、无密钥输出、无 GitHub 上传、无数据库迁移。
+
+### 2026-09-24 — Closed-loop deployment validation
+
+- 改动：新增可复制的 `deploy/guardian-simulator.service`，并在当前 WSL systemd 中启用 `guardian-simulator.service`，使 8088 页面启动时同时拥有 Guardian、dashboard 和 AMR 仿真节点。
+- 验证：WSL2 全量测试 `211 passed`；创新、Jev 高效判断、事件会话、专利化和仓储 AMR 离线实验均返回 `passed: true`；ROS 2 Jazzy 两包构建成功；`node --check`、Python compile/diff 检查通过。HTTP 冒烟验证 health/login/state 和新页面资源；部署后的真实控制链路 `start → speed_abuse` 返回 `CONTAINING`、`ISOLATE_COMPONENT`，请求速度 `0.62 m/s`、实际速度 `0.00 m/s`、上限 `0.15 m/s`。
+- 运行方式：保持 WSL 实例运行后执行 `systemctl start guardian-core.service guardian-dashboard.service guardian-simulator.service`，访问 `http://127.0.0.1:8088`，用 `admin/admin` 登录，在“工程仿真”页按 README/`docs/amr_closed_loop_simulation.md` 操作。
+- 复位语义：仿真节点的 `reset` 会立即清除任务、位置和攻击模式；Guardian 不接受一个无认证的“清空攻击”旁路，已登记攻击仍按 `max_event_age_sec`（默认 5 秒）自然过期后才回到 `NORMAL`。页面已明确提示这一点。
+- 边界：当前是笔记本级 ROS 2 数字孪生，不是 Webots 物理仿真；Webots R2025a 已存在但 `webots_ros2` 未安装，后续可替换运动适配层。没有真实 Jev provider 调用，没有输出或写入密钥，没有 GitHub 上传，也没有数据库迁移。
+- 最终状态：服务已重启并保持 `IDLE/NORMAL` 基线；最后一次实时 HTTP 闭环已验证超速 containment 和 TTL 后 reset 恢复，页面可直接开始下一轮实验。

@@ -470,3 +470,19 @@ rejects the dashboard origin through CORS.
 - ROS 2 rebuild: `guardian_interfaces` and `guardian_core` finished successfully; dashboard restart served the new assets.
 - Browser smoke: built-in option visible; case card showed `amr-07`, `A-12 → P-07`, `/cmd_vel`, `/gripper/command`, threats and Jev summary; execution showed `3 / 1`, `CONTAINING`, `ISOLATE_COMPONENT`, `0.15 m/s`; Jev transfer populated the semantic page.
 - Full WSL2 suite: `204 passed`; ROS 2 rebuild completed for `guardian_interfaces` and `guardian_core`; frontend `node --check`, Python compileall, `git diff --check`, tracked `.env`, and no-secret-pattern checks passed.
+
+## Current task: ROS 2 AMR closed-loop engineering simulation (2026-09-24)
+
+- [complete] Add a bounded AMR simulator node with differential-drive motion, pallet/gripper state, safety-limited command output, telemetry, and deterministic fault injection.
+- [complete] Extend Guardian/dashboard ROS 2 wiring and add authenticated simulation control endpoints.
+- [complete] Add a fifth front-end simulation workspace with start/reset/stop and three attack controls, plus live telemetry and safety results.
+- [complete] Add launch/deployment instructions, focused tests, full regression, ROS 2 build and local HTTP/UI resource verification.
+- Scope: laptop-friendly ROS 2 closed-loop simulation. Webots rendering remains an optional follow-up adapter; no real hardware control, no provider call, no GitHub push and no migration.
+
+### Current validation checkpoint
+
+- Focused simulator/dashboard tests: `4 passed` after adding the missing HTTP fixture; frontend contract red test then green `2 passed`.
+- ROS 2 build: `guardian_interfaces` and `guardian_core` both finished successfully after adding `amr_simulator` and launch wiring.
+- Isolated ROS 2 domain smoke: `guardian_node` + `amr_simulator` accepted an `amr_simulator` `UNSAFE_COMMAND` event and emitted zero-valued `/cmd_vel` after safety feedback.
+- Full WSL2 regression: `211 passed`; all five offline experiment scripts and warehouse AMR case returned `passed: true`; ROS 2 Jazzy build finished for both packages; Windows `node --check` and `git diff --check` passed.
+- Local deployment: added and enabled `guardian-simulator.service`; `guardian-core`, `guardian-dashboard` and `guardian-simulator` are active. HTTP smoke verified health/login/state, `simulation.phase=IDLE`, page markers, and authenticated `start → speed_abuse` produced `CONTAINING`, `ISOLATE_COMPONENT`, requested `0.62`, actual `0.0`, limit `0.15`.

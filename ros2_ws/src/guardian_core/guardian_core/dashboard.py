@@ -16,6 +16,7 @@ import rclpy
 from rclpy.node import Node
 
 from guardian_interfaces.msg import MitigationCommand, RiskState, SafetyStatus
+from std_msgs.msg import String
 
 from .dashboard_state import DashboardState
 from .dashboard_experiments import ReplayError, run_replay, sample_catalog
@@ -31,6 +32,10 @@ from .dashboard_jev import (
 )
 from .dashboard_auth import DashboardAuth
 from .dashboard_credentials import CredentialStoreError
+
+MAX_SIMULATION_REQUEST_BYTES = 4096
+SIMULATION_ATTACK_TYPES = {"speed_abuse", "replay", "gripper_fault"}
+SIMULATION_ACTIONS = {"start", "stop", "reset", "attack"}
 
 
 def _frontend_dir() -> Path:
@@ -134,6 +139,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if not self._require_auth():
                 return
             self._experiment_replay()
+            return
+        if parsed.path == "/api/simulation/control":
+            if not self._require_auth():
+                return
+            self._simulation_control()
             return
         self.send_error(404)
 
@@ -347,6 +357,41 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
         self._json({"status": "OK", "report": report})
 
+    def _simulation_control(self) -> None:
+        content_length = self.headers.get("Content-Length")
+        try:
+            length = int(content_length or "-1")
+        except (TypeError, ValueError):
+            length = -1
+        if length < 0 or length > MAX_SIMULATION_REQUEST_BYTES:
+            self._json({"status": "INVALID_REQUEST", "error": {"code": "invalid_simulation_command", "message": "仿真控制请求无效"}}, status=400)
+            return
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._json({"status": "INVALID_REQUEST", "error": {"code": "invalid_simulation_command", "message": "仿真控制请求必须是 JSON"}}, status=400)
+            return
+        if not isinstance(payload, dict) or set(payload) - {"action", "type"} or payload.get("action") not in SIMULATION_ACTIONS:
+            self._json({"status": "INVALID_REQUEST", "error": {"code": "invalid_simulation_command", "message": "action 必须是 start、stop、reset 或 attack"}}, status=400)
+            return
+        action = payload["action"]
+        command = {"action": action}
+        if action == "attack":
+            if payload.get("type") not in SIMULATION_ATTACK_TYPES:
+                self._json({"status": "INVALID_REQUEST", "error": {"code": "invalid_simulation_command", "message": "type 必须是 speed_abuse、replay 或 gripper_fault"}}, status=400)
+                return
+            command["type"] = payload["type"]
+        callback = self.dashboard_server.simulation_control
+        if callback is None:
+            self._json({"status": "UNAVAILABLE", "error": {"code": "simulation_unavailable", "message": "ROS 2 仿真节点尚未启动"}}, status=503)
+            return
+        try:
+            callback(command)
+        except Exception:
+            self._json({"status": "UNAVAILABLE", "error": {"code": "simulation_unavailable", "message": "ROS 2 仿真控制不可用"}}, status=503)
+            return
+        self._json({"status": "SENT", "command": command})
+
     def _static(self, request_path: str) -> None:
         relative = unquote(request_path.lstrip("/")) or "index.html"
         root = self.dashboard_server.frontend_dir
@@ -381,12 +426,14 @@ class DashboardHTTPServer(ThreadingHTTPServer):
         frontend_dir: Path,
         jev_service: JevDashboardService | None = None,
         auth: DashboardAuth | None = None,
+        simulation_control=None,
     ) -> None:
         super().__init__(address, DashboardHandler)
         self.state = state
         self.frontend_dir = frontend_dir
         self.jev_service = jev_service or JevDashboardService()
         self.auth = auth or DashboardAuth.from_environment()
+        self.simulation_control = simulation_control
 
 
 class DashboardNode(Node):
@@ -423,7 +470,13 @@ class DashboardNode(Node):
         self.create_subscription(RiskState, "guardian/risk_state", self.state.update_risk, 20)
         self.create_subscription(MitigationCommand, "guardian/mitigation_command", self.state.update_mitigation, 20)
         self.create_subscription(SafetyStatus, "guardian/safety_status", self.state.update_safety, 20)
+        self.sim_control_pub = self.create_publisher(String, "/amr_07/sim_control", 20)
+        self.create_subscription(String, "guardian/sim_state", self.state.update_simulation, 20)
+        self.http_server.simulation_control = self.publish_simulation_control
         self.get_logger().info(f"Guardian dashboard available at http://{host}:{port}")
+
+    def publish_simulation_control(self, command: dict) -> None:
+        self.sim_control_pub.publish(String(data=json.dumps(command, ensure_ascii=False)))
 
     def destroy_node(self) -> bool:
         self.http_server.shutdown()

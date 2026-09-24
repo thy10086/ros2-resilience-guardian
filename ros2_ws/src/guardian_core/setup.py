@@ -22,6 +22,7 @@ setup(
         "console_scripts": [
             "guardian_node = guardian_core.guardian_node:main",
             "guardian_dashboard = guardian_core.dashboard:main",
+            "amr_simulator = guardian_core.amr_simulator:main",
         ],
     },
 )

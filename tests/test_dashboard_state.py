@@ -39,3 +39,18 @@ def test_dashboard_state_tracks_latest_messages_and_timeline():
     assert snapshot["safety"]["speed_limit"] == 0.15
     assert len(snapshot["timeline"]) == 3
     assert snapshot["timeline"][0]["category"] == "safety"
+
+
+def test_dashboard_state_tracks_bounded_simulation_telemetry_without_timeline_flooding():
+    state = DashboardState(timeline_limit=1)
+    state.update_simulation(SimpleNamespace(data='{"phase":"DOCK_TO_PALLET","x":1.25,"actual_speed":0.0,"pallet_loaded":true,"attack_mode":"speed_abuse","mitigation_components":["left_wheels"],"extra":"discard"}'))
+    snapshot = state.snapshot()
+    assert snapshot["simulation"]["phase"] == "DOCK_TO_PALLET"
+    assert snapshot["simulation"]["x"] == 1.25
+    assert snapshot["simulation"]["actual_speed"] == 0.0
+    assert snapshot["simulation"]["pallet_loaded"] is True
+    assert snapshot["simulation"]["mitigation_components"] == ["left_wheels"]
+    assert "extra" not in snapshot["simulation"]
+    assert snapshot["timeline"] == []
+    state.update_simulation(SimpleNamespace(data='{"phase":"IDLE","attack_mode":null,"mitigation_action":"NONE"}'))
+    assert state.snapshot()["simulation"]["attack_mode"] is None

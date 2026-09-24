@@ -98,6 +98,28 @@ Jev 不能执行以下动作：解除 `CONTAINING` 或 `SAFE_STOP`、修改 `spe
 6. 需要改变场景时，点击“导入样例 JSON”上传回放文件，或复制回放 JSON，修改 `sequence`、`component`、`profile` 或事件
    时间，再次导入。`profile=no_isolation` 可验证无法隔离时是否进入 `SAFE_STOP`。
 
+## ROS 2 闭环仿真操作
+
+网页“防护实验室”是离线回放，适合逐步检查四条事件的判定；“工程仿真”则启动同一
+仓储任务的 ROS 2 数字孪生，验证安全反馈是否真正改变运动输出。使用
+`ros2 launch guardian_core guardian.launch.py` 后：
+
+1. 在“工程仿真”点击“启动托盘任务”，观察 `DOCK_TO_PALLET`、位置增长和约
+   `0.20 m/s` 的实际速度。
+2. 点击“注入超速指令”。请求速度会变为 `0.62 m/s`，Guardian 收到
+   `UNSAFE_COMMAND` 后进入 `CONTAINING`，发布 `ISOLATE_COMPONENT`/安全限速，页面的
+   实际速度应变为 `0.00 m/s`，而请求速度仍保留 `0.62 m/s`。这证明安全反馈已经回到
+   仿真节点，而不是只改变网页文本。
+3. 点击“注入序列重放”，观察事件时间线中第一条接受、第二条 `REPLAY`；点击“注入抓取器故障”，观察抓取力从 `45 N` 变为 `0 N`，并在实时防护页查看右臂风险。
+4. 点击“重置场景”后，仿真任务停止、位置清零、攻击模式清除；Guardian 已登记的
+   攻击仍按 `max_event_age_sec`（默认 5 秒）保留，过期后安全状态才恢复到初始值。
+
+仿真节点发布 `/cmd_vel`、`/amr_07/odom`、`/amr_07/gripper_state` 和
+`guardian/sim_state`，消费 `/amr_07/sim_control`、`guardian/safety_status` 与
+`guardian/mitigation_command`。它是笔记本级的确定性运动模型，不等价于 Webots 或
+真实控制器；后续更换 Webots 适配器时，仍应保持 Guardian 的 `safety_status` 为最终
+限速和停车边界。Jev 只用于已验证事件的语义旁路，不参与实时 ROS 2 控制。
+
 ## 研究边界
 
 该案例可复现调度效率、来源信任、重放防护和安全状态转换，但不等价于真实机器人

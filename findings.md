@@ -243,3 +243,10 @@ be committed or printed.
 - 研究页面实际返回 7 个 PASS：`REMOTE→CACHE×11`（基线 12 / 效率 1）、`LOCAL_SAFE`、`LOCAL_ENFORCED`、`SKIPPED_UNVERIFIED`、`UNAVAILABLE`、`QUERIED→SESSION_REUSE×9`、`LEDGER_BLOCKED`。这些是 stub provider 的调度/边界证据，不是 Jev 模型质量或真实网络性能。
 - ROS 2 回放仍给出 `NORMAL`、`NORMAL`、`RESUMABLE`、`CONTAINING`、`SAFE_STOP` 五种可解释状态，Jev 旁路没有改变最终安全动作。
 - 浏览器验证曾因旧标签未刷新显示旧 UI；刷新后新 hash 工作区和研究结果可见。后续修改静态资源后要重载浏览器或重启 dashboard，避免把缓存旧页面误认为部署失败。
+## 2026-09-24 ROS 2 闭环仿真
+
+- 当前 WSL2 有 ROS 2 Jazzy 和 Webots R2025a，但没有现成 `webots_ros2` 包；因此本轮采用不依赖 Webots 的确定性 AMR 数字孪生，保留后续物理仿真适配边界。
+- 仿真节点通过 `/amr_07/sim_control` 接收有限控制命令，发布 `/cmd_vel`、里程计、抓取器状态和 `guardian/attack_events`，再消费 Guardian 的安全状态和缓解命令。实际速度由 `min(requested_speed, speed_limit)` 或安全停车规则计算。
+- 隔离 ROS domain 的真实节点冒烟证明了 `UNSAFE_COMMAND` 从仿真到 Guardian，再由 `safety_status` 回到仿真的闭环；`/cmd_vel` 在 containment 后为零。Jev 不在实时控制链路中，只能对验证后的摘要提供软证据。
+- 当前 8088 的本地部署必须同时启动 `guardian-simulator.service`；仅启动 dashboard 会让控制 API 返回 `simulation_unavailable`。加入 systemd 单元并重启后三服务均 active，HTTP 控制链路可重现 `start → speed_abuse → CONTAINING`。
+- 仿真 `reset` 不应直接清空 Guardian 的活动攻击登记，否则会形成未认证的安全状态降级入口；它只清理数字孪生状态，Guardian 仍按事件 TTL 自然过期。前端明确提示该延迟，遥测清理器允许 `attack_mode: null` 清除旧显示。

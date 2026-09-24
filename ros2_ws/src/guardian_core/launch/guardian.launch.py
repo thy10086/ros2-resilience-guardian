@@ -27,4 +27,10 @@ def generate_launch_description():
                 "port": 8080,
             }],
         ),
+        Node(
+            package="guardian_core",
+            executable="amr_simulator",
+            name="amr_simulator",
+            output="screen",
+        ),
     ])

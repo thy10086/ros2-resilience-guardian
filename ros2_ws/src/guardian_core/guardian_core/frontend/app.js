@@ -23,6 +23,7 @@ const JEV_KEY_CLEAR_ENDPOINT = '/api/jev/key/clear';
 const EXPERIMENT_SAMPLES_ENDPOINT = '/api/experiments/samples';
 const EXPERIMENT_REPLAY_ENDPOINT = '/api/experiments/replay';
 const RESEARCH_ENDPOINT = '/api/research/suite';
+const SIMULATION_CONTROL_ENDPOINT = '/api/simulation/control';
 const MAX_SAMPLE_BYTES = 64 * 1024;
 const MAX_SAMPLE_CHARS = 4096;
 let authenticated = false;
@@ -30,6 +31,7 @@ let jevKeySaved = false;
 let protectionSamples = [];
 let protectionSample = null;
 let protectionSampleMeta = null;
+let simulationCommandBusy = false;
 
 function showLogin(message = '本地实验账号：admin / admin') {
   authenticated = false;
@@ -488,8 +490,69 @@ function setupProtection() {
   $('protection-jev-load').addEventListener('click', loadIndustrialJevContext);
 }
 
+function simulationFeedback(message, kind = '') {
+  const target = $('simulation-feedback');
+  if (!target) return;
+  target.textContent = message;
+  target.className = `muted${kind ? ` ${kind}` : ''}`;
+}
+
+async function sendSimulationControl(action, type = null) {
+  if (simulationCommandBusy) return;
+  simulationCommandBusy = true;
+  document.querySelectorAll('#panel-simulation .simulation-controls .button').forEach((button) => { button.disabled = true; });
+  const labels = {start: '正在启动托盘运输任务…', stop: '正在停止仿真任务…', reset: '正在重置仿真场景…', speed_abuse: '正在注入超速指令…', replay: '正在注入序列重放…', gripper_fault: '正在注入抓取器语义故障…'};
+  simulationFeedback(labels[type || action] || '正在发送仿真控制…');
+  try {
+    const body = {action};
+    if (action === 'attack') body.type = type;
+    const response = await fetch(SIMULATION_CONTROL_ENDPOINT, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, cache: 'no-store', body: JSON.stringify(body),
+    });
+    const payload = await parseJsonResponse(response);
+    if (response.status === 401) { showLogin('登录已过期，请重新登录'); return; }
+    if (!response.ok || payload?.status !== 'SENT') throw new Error(payload?.error?.message || `HTTP ${response.status}`);
+    const detail = action === 'reset'
+      ? '场景已重置；Guardian 会在已登记事件的 TTL 到期后恢复 NORMAL。'
+      : `已发送：${action === 'attack' ? `攻击 / ${type}` : action}。请观察下方实际速度和 Guardian 状态变化。`;
+    simulationFeedback(detail, 'success');
+    await refresh();
+  } catch (error) {
+    simulationFeedback(`仿真控制失败：${redactJevMessage(error.message)}`, 'error');
+  } finally {
+    simulationCommandBusy = false;
+    document.querySelectorAll('#panel-simulation .simulation-controls .button').forEach((button) => { button.disabled = false; });
+  }
+}
+
+function renderSimulation(simulation) {
+  const data = simulation || {};
+  const phase = String(data.phase || 'SIMULATOR_OFFLINE');
+  const state = String(data.safety_state || 'STARTING');
+  const connected = phase !== 'SIMULATOR_OFFLINE';
+  const connection = $('simulation-connection');
+  if (connection) {
+    connection.textContent = connected ? '仿真节点在线' : '等待仿真节点';
+    connection.className = `pill ${connected ? 'simulation-online' : 'simulation-offline'}`;
+  }
+  const values = {
+    'simulation-phase': phase,
+    'simulation-safety-state': state,
+    'simulation-pose': `${finiteNumber(data.x).toFixed(2)} m / ${finiteNumber(data.y).toFixed(2)} m`,
+    'simulation-requested-speed': `${finiteNumber(data.requested_speed).toFixed(2)} m/s`,
+    'simulation-actual-speed': `${finiteNumber(data.actual_speed).toFixed(2)} m/s`,
+    'simulation-speed-limit': `${finiteNumber(data.speed_limit).toFixed(2)} m/s`,
+    'simulation-pallet': `${data.pallet_loaded === true ? '已装载' : '未装载'} · ${finiteNumber(data.grip_force).toFixed(1)} N`,
+    'simulation-attack-mode': data.attack_mode ? String(data.attack_mode) : '无',
+    'simulation-mitigation': data.mitigation_action ? String(data.mitigation_action) : 'NONE',
+  };
+  Object.entries(values).forEach(([id, value]) => { const target = $(id); if (target) target.textContent = value; });
+  const stateTarget = $('simulation-safety-state');
+  if (stateTarget) stateTarget.className = stateClass(state);
+}
+
 function setWorkspacePanel(panel) {
-  const allowed = new Set(['realtime', 'protection', 'jev', 'research']);
+  const allowed = new Set(['realtime', 'protection', 'simulation', 'jev', 'research']);
   const selected = allowed.has(panel) ? panel : 'realtime';
   document.querySelectorAll('.workspace-tab').forEach((tab) => {
     const active = tab.dataset.panel === selected;
@@ -551,6 +614,16 @@ function setupResearch() {
   $('research-run').addEventListener('click', runResearchSuite);
 }
 
+function setupSimulation() {
+  if (!$('simulation-start')) return;
+  $('simulation-start').addEventListener('click', () => sendSimulationControl('start'));
+  $('simulation-stop').addEventListener('click', () => sendSimulationControl('stop'));
+  $('simulation-reset').addEventListener('click', () => sendSimulationControl('reset'));
+  $('simulation-attack-speed').addEventListener('click', () => sendSimulationControl('attack', 'speed_abuse'));
+  $('simulation-attack-replay').addEventListener('click', () => sendSimulationControl('attack', 'replay'));
+  $('simulation-attack-gripper').addEventListener('click', () => sendSimulationControl('attack', 'gripper_fault'));
+}
+
 function render(data) {
   const risk = data.risk || {};
   const mitigation = data.mitigation || {};
@@ -577,6 +650,7 @@ function render(data) {
   $('mitigation-action').textContent = mitigation.action || 'NONE';
   $('mitigation-reason').textContent = mitigation.reason || '—';
   chips($('mitigation-components'), mitigation.components);
+  renderSimulation(data.simulation);
   $('last-updated').textContent = data.updated_at ? `最近更新 ${formatTime(data.updated_at)}` : '尚无更新';
   const timeline = Array.isArray(data.timeline) ? data.timeline : [];
   $('timeline').innerHTML = timeline.length ? timeline.slice(0, 30).map((item) => {
@@ -603,6 +677,7 @@ async function refresh() {
 
 setupJev();
 setupProtection();
+setupSimulation();
 setupWorkspace();
 setupResearch();
 setupAuth();

@@ -10,6 +10,7 @@
 - 跨层安全核心：对 ROS 2 数据路径做图风险传播、来源/时序策略检查、多源证据融合、风险自适应速度包络和恢复门控。
 - ROS 2 Jazzy 包：`guardian_interfaces` 消息包和 `guardian_core` 节点包。
 - 本地 Web 安全驾驶舱：只读映射风险、攻击组件、缓解方案和安全状态。
+- 笔记本 ROS 2 闭环工程仿真：`amr_simulator` 发布 `/cmd_vel`、里程计、抓取器和攻击事件，并消费 Guardian 的安全反馈。
 - 驾驶舱内置 Jev 连接测试：通过本地后端代理验证 TypeSafe API，并显示有界的语义判断结果。
 - `guardian_node` 订阅 `guardian/attack_events`，输出 `guardian/risk_state`、`guardian/mitigation_command` 和 `guardian/safety_status`。
 - `experiments/run_innovation_experiments.py` 现在包含 6 组确定性实验，新增跨层融合和 Jev 语义顾问的离线验收。
@@ -75,6 +76,48 @@ ros2 launch guardian_core guardian.launch.py
 `127.0.0.1`，不会把控制接口暴露到局域网；后续接入 Webots 时应继续由
 `safety_status` 输出边界驱动实际控制器。
 
+### ROS 2 闭环工程仿真
+
+`guardian.launch.py` 会同时启动 `guardian_node`、`guardian_dashboard` 和
+`amr_simulator`。仿真节点是一个确定性的 AMR 数字孪生，模拟差速轮沿
+`A-12 → P-07` 搬运托盘、抓取力和三类受控故障；它不连接真实电机，也不声称是
+Webots 物理引擎。也可以单独运行：
+
+```bash
+ros2 run guardian_core guardian_node
+ros2 run guardian_core amr_simulator
+ros2 run guardian_core guardian_dashboard --ros-args -p port:=8088
+```
+
+登录后进入“工程仿真”页面，按以下顺序观察闭环：
+
+1. 点击“启动托盘任务”，确认任务阶段从 `IDLE` 进入 `DOCK_TO_PALLET`，请求速度约
+   `0.20 m/s`，`/cmd_vel` 的实际速度跟随安全上限。
+2. 点击“注入超速指令”。仿真节点会请求 `0.62 m/s` 并发布一个
+   `amr_simulator` 来源的 `UNSAFE_COMMAND`；Guardian 校验、登记和评估后进入
+   `CONTAINING`，仿真的实际速度降为 `0`，而请求速度仍显示 `0.62 m/s`。
+3. 点击“注入序列重放”，两条事件共用 `sequence=7001`，时间线会显示第一条接受、
+   第二条 `REPLAY` 拒绝；点击“注入抓取器故障”会把抓取力置为 `0 N`，用于观察
+   `/amr_07/gripper_state` 与右臂风险的关联。
+4. 点击“重置场景”清除仿真任务和攻击模式，确认任务回到 `IDLE`、位置清零；Guardian
+   会按 `max_event_age_sec`（默认 5 秒）让已登记攻击自然过期后回到 `NORMAL`。页面
+   轮询的 `/api/state` 同时显示任务阶段、位置、请求/实际速度、速度上限、托盘状态、
+   攻击模式和缓解动作。
+
+仿真使用的 ROS 2 话题为：
+
+| 方向 | 话题 | 作用 |
+| --- | --- | --- |
+| 控制台 → 仿真 | `/amr_07/sim_control` (`std_msgs/String`) | `start`、`stop`、`reset`、三类攻击控制 |
+| 仿真 → Guardian | `guardian/attack_events` (`AttackEvent`) | 速度异常、重放和抓取器语义事件 |
+| Guardian → 仿真 | `guardian/safety_status` / `guardian/mitigation_command` | 速度上限、任务许可和隔离动作 |
+| 仿真 → 控制器 | `/cmd_vel` (`geometry_msgs/Twist`) | 安全限幅后的实际速度 |
+| 仿真 → 驾驶舱 | `guardian/sim_state` (`std_msgs/String`) | 有界数字孪生遥测 |
+
+Jev 不在这条实时控制链路中。它只对经过 Guardian 确定性校验的摘要做语义分类和
+人工复核建议；即使 Jev Key 缺失或 provider 超时，`CONTAINING`、限速和停车仍由
+本地 Guardian 状态机完成。
+
 打开页面后，在“Jev 连接测试”面板中输入 TypeSafe API Key 和一段简短的
 测试状态，点击“测试连接”即可执行一次旁路请求。浏览器只把请求发给本地
 `POST /api/jev/test`，由 dashboard 后端默认调用固定的
@@ -104,15 +147,19 @@ Guardian 安全状态、速度限制或机器人命令。
 
 ```powershell
 Start-Process wsl.exe -ArgumentList @('-d','Ubuntu-24.04','--','sleep','infinity') -WindowStyle Hidden
-wsl.exe -d Ubuntu-24.04 -u root -- systemctl start guardian-core.service guardian-dashboard.service
+wsl.exe -d Ubuntu-24.04 -u root -- systemctl start guardian-core.service guardian-dashboard.service guardian-simulator.service
 ```
 
 服务状态和停止命令：
 
 ```bash
-systemctl status guardian-core.service guardian-dashboard.service
-systemctl stop guardian-core.service guardian-dashboard.service
+systemctl status guardian-core.service guardian-dashboard.service guardian-simulator.service
+systemctl stop guardian-core.service guardian-dashboard.service guardian-simulator.service
 ```
+
+如果是首次按 systemd 部署仿真节点，把仓库中的
+`deploy/guardian-simulator.service` 复制到 `/etc/systemd/system/`，再执行
+`systemctl daemon-reload && systemctl enable --now guardian-simulator.service`。
 
 详细设计见 [docs/design.md](docs/design.md)，实验和指标见 [docs/experiments.md](docs/experiments.md)。
 

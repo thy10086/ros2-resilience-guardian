@@ -40,6 +40,7 @@ class GuardianNode(Node):
             max_event_age_sec=float(self.get_parameter("max_event_age_sec").value),
             mitigation_delay_sec=float(self.get_parameter("mitigation_delay_sec").value),
             default_speed_limit=float(self.get_parameter("default_speed_limit").value),
+            trusted_sources=frozenset({"scenario_injector", "amr_simulator"}),
             mitigatable_devices=frozenset({"left_wheels", "right_wheels", "left_arm", "right_arm", "left_gripper", "right_gripper"}),
         )
         signature_secret = str(self.get_parameter("signature_secret").value).encode("utf-8") or None

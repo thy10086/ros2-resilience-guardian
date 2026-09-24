@@ -1,0 +1,15 @@
+[Unit]
+Description=ROS 2 Resilience Guardian AMR simulator
+After=network.target guardian-core.service
+
+[Service]
+Type=simple
+User=rob
+Environment=HOME=/home/rob
+WorkingDirectory=/mnt/c/Users/user/Documents/Codex/2026-09-10/ban/ros2-resilience-guardian
+ExecStart=/usr/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && source /mnt/c/Users/user/Documents/Codex/2026-09-10/ban/ros2-resilience-guardian/ros2_ws/install/setup.bash && exec ros2 run guardian_core amr_simulator'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
