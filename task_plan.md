@@ -425,3 +425,14 @@ rejects the dashboard origin through CORS.
 - [complete] Add detailed explanations for current experiments and a staged cross-layer fusion experiment plan.
 - [complete] Implement pure Python graph propagation, temporal policy, evidence fusion, safety envelope and recovery gate.
 - [complete] Add and validate the cross-layer fusion experiment; document the ROS 2 integration boundary.
+# 2026-09-24 当前任务：持久 Key 与 Jev 研究工作区（仅本地）
+
+- [complete] 修复 Key 生命周期：独立保存/更新/删除，WSL 用户目录原子持久化，认证后可跨会话复用；状态接口不回传 Key。
+- [complete] 重组桌面前端为实时防护、实验室、Jev 分析、研究与创新四个页面；URL 保留当前页面。
+- [complete] 增加可运行的离线 Jev 对照实验与逐步结果，区分规则防护、语义复核与在线模型性能。
+- [complete] 验证跨登录与服务重启、替换与删除、存储失败、权限；运行完整测试、实验、ROS 2 构建和浏览器流程。
+- [complete] 更新 README / HANDOFF / findings / progress；只在本地 main 提交，不 push。
+
+验收：已保存 Key 无 TTL，刷新/退出/重启后仍能复用；只有用户更新/删除改变持久记录。输入框留空时必须明确显示已保存状态。不得把模型 stub 结果称为真实 Jev 准确率或加速比。既有 `.env` 保持 Git 跟踪，不写系统环境变量，不新增数据库迁移。
+
+完成证据：WSL2 201 passed；研究 7/7；ROS 2 两包构建；真实 8088 保存/重启/清除冒烟和浏览器工作区验证通过。

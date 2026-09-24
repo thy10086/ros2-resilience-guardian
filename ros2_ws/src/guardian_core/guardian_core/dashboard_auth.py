@@ -9,6 +9,7 @@ import os
 import secrets
 import time
 from threading import RLock
+from .dashboard_credentials import JevKeyStore
 
 
 DEFAULT_USERNAME = "admin"
@@ -19,7 +20,7 @@ DEFAULT_TTL_SEC = 8 * 60 * 60
 class DashboardAuth:
     """Authenticate one local demo account without persisting credentials."""
 
-    def __init__(self, *, username: str = DEFAULT_USERNAME, password: str = DEFAULT_PASSWORD, ttl_sec: float = DEFAULT_TTL_SEC) -> None:
+    def __init__(self, *, username: str = DEFAULT_USERNAME, password: str = DEFAULT_PASSWORD, ttl_sec: float = DEFAULT_TTL_SEC, key_store: JevKeyStore | None = None) -> None:
         if not isinstance(username, str) or not username:
             raise ValueError("dashboard username must be a non-empty string")
         if not isinstance(password, str) or not password:
@@ -31,7 +32,7 @@ class DashboardAuth:
         self._password = password
         self.ttl_sec = ttl
         self._sessions: dict[str, float] = {}
-        self._jev_keys: dict[str, tuple[str, float]] = {}
+        self.key_store = key_store if key_store is not None else JevKeyStore()
         self._lock = RLock()
 
     @classmethod
@@ -41,8 +42,10 @@ class DashboardAuth:
             ttl = float(raw_ttl)
         except (TypeError, ValueError):
             ttl = DEFAULT_TTL_SEC
+        username = os.getenv("GUARDIAN_DASHBOARD_USER", DEFAULT_USERNAME)
         return cls(
-            username=os.getenv("GUARDIAN_DASHBOARD_USER", DEFAULT_USERNAME),
+            username=username,
+            key_store=JevKeyStore.for_account(username),
             password=os.getenv("GUARDIAN_DASHBOARD_PASSWORD", DEFAULT_PASSWORD),
             ttl_sec=ttl,
         )
@@ -55,7 +58,6 @@ class DashboardAuth:
         for digest, expires_at in tuple(self._sessions.items()):
             if expires_at <= now:
                 self._sessions.pop(digest, None)
-                self._jev_keys.pop(digest, None)
 
     def login(self, username: str, password: str, *, now: float | None = None) -> str | None:
         if not isinstance(username, str) or not isinstance(password, str):
@@ -94,10 +96,9 @@ class DashboardAuth:
             return
         with self._lock:
             self._sessions.pop(digest, None)
-            self._jev_keys.pop(digest, None)
 
     def remember_jev_key(self, token: str | None, api_key: str, *, now: float | None = None) -> bool:
-        """Keep one validated Jev key in the current in-memory login session."""
+        """Persist the account key after authenticating the current session."""
 
         if not isinstance(api_key, str) or not api_key:
             return False
@@ -115,11 +116,11 @@ class DashboardAuth:
             expires_at = self._sessions.get(digest)
             if expires_at is None or expires_at <= current:
                 return False
-            self._jev_keys[digest] = (api_key, expires_at)
+            self.key_store.save(api_key)
             return True
 
     def get_jev_key(self, token: str | None, *, now: float | None = None) -> str | None:
-        """Return the session-bound Jev key for one authenticated request."""
+        """Use the account key only for a currently authenticated request."""
 
         if not isinstance(token, str) or not token:
             return None
@@ -132,21 +133,15 @@ class DashboardAuth:
             return None
         with self._lock:
             self._prune_locked(current)
-            entry = self._jev_keys.get(digest)
-            return entry[0] if entry is not None else None
+            return self.key_store.get() if digest in self._sessions else None
 
     def has_jev_key(self, token: str | None, *, now: float | None = None) -> bool:
         return self.get_jev_key(token, now=now) is not None
 
     def clear_jev_key(self, token: str | None) -> None:
-        if not isinstance(token, str) or not token:
-            return
-        try:
-            digest = self._digest(token)
-        except (UnicodeEncodeError, AttributeError):
-            return
         with self._lock:
-            self._jev_keys.pop(digest, None)
+            if self.validate(token):
+                self.key_store.clear()
 
 
 __all__ = ["DashboardAuth", "DEFAULT_PASSWORD", "DEFAULT_TTL_SEC", "DEFAULT_USERNAME"]

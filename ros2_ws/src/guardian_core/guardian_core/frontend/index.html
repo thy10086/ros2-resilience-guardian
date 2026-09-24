@@ -9,8 +9,7 @@
 <body>
   <section id="auth-gate" class="auth-gate" aria-labelledby="login-title">
     <form id="login-form" class="auth-card" novalidate>
-      <p class="eyebrow">LOCAL SECURITY GATE</p>
-      <h1 id="login-title">登录安全驾驶舱</h1>
+      <p class="eyebrow">LOCAL SECURITY GATE</p><h1 id="login-title">登录安全驾驶舱</h1>
       <p class="muted">请输入本地管理员账号后查看 ROS 2 安全状态。</p>
       <label class="field" for="login-username"><span>用户名</span><input id="login-username" name="username" value="admin" autocomplete="username" required></label>
       <label class="field" for="login-password"><span>密码</span><input id="login-password" name="password" type="password" autocomplete="current-password" required></label>
@@ -21,133 +20,52 @@
 
   <main id="app-shell" class="shell" hidden>
     <header class="topbar">
-      <div>
-        <p class="eyebrow">ROS 2 SECURITY OPERATIONS</p>
-        <h1>Resilience Guardian</h1>
-        <p class="subtitle">面向室内移动机器人的任务感知安全防护驾驶舱</p>
-      </div>
+      <div><p class="eyebrow">ROS 2 SECURITY OPERATIONS</p><h1>Resilience Guardian</h1><p class="subtitle">面向室内移动机器人的任务感知安全防护工作区</p></div>
       <div class="topbar-actions"><div id="connection" class="connection pending">连接中</div><button id="logout" class="button secondary" type="button">退出登录</button></div>
     </header>
 
-    <section class="hero-grid">
-      <article class="card state-card" id="state-card">
-        <div class="card-label">安全状态</div>
-        <div class="state-row"><span id="safety-state">STARTING</span><span id="mission-badge" class="badge">任务锁定</span></div>
-        <p id="safety-reason" class="muted">等待 Guardian ROS 2 状态</p>
-        <div class="speed"><span>当前速度上限</span><strong><span id="speed-limit">0.00</span> m/s</strong></div>
+    <nav class="workspace-nav" aria-label="工作区页面">
+      <button class="workspace-tab active" data-panel="realtime" type="button">实时防护</button>
+      <button class="workspace-tab" data-panel="protection" type="button">防护实验室</button>
+      <button class="workspace-tab" data-panel="jev" type="button">Jev 语义分析</button>
+      <button class="workspace-tab" data-panel="research" type="button">研究与创新</button>
+    </nav>
+
+    <section id="panel-realtime" class="workspace-panel active" data-panel-section="realtime">
+      <div class="panel-heading"><div><p class="eyebrow">01 / LIVE GUARDIAN</p><h2>实时防护</h2><p class="muted">ROS 2 状态话题的只读映射；安全核心负责最终状态、速度和停车。</p></div><span class="pill">确定性闭环</span></div>
+      <section class="hero-grid">
+        <article class="card state-card" id="state-card"><div class="card-label">安全状态</div><div class="state-row"><span id="safety-state">STARTING</span><span id="mission-badge" class="badge">任务锁定</span></div><p id="safety-reason" class="muted">等待 Guardian ROS 2 状态</p><div class="speed"><span>当前速度上限</span><strong><span id="speed-limit">0.00</span> m/s</strong></div></article>
+        <article class="card risk-card"><div class="card-label">动态风险评分</div><div class="risk-score"><span id="risk-score">0</span><small>/ 100</small></div><div class="meter"><span id="risk-meter"></span></div><div class="metric-row"><span>ψ <b id="psi">0.000</b></span><span>δ <b id="delta">false</b></span><span>γ <b id="gamma">false</b></span></div></article>
+      </section>
+      <section class="content-grid">
+        <article class="card"><div class="section-title"><h2>攻击面与关键组件</h2><span id="risk-state" class="pill">STARTING</span></div><div class="chips" id="active-components"><span class="empty">暂无活动组件</span></div><div class="sub-label">关键组件</div><div class="chips critical" id="critical-components"><span class="empty">暂无关键组件</span></div><p id="risk-reason" class="muted">等待风险评估</p></article>
+        <article class="card"><div class="section-title"><h2>当前缓解方案</h2><span id="plan-id" class="mono">—</span></div><div class="action" id="mitigation-action">NONE</div><div class="sub-label">作用组件</div><div class="chips" id="mitigation-components"><span class="empty">暂无</span></div><p id="mitigation-reason" class="muted">尚未生成缓解方案</p></article>
+      </section>
+      <section class="card timeline-card"><div class="section-title"><h2>安全事件时间线</h2><span id="last-updated" class="muted">尚无更新</span></div><div id="timeline" class="timeline"><div class="empty">等待 ROS 2 消息</div></div></section>
+    </section>
+
+    <section id="panel-protection" class="workspace-panel" data-panel-section="protection" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">02 / PROTECTION REPLAY</p><h2>防护实验室</h2><p class="muted">导入样例，逐步观察事件校验、风险评估、缓解规划和安全监督。</p></div><span class="pill protection-pill">只读实验</span></div>
+      <article class="card protection-card"><div class="protection-flow" aria-label="防护判断流程"><span>① 事件校验</span><b>→</b><span>② 攻击登记</span><b>→</b><span>③ 风险评估</span><b>→</b><span>④ 缓解规划</span><b>→</b><span>⑤ 安全监督</span></div><div class="protection-controls"><label class="field" for="protection-sample-select"><span>内置防护样例</span><select id="protection-sample-select"><option value="">正在读取样例…</option></select></label><button id="protection-load" class="button secondary" type="button">导入内置样例</button><label class="button secondary compact" for="protection-file">导入样例 JSON</label><input id="protection-file" type="file" accept=".json,application/json"><button id="protection-run" class="button primary" type="button" disabled>执行防护判断</button></div><p id="protection-feedback" class="muted" role="status" aria-live="polite">请选择内置样例或导入 JSON。</p><div id="protection-result" hidden><div class="protection-summary" id="protection-summary"></div><div class="protection-table-wrap"><table class="protection-table"><thead><tr><th>时间</th><th>事件校验</th><th>风险</th><th>缓解动作</th><th>安全状态</th><th>速度上限</th></tr></thead><tbody id="protection-steps"></tbody></table></div><p class="muted protection-note">结果来自同一套离线 Guardian 逻辑，不会发布 ROS 2 事件、解除 SAFE_STOP 或控制机器人。</p></div></article>
+    </section>
+
+    <section id="panel-jev" class="workspace-panel" data-panel-section="jev" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">03 / SEMANTIC ADVISOR</p><h2>Jev 语义分析</h2><p class="muted">Jev 只接收已验证事件的有界摘要，返回软证据和人工复核建议。</p></div><span class="pill">旁路建议</span></div>
+      <article class="card jev-card"><div class="section-title"><div><h2>Jev 连接测试</h2><p class="muted jev-subtitle">Key 持久保存在本机受限目录；不会回填浏览器或写入 Git。</p></div><span id="jev-status" class="pill jev-status idle" role="status" aria-live="polite">未测试</span></div>
+        <form id="jev-form" novalidate><div class="jev-form-grid"><label class="field" for="jev-api-key"><span>API Key</span><input id="jev-api-key" name="jev-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴 TypeSafe API Key"></label><div class="jev-key-options"><span id="jev-key-status" class="muted">未保存</span><button id="jev-save-key-now" class="button secondary compact" type="button">保存 / 更新 Key</button><button id="jev-forget-key" class="button secondary compact" type="button" disabled>忘记已保存 Key</button></div><label class="field" for="jev-state"><span>测试状态</span><textarea id="jev-state" name="jev-state" rows="5" spellcheck="false">已验证导航组件在短时间内收到异常高频速度指令，来源签名有效但行为可能影响安全边界。</textarea></label><div class="jev-sample-row"><label class="button secondary compact" for="jev-sample-file">加载样例文件</label><input id="jev-sample-file" type="file" accept=".txt,.log,.csv,.json,text/plain,application/json"><span id="jev-sample-feedback" class="muted">样例只在浏览器中读取，点击测试后才发送。</span></div></div><div class="jev-actions"><button id="jev-test" class="button primary" type="submit">测试连接</button><button id="jev-clear" class="button secondary" type="button">清空输入</button><span id="jev-feedback" class="muted" role="status" aria-live="polite">输入 API Key 后开始测试</span></div></form>
+        <div id="jev-result" class="jev-result" hidden aria-live="polite"><div class="sub-label">标准化判断</div><div class="jev-result-grid"><div class="jev-metric"><span>攻击类型</span><strong id="jev-label">—</strong></div><div class="jev-metric"><span>任务影响</span><strong id="jev-impact">—</strong></div><div class="jev-metric"><span>辅助评分</span><strong id="jev-score">—</strong></div><div class="jev-metric"><span>置信度</span><strong id="jev-confidence">—</strong></div><div class="jev-metric"><span>人工复核</span><strong id="jev-review">—</strong></div><div class="jev-metric"><span>模型 / 延迟</span><strong id="jev-model">—</strong></div></div><p id="jev-reason" class="muted jev-reason">—</p></div>
       </article>
-      <article class="card risk-card">
-        <div class="card-label">动态风险评分</div>
-        <div class="risk-score"><span id="risk-score">0</span><small>/ 100</small></div>
-        <div class="meter"><span id="risk-meter"></span></div>
-        <div class="metric-row"><span>ψ <b id="psi">0.000</b></span><span>δ <b id="delta">false</b></span><span>γ <b id="gamma">false</b></span></div>
-      </article>
+      <aside class="boundary-callout"><strong>安全边界</strong><span>Jev 不能改变 SafetyStatus、速度限制、恢复门控、SAFE_STOP 或发布 /cmd_vel；网络失败时确定性 ROS 2 路径继续生效。</span></aside>
     </section>
 
-    <section class="content-grid">
-      <article class="card">
-        <div class="section-title"><h2>攻击面与关键组件</h2><span id="risk-state" class="pill">STARTING</span></div>
-        <div class="chips" id="active-components"><span class="empty">暂无活动组件</span></div>
-        <div class="sub-label">关键组件</div>
-        <div class="chips critical" id="critical-components"><span class="empty">暂无关键组件</span></div>
-        <p id="risk-reason" class="muted">等待风险评估</p>
-      </article>
-      <article class="card">
-        <div class="section-title"><h2>当前缓解方案</h2><span id="plan-id" class="mono">—</span></div>
-        <div class="action" id="mitigation-action">NONE</div>
-        <div class="sub-label">作用组件</div>
-        <div class="chips" id="mitigation-components"><span class="empty">暂无</span></div>
-        <p id="mitigation-reason" class="muted">尚未生成缓解方案</p>
-      </article>
+    <section id="panel-research" class="workspace-panel" data-panel-section="research" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">04 / EVIDENCE LAB</p><h2>研究与创新</h2><p class="muted">用生产代码运行离线对照，查看 Jev 高效判断与事件会话层的真实调度证据。</p></div><button id="research-run" class="button primary" type="button">运行研究套件</button></div>
+      <article class="card research-overview"><div class="research-grid"><div><span>核心创新</span><strong>确定性安全闭环 + Jev 软证据旁路</strong></div><div><span>高效机制</span><strong>本地分流 · TTL/LRU · single-flight · 会话复用</strong></div><div><span>实验模式</span><strong id="research-mode">尚未运行</strong></div><div><span>在线调用</span><strong id="research-calls">—</strong></div></div><p id="research-feedback" class="muted" role="status">套件使用离线 stub，不会调用真实 API 或控制机器人。</p></article>
+      <article class="card"><div class="section-title"><h2>Jev 高效判断案例</h2><span class="pill">可重复</span></div><div class="research-table-wrap"><table class="research-table"><thead><tr><th>案例</th><th>路径</th><th>调用次数</th><th>结果</th><th>研究结论</th></tr></thead><tbody id="research-cases"><tr><td colspan="5" class="empty">点击“运行研究套件”</td></tr></tbody></table></div></article>
+      <article class="card"><div class="section-title"><h2>ROS 2 防护案例映射</h2><span class="pill protection-pill">最终状态由 Guardian 决定</span></div><div class="research-table-wrap"><table class="research-table"><thead><tr><th>案例</th><th>安全状态</th><th>缓解动作</th><th>速度上限</th><th>结论</th></tr></thead><tbody id="research-protection"><tr><td colspan="5" class="empty">等待实验结果</td></tr></tbody></table></div></article>
+      <article class="card innovation-card"><div class="section-title"><h2>工程创新与可申请方向</h2><span class="pill">研究假设</span></div><div class="innovation-columns"><div><h3>创新组合</h3><p>事件先过来源、时序、重放和父证据校验；本地快速路径负责立即放行或强制；只有已验证且需要语义解释的事件才进入 Jev。Jev 输出被绑定为有期限软证据，与哈希链账本和会话滞回关联。</p></div><div><h3>可验证指标</h3><p>远程调用减少率、P50/P95 延迟、重复事件复用率、未验证事件外发数（目标为 0）、父证据失效后的阻断率、SAFE_STOP 保持率。在线模型准确率需另做带标注数据集实验。</p></div><div><h3>专利边界</h3><p>可围绕“安全事件验证—本地分流—会话级语义证据—父证据生命周期—安全状态机”的组合方法撰写交底；开源项目对比只是先前技术线索，不能代替新颖性检索和法律意见。</p></div></div></article>
     </section>
-
-    <section class="card timeline-card">
-      <div class="section-title"><h2>安全事件时间线</h2><span id="last-updated" class="muted">尚无更新</span></div>
-      <div id="timeline" class="timeline"><div class="empty">等待 ROS 2 消息</div></div>
-    </section>
-
-    <section class="card protection-card" aria-labelledby="protection-title">
-      <div class="section-title">
-        <div>
-          <h2 id="protection-title">防护测试台</h2>
-          <p class="muted jev-subtitle">离线回放同一套 Guardian 防护逻辑，不注入真实 ROS 2 事件</p>
-        </div>
-        <span class="pill protection-pill">只读实验</span>
-      </div>
-      <div class="protection-flow" aria-label="防护判断流程">
-        <span>① 事件校验</span><b>→</b><span>② 攻击登记</span><b>→</b><span>③ 风险评估</span><b>→</b><span>④ 缓解规划</span><b>→</b><span>⑤ 安全监督</span>
-      </div>
-      <div class="protection-controls">
-        <label class="field" for="protection-sample-select"><span>内置防护样例</span><select id="protection-sample-select"><option value="">正在读取样例…</option></select></label>
-        <button id="protection-load" class="button secondary" type="button">导入内置样例</button>
-        <label class="button secondary compact" for="protection-file">导入样例 JSON</label>
-        <input id="protection-file" type="file" accept=".json,application/json">
-        <button id="protection-run" class="button primary" type="button" disabled>执行防护判断</button>
-      </div>
-      <p id="protection-feedback" class="muted" role="status" aria-live="polite">请选择内置样例或导入 JSON。</p>
-      <div id="protection-result" hidden>
-        <div class="protection-summary" id="protection-summary"></div>
-        <div class="protection-table-wrap">
-          <table class="protection-table">
-            <thead><tr><th>时间</th><th>事件校验</th><th>风险</th><th>缓解动作</th><th>安全状态</th><th>速度上限</th></tr></thead>
-            <tbody id="protection-steps"></tbody>
-          </table>
-        </div>
-        <p class="muted protection-note">本表展示离线决策证据。它不会发布攻击事件、修改实时 ROS 2 状态、解除 SAFE_STOP 或直接控制机器人。</p>
-      </div>
-    </section>
-
-    <section class="card jev-card" aria-labelledby="jev-title">
-      <div class="section-title">
-        <div>
-          <h2 id="jev-title">Jev 连接测试</h2>
-          <p class="muted jev-subtitle">通过本地 Guardian 服务验证 TypeSafe API</p>
-        </div>
-        <span id="jev-status" class="pill jev-status idle" role="status" aria-live="polite">未测试</span>
-      </div>
-
-      <form id="jev-form" novalidate>
-        <div class="jev-form-grid">
-          <label class="field" for="jev-api-key">
-            <span>API Key</span>
-            <input id="jev-api-key" name="jev-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴 TypeSafe API Key">
-          </label>
-          <div class="jev-key-options">
-            <label class="checkbox-field" for="jev-save-key"><input id="jev-save-key" type="checkbox">刷新后保留 Key（当前登录会话）</label>
-            <span id="jev-key-status" class="muted">未保存</span>
-            <button id="jev-forget-key" class="button secondary compact" type="button" disabled>忘记已保存 Key</button>
-          </div>
-          <label class="field" for="jev-state">
-            <span>测试状态</span>
-            <textarea id="jev-state" name="jev-state" rows="5" spellcheck="false">已验证导航组件在短时间内收到异常高频速度指令，来源签名有效但行为可能影响安全边界。</textarea>
-          </label>
-          <div class="jev-sample-row">
-            <label class="button secondary compact" for="jev-sample-file">加载样例文件</label>
-            <input id="jev-sample-file" type="file" accept=".txt,.log,.csv,.json,text/plain,application/json">
-            <span id="jev-sample-feedback" class="muted">样例只在浏览器中读取，点击测试后才发送。</span>
-          </div>
-        </div>
-        <div class="jev-actions">
-          <button id="jev-test" class="button primary" type="submit">测试连接</button>
-          <button id="jev-clear" class="button secondary" type="button">清空</button>
-          <span id="jev-feedback" class="muted" role="status" aria-live="polite">输入 API Key 后开始测试</span>
-        </div>
-      </form>
-
-      <div id="jev-result" class="jev-result" hidden aria-live="polite">
-        <div class="sub-label">标准化判断</div>
-        <div class="jev-result-grid">
-          <div class="jev-metric"><span>攻击类型</span><strong id="jev-label">—</strong></div>
-          <div class="jev-metric"><span>任务影响</span><strong id="jev-impact">—</strong></div>
-          <div class="jev-metric"><span>辅助评分</span><strong id="jev-score">—</strong></div>
-          <div class="jev-metric"><span>置信度</span><strong id="jev-confidence">—</strong></div>
-          <div class="jev-metric"><span>人工复核</span><strong id="jev-review">—</strong></div>
-          <div class="jev-metric"><span>模型 / 延迟</span><strong id="jev-model">—</strong></div>
-        </div>
-        <p id="jev-reason" class="muted jev-reason">—</p>
-      </div>
-    </section>
-    <footer>只读监控面板 · 状态来源：/guardian/risk_state、/guardian/mitigation_command、/guardian/safety_status</footer>
+    <footer>只读监控与离线研究面板 · 状态来源：/guardian/risk_state、/guardian/mitigation_command、/guardian/safety_status</footer>
   </main>
   <script src="app.js"></script>
 </body>

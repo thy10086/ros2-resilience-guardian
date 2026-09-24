@@ -2,19 +2,31 @@
 
 > 本文件是项目的持续交接记录。每次代码、实验、部署或仓库配置发生变化时，必须在同一个提交中更新本文件的“变更日志”和必要的运行说明，然后再提交到 `main`。
 
-### 2026-09-24 — 防护测试台与 dashboard 部署修复
+### 2026-09-24 — 持久 Jev Key 与多页面研究工作区（当前）
+
+- 根因修复：此前 Key 只在 `DashboardAuth` 的进程内会话字典中，退出、会话过期或 dashboard 重启都会丢失；前端还依赖一个默认未勾选的会话保存复选框。
+- 改动：新增 `dashboard_credentials.JevKeyStore`。生产默认写入当前 WSL 用户 `~/.local/state/ros2-resilience-guardian/jev-<account>.json`，目录 0700、文件 0600，临时文件 `fsync` 后原子替换；读取拒绝符号链接、非普通文件、非当前用户和过宽权限。测试可注入临时路径或内存 store。
+- 行为：认证后的“保存 / 更新 Key”立即持久化；成功带 Key 的 Jev 测试也自动持久化；留空输入会复用保存值。刷新、退出登录、重新登录、服务重启都保留；只有“忘记已保存 Key”或保存新 Key 会清除/覆盖。`GET /api/jev/key` 仍只返回 `{saved: boolean}`，任何异常只返回有限 `503 credential_store_unavailable`，不回显 Key。
+- 前端：改为四页工作区：实时防护、防护实验室、Jev 语义分析、研究与创新；支持 hash 导航。研究页调用受保护的 `GET /api/research/suite`，展示 7 个 Jev 调度案例和 5 个 ROS 2 防护样例的状态、动作、速度及结论。
+- 研究创新：新增 `dashboard_research.py` 和 `tests/test_dashboard_research.py`。真实使用 `JevEfficientJudge`、`JevIncidentSession`、`EvidenceLedger` 与 Guardian 回放类，但 transport 是离线 stub；验证 12→1 远程调用、`LOCAL_SAFE`/`LOCAL_ENFORCED`、未验证来源 0 外发、超时回退、会话复用、父证据过期 `LEDGER_BLOCKED`，以及 `SAFE_STOP`。
+- 开源对照：复核 `rajavardhan28/IDS_ROS2`、`seergiromero/ROS2-Intrusion-Detection`、`giacomozanatta/sros2-policy-clustering`；仅借鉴分层职责和测试思路，没有复制代码，也不据此宣称专利新颖性。
+- 文件：`dashboard_credentials.py`、`dashboard_auth.py`、`dashboard.py`、`dashboard_research.py`、`frontend/index.html`、`frontend/app.js`、`frontend/styles.css`、`tests/test_dashboard_credentials.py`、`tests/test_dashboard_research.py`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：WSL2 全量 `201 passed`；研究套件 `7/7`，防护状态为 `NORMAL/NORMAL/RESUMABLE/CONTAINING/SAFE_STOP`；ROS 2 Jazzy 两包 `colcon build --symlink-install` 成功；Windows `node --check`、`compileall`、`git diff --check` 通过。真实 8088 HTTP 验证页面四个标签、研究接口、保存→进程重启仍存在→手动清除→再次重启仍删除；浏览器冒烟验证研究页显示 7/7 PASS，Key 保存状态刷新后仍可见后已清除测试 Key。未调用真实 Jev API，未上传 GitHub。
+- 当前运行：由于当前用户没有 systemd 管理权限，验证时通过结束服务用户自己的 dashboard 子进程触发 systemd 自动重启；服务现已 active，8088 可访问。需要手动重启时使用已配置的 root 命令，或结束 dashboard 主进程等待自动拉起。
+
+### 2026-09-24 — 防护测试台与 dashboard 部署修复（历史记录；Key 行为已由当前条目更新）
 
 - 根因：磁盘源码已经包含样例和会话 Key 控件，但 8088 的 dashboard 进程没有重启，旧进程因此返回 `/api/jev/key` 404；旧浏览器文档也没有导入按钮。完成 ROS 2 workspace 构建并重启 `guardian-dashboard.service` 后，Key API 可用。
 - 改动：新增受登录保护的 `GET /api/experiments/samples` 和 `POST /api/experiments/replay`；前端新增“防护测试台”，支持导入五类内置样例或自定义 `guardian-replay/v1` JSON，按“事件校验 → 攻击登记 → 风险评估 → 缓解规划 → 安全监督”展示逐步结果。
 - 防护逻辑：回放创建独立的 `EventVerifier`、`AttackRegistry`、`RiskEngine`、`MitigationPlanner`、`SafetySupervisor` 实例；未知来源/未来/过期/重放事件会被拒绝，关键组件可进入 `CONTAINING`，无隔离能力进入 `SAFE_STOP`。回放绝不发布 ROS 2 事件、解除停车或控制机器人。
-- Jev 修复：重启后的服务已恢复 `/api/jev/key`，所以“Jev 调用成功 · 保存失败”对应的旧进程问题已消除；保存状态只返回布尔值，Key 仍只存当前登录会话内存。
+- Jev 修复（当时）：重启后的旧服务已恢复 `/api/jev/key`；当时保存状态只返回布尔值且 Key 仍在会话内存。该临时行为已由本文件当前条目的持久 `JevKeyStore` 替代。
 - 文件：`dashboard_experiments.py`、`dashboard.py`、`frontend/index.html`、`frontend/app.js`、`frontend/styles.css`、`tests/test_dashboard_experiments.py`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
 - 验证：WSL2 定向 replay/dashboard 测试 `36 passed`，全量测试 `192 passed`；ROS 2 Jazzy 两包重新构建成功，五个离线实验通过，Windows 前端语法、compileall、diff 和 `.env` 检查通过。重启后的 8088 HTTP 验证 Key 保存/读取/清除均为 200，样例接口返回 5 个场景，关键组件回放返回 `CONTAINING / ISOLATE_COMPONENT / 0.15 m/s`；浏览器刷新后已看到导入按钮和逐步结果表。
 
-### 2026-09-24 — Jev sample-file experiment workflow
+### 2026-09-24 — Jev sample-file experiment workflow（历史记录；Key 行为已由当前条目更新）
 
 - 改动：前端 Jev 面板增加本地样例文件加载，支持 `.txt`、`.log`、`.csv`、`.json`。浏览器只在内存中读取，限制文件 64 KiB、发送状态 4096 字符；JSON 字符串、`state` 或 `summary` 字段可直接转为测试状态，其余 JSON 格式化显示。只有点击“测试连接”才发送给本地 dashboard。
-- 改动：增加“刷新后保留 Key（当前登录会话）”和“忘记已保存 Key”。Key 绑定当前 HttpOnly 登录会话并只存在 dashboard 进程内存；状态接口只返回布尔值，测试请求可省略 `api_key` 复用当前会话 Key。退出、过期、清除或重启后自动失效，输入框不会回填明文。
+- 改动（历史版本）：增加会话级“刷新后保留 Key”和“忘记已保存 Key”。该版本的 Key 只存在 dashboard 进程内存；当前版本已改为本机受限文件持久化，详见顶部当前条目。
 - 文件：`ros2_ws/src/guardian_core/guardian_core/dashboard.py`、`dashboard_auth.py`、`dashboard_jev.py`、`frontend/app.js`、`frontend/index.html`、`frontend/styles.css`、`tests/test_dashboard_auth.py`、`tests/test_dashboard_jev.py`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
 - 验证：新增真实 HTTP 集成回归，覆盖登录、保存 Key、无 `api_key` 的 Jev 测试、provider Authorization 转发、响应脱敏、清除后 fail-closed；WSL2 定向 dashboard 测试 `6 passed`，全量测试 `175 passed`。ROS 2 Jazzy 两包构建成功（仅有既有非致命 clock-skew 警告），五个离线实验、Windows compileall、前端 `node --check`、`git diff --check` 和 `.env` 跟踪检查通过；本机 8088 health 返回 200，HTML 已包含样例和会话 Key 控件。没有上传 GitHub，也没有真实 Jev provider 调用。
 - 原理边界：样例文件只是人工实验输入，Jev 仍是旁路语义建议，不进入 Guardian 实时安全决策、速度限制、`SAFE_STOP` 或 `/cmd_vel` 控制链路；因此不与 ROS 2 系统安全核心冲突。

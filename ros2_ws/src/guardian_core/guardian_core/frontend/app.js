@@ -22,6 +22,7 @@ const JEV_KEY_ENDPOINT = '/api/jev/key';
 const JEV_KEY_CLEAR_ENDPOINT = '/api/jev/key/clear';
 const EXPERIMENT_SAMPLES_ENDPOINT = '/api/experiments/samples';
 const EXPERIMENT_REPLAY_ENDPOINT = '/api/experiments/replay';
+const RESEARCH_ENDPOINT = '/api/research/suite';
 const MAX_SAMPLE_BYTES = 64 * 1024;
 const MAX_SAMPLE_CHARS = 4096;
 let authenticated = false;
@@ -51,7 +52,7 @@ function updateJevKeyStatus(saved) {
   const status = $('jev-key-status');
   const forget = $('jev-forget-key');
   if (!status || !forget) return;
-  status.textContent = saved ? '已保存到当前登录会话' : '未保存';
+  status.textContent = saved ? '已永久保存到本机（留空即可复用）' : '未保存';
   forget.disabled = !saved;
 }
 
@@ -190,6 +191,21 @@ async function saveJevKey(apiKey) {
   updateJevKeyStatus(true);
 }
 
+async function saveJevKeyFromInput() {
+  const key = $('jev-api-key').value.trim();
+  if (!key) {
+    setJevFeedback('请输入要保存或更新的 Jev Key', 'error');
+    $('jev-api-key').focus();
+    return;
+  }
+  try {
+    await saveJevKey(key);
+    setJevFeedback('Jev Key 已保存到本机；刷新、退出或服务重启后仍可复用。', 'success');
+  } catch (error) {
+    setJevFeedback(`保存失败：${redactJevMessage(error.message)}`, 'error');
+  }
+}
+
 async function forgetJevKey() {
   try {
     const response = await fetch(JEV_KEY_CLEAR_ENDPOINT, {
@@ -199,7 +215,7 @@ async function forgetJevKey() {
     jevKeySaved = false;
     updateJevKeyStatus(false);
     $('jev-api-key').value = '';
-    setJevFeedback('已清除当前登录会话中的 Jev Key');
+    setJevFeedback('已清除本机保存的 Jev Key；如需继续调用，请重新输入并保存。');
   } catch (_error) {
     setJevFeedback('清除 Jev Key 失败', 'error');
   }
@@ -399,12 +415,12 @@ async function testJev(event) {
     renderJevAssessment(payload);
     const latency = finiteNumber(payload.latency_ms, performance.now() - startedAt);
     let saveSuffix = '';
-    if (typedApiKey && $('jev-save-key').checked) {
+    if (typedApiKey) {
       try {
         await saveJevKey(typedApiKey);
       } catch (error) {
         const detail = error instanceof Error ? error.message : '保存接口不可用';
-        saveSuffix = `（本次调用成功，但保存失败：${detail}）`;
+        saveSuffix = `（本次调用成功，但持久保存失败：${detail}）`;
       }
     }
     setJevStatus('success', '已连接');
@@ -432,6 +448,7 @@ function setupJev() {
   if (!form) return;
   form.addEventListener('submit', testJev);
   $('jev-clear').addEventListener('click', clearJev);
+  $('jev-save-key-now').addEventListener('click', saveJevKeyFromInput);
   $('jev-forget-key').addEventListener('click', forgetJevKey);
   $('jev-sample-file').addEventListener('change', loadSampleFile);
 }
@@ -442,6 +459,69 @@ function setupProtection() {
   $('protection-load').addEventListener('click', loadSelectedProtectionSample);
   $('protection-file').addEventListener('change', loadProtectionFile);
   $('protection-run').addEventListener('click', runProtectionReplay);
+}
+
+function setWorkspacePanel(panel) {
+  const allowed = new Set(['realtime', 'protection', 'jev', 'research']);
+  const selected = allowed.has(panel) ? panel : 'realtime';
+  document.querySelectorAll('.workspace-tab').forEach((tab) => {
+    const active = tab.dataset.panel === selected;
+    tab.classList.toggle('active', active);
+    tab.setAttribute('aria-selected', String(active));
+  });
+  document.querySelectorAll('[data-panel-section]').forEach((section) => {
+    section.hidden = section.dataset.panelSection !== selected;
+    section.classList.toggle('active', section.dataset.panelSection === selected);
+  });
+  if (window.location.hash !== `#${selected}`) history.replaceState(null, '', `#${selected}`);
+}
+
+function setupWorkspace() {
+  document.querySelectorAll('.workspace-tab').forEach((tab) => tab.addEventListener('click', () => setWorkspacePanel(tab.dataset.panel)));
+  setWorkspacePanel(window.location.hash.slice(1) || 'realtime');
+}
+
+function researchRouteConclusion(item) {
+  const conclusions = {
+    duplicates: '12 条重复事件只产生 1 次远程调用', low_risk: '低风险由本地规则立即处理', critical: '关键风险本地强制，不等待语义服务',
+    unverified: '来源未验证，Jev 调用数保持 0', timeout: '服务不可用仍保留本地安全结果', session: '会话滞回复用软证据', expired_parent: '父证据失效时前置阻断',
+  };
+  return conclusions[item.id] || '边界通过';
+}
+
+function renderResearchReport(report) {
+  $('research-mode').textContent = report.mode === 'offline_stub' ? '离线 stub（0 次真实 API）' : String(report.mode || '—');
+  $('research-calls').textContent = `${Number(report.real_api_calls || 0)} 次真实 API`;
+  $('research-cases').innerHTML = (report.cases || []).map((item) => {
+    const routes = Array.isArray(item.routes) ? item.routes.join(' → ') : '—';
+    const calls = item.efficient_calls === undefined ? '—' : `${item.efficient_calls}${item.baseline_calls !== undefined ? ` / 基线 ${item.baseline_calls}` : ''}`;
+    return `<tr><td>${esc(item.title)}</td><td class="route-cell">${esc(routes)}</td><td>${esc(calls)}</td><td class="${item.passed ? 'pass' : 'fail'}">${item.passed ? 'PASS' : 'FAIL'}</td><td>${esc(researchRouteConclusion(item))}</td></tr>`;
+  }).join('');
+  $('research-protection').innerHTML = (report.protection_cases || []).map((item) => `<tr><td>${esc(item.title)}</td><td class="${protectionClass(item.state)}">${esc(item.state)}</td><td>${esc(item.action)}</td><td>${Number(item.speed_limit || 0).toFixed(2)} m/s</td><td>${item.passed ? '符合预期：' : '未通过：'}${esc(item.expected)}</td></tr>`).join('');
+}
+
+async function runResearchSuite() {
+  const button = $('research-run');
+  button.disabled = true;
+  $('research-feedback').textContent = '正在运行本地生产代码对照…';
+  try {
+    const response = await fetch(RESEARCH_ENDPOINT, {cache: 'no-store'});
+    const payload = await parseJsonResponse(response);
+    if (!response.ok || !payload || !Array.isArray(payload.cases)) throw new Error(payload?.error?.message || `HTTP ${response.status}`);
+    renderResearchReport(payload);
+    const passed = payload.cases.filter((item) => item.passed).length;
+    $('research-feedback').textContent = `研究套件完成：${passed}/${payload.cases.length} 个 Jev 调度案例通过；未调用真实 API，未产生执行器动作。`;
+    $('research-feedback').className = 'muted success';
+  } catch (error) {
+    $('research-feedback').textContent = `研究套件失败：${redactJevMessage(error.message)}`;
+    $('research-feedback').className = 'muted error';
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function setupResearch() {
+  $('research-run').addEventListener('click', runResearchSuite);
 }
 
 function render(data) {
@@ -496,5 +576,7 @@ async function refresh() {
 
 setupJev();
 setupProtection();
+setupWorkspace();
+setupResearch();
 setupAuth();
 setInterval(refresh, 1000);

@@ -77,8 +77,12 @@ ros2 launch guardian_core guardian.launch.py
 测试状态，点击“测试连接”即可执行一次旁路请求。浏览器只把请求发给本地
 `POST /api/jev/test`，由 dashboard 后端默认调用固定的
 `https://api.typesafe.ai/v1/systemone`（仅允许显式 localhost 测试 endpoint），因此不会触发 TypeSafe 的浏览器 CORS
-限制。API Key 只存在于本次请求的内存和 HTTPS 请求头中，不会写入 `.env`、
-浏览器存储、ROS 消息、审计记录或日志；点击“清空”会移除页面中的输入。
+限制。点击“保存 / 更新 Key”或成功测试带 Key 的请求后，Key 会原子写入当前 WSL
+用户的 `~/.local/state/ros2-resilience-guardian/jev-<account>.json`，目录为 0700、
+文件为 0600；不会写入 `.env`、GitHub、浏览器存储、ROS 消息、审计记录或日志。
+状态接口只返回 `{"saved": true|false}`，不会回传完整 Key。点击“忘记已保存 Key”
+才会删除本机记录；输入新的 Key 保存会原子替换旧记录。刷新、退出登录和 dashboard
+服务重启不会删除它，输入框也不会回填明文；“清空输入”只清空当前页面输入。
 该面板只返回攻击类型、任务影响、分数、置信度和人工复核建议，不会改变
 Guardian 安全状态、速度限制或机器人命令。
 
@@ -86,11 +90,9 @@ Guardian 安全状态、速度限制或机器人命令。
 浏览器只在内存中读取并把内容填入测试状态；JSON 字符串、`state` 字段和
 `summary` 字段会直接作为状态，其余 JSON 会格式化显示。文件上限为 64 KiB，
 发送状态上限为 4096 个字符，只有点击“测试连接”才会发给本地 dashboard，
-不会保存文件或上传到仓库。勾选“刷新后保留 Key（当前登录会话）”后，Key
-只保存在当前 dashboard 进程的登录会话内，刷新页面可继续测试但输入框不会回填
-明文；退出登录、会话过期或服务重启都会清除它。
+不会保存文件或上传到仓库。留空 API Key 时会复用本机保存的 Key。
 
-该接口接受 `{ "api_key": "...", "state": "..." }` JSON；已保存会话 Key 时，
+该接口接受 `{ "api_key": "...", "state": "..." }` JSON；已保存设备 Key 时，
 也可只提交 `{ "state": "..." }`。请求体上限为
 64 KiB，状态文本上限为 4096 个字符。成功返回 HTTP 200；输入错误返回
 400/413；上游拒绝或返回非法内容返回 502；超时返回 504。真实 API Key
@@ -161,6 +163,39 @@ Jev 事件会话层进一步聚合连续告警、对风险和语义变化重新�
 `profile=navigation` 允许隔离配置中的组件；`profile=no_isolation` 用于验证无法安全隔离时进入 `SAFE_STOP`。该测试台调用的就是 `guardian_node` 使用的 `EventVerifier`、`AttackRegistry`、`RiskEngine`、`MitigationPlanner` 和 `SafetySupervisor` 类，但运行在新建的离线实例中，不发布 ROS 2 事件或控制命令。Jev 面板仍然是独立的语义复核旁路：它可以补充攻击类型和人工复核建议，不能改变测试台或实时 ROS 2 的安全结论。
 
 对应接口为受登录保护的 `GET /api/experiments/samples` 和 `POST /api/experiments/replay`。接口只返回确定性回放结果，不调用外部 Jev provider。
+
+### 多页面工作区与研究套件
+
+前端按职责分为四页：
+
+- **实时防护**：查看 ROS 2 风险、活动组件、缓解方案、速度上限和时间线。
+- **防护实验室**：导入或上传 `guardian-replay/v1` 样例，查看五阶段逐步结果。
+- **Jev 语义分析**：手动执行有界旁路请求，保存/更新或删除本机 Key；Jev 不进入控制闭环。
+- **研究与创新**：运行 `/api/research/suite` 的离线套件，展示高效判断路径、调用减少、会话复用、超时回退、父证据阻断和 ROS 2 安全案例。
+
+研究套件使用生产 `JevEfficientJudge`、`JevIncidentSession`、`EvidenceLedger` 和防护回放类，
+但使用确定性 stub provider，因此 `real_api_calls=0`、`actuation=none`。当前可复现实验为：
+
+| 实验 | 观测结果 | 结论 |
+| --- | --- | --- |
+| 12 条重复事件 | 基线 12 次远程调用，效率层 1 次（91.67% 减少） | 稳定指纹和缓存避免重复语义请求 |
+| 低风险 / 关键风险 | `LOCAL_SAFE` / `LOCAL_ENFORCED` | 正常和紧急路径不等待 Jev |
+| 未验证来源 | `SKIPPED_UNVERIFIED`，外发 0 次 | Jev 不能绕过 ROS 2 信任边界 |
+| Jev 超时 | `UNAVAILABLE`，本地状态继续 | 语义服务故障不影响确定性安全逻辑 |
+| 事件会话 | 1 次 `QUERIED` + 9 次 `SESSION_REUSE` | 会话滞回和软证据减少抖动 |
+| 父证据过期 | `LEDGER_BLOCKED`，外发 0 次 | 软证据不能脱离确定性父证据 |
+
+运行命令：
+
+```bash
+python3 -m pytest -q tests/test_dashboard_research.py
+python3 - <<'PY'
+from guardian_core.dashboard_research import run_research_suite
+print(run_research_suite())
+PY
+```
+
+这些结果衡量的是本地调度效率和安全边界，不等价于真实 Jev 模型的准确率、网络延迟或实机安全认证；后续论文实验应加入带标签数据集、真实 API 成本/延迟和 Webots/硬件适配器。
 
 专利化研究方案、现有技术边界和对照实验见 [docs/patent_disclosure.md](docs/patent_disclosure.md)、[docs/patent_prior_art.md](docs/patent_prior_art.md) 和 [docs/patent_experiments.md](docs/patent_experiments.md)。当前新增的因果图、证据账本、预测安全包络、反事实解释和双阶段恢复协议已完成纯 Python 离线验证，尚未宣称完成实机认证或专利授权。
 ## Current implementation status

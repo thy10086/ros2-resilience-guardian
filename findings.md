@@ -218,3 +218,18 @@ be committed or printed.
 
 - A fresh unauthenticated GitHub repository search revisited `rajavardhan28/IDS_ROS2`, `seergiromero/ROS2-Intrusion-Detection`, `debrup393/ros2-intrusion-detection-iot`, `giacomozanatta/sros2-policy-clustering`, and related ROS 2 security-monitoring projects.
 - These references cover intrusion detection, SROS 2 policy work, or application monitoring. None provides the current combination of completion-time parent-lineage validation, bounded Jev advisory evidence, and append-only ledger binding; they remain prior-art references only. No external code or dependency was copied.
+# 2026-09-24 持久 Key 与 Jev 研究工作区
+
+- 根因：DashboardAuth._jev_keys 按 session digest 存在内存，logout/prune 自动删除；前端保存依赖未默认勾选的复选框和成功的 provider 调用。输入框不回填也容易被误认为丢失。
+- 修复设计：认证与持久凭据分离，生产保存到当前 WSL 用户 ~/.local/state/ros2-resilience-guardian/，文件 0600、目录 0700，原子替换；测试注入临时目录。失败明确返回安全的存储错误，不能假报保存成功。
+- 页面设计：保留现有轻量静态栈和 ROS 订阅，四个 hash 页面，独立保存控件、实验样例下载/导入、报告下载、可执行 Jev 调度对照实验。
+- 本轮 GitHub API 检索复核了 rajavardhan28/IDS_ROS2（监控、检测、GUI、响应）、seergiromero/ROS2-Intrusion-Detection、giacomozanatta/sros2-policy-clustering（策略分组）。借鉴分层职责，不复制外部代码。检索不能据此证明专利新颖性。
+- 当前事实：Jev 高效判断和账本会话是纯 Python 模块，未接入 guardian_node 的实时异步 worker；本轮前端将明确映射这一区别。提高的是相对逐条远程语义调用的调度效率，不承诺比规则判断更快或已提升检测准确率。
+
+## 本轮完成结果（2026-09-24）
+
+- 持久 Key 真实根因已验证：旧 dashboard 内存状态在服务重启时必然消失；新 `JevKeyStore` 将账户 Key 放在用户状态目录，认证状态与凭据寿命解耦。浏览器只看到布尔保存状态。
+- 存储失败安全行为：原子临时文件和 `os.replace` 失败时旧文件保留，HTTP 返回 503；腐败 JSON、符号链接、世界可读文件和非当前用户所有者均拒绝读取。
+- 研究页面实际返回 7 个 PASS：`REMOTE→CACHE×11`（基线 12 / 效率 1）、`LOCAL_SAFE`、`LOCAL_ENFORCED`、`SKIPPED_UNVERIFIED`、`UNAVAILABLE`、`QUERIED→SESSION_REUSE×9`、`LEDGER_BLOCKED`。这些是 stub provider 的调度/边界证据，不是 Jev 模型质量或真实网络性能。
+- ROS 2 回放仍给出 `NORMAL`、`NORMAL`、`RESUMABLE`、`CONTAINING`、`SAFE_STOP` 五种可解释状态，Jev 旁路没有改变最终安全动作。
+- 浏览器验证曾因旧标签未刷新显示旧 UI；刷新后新 hash 工作区和研究结果可见。后续修改静态资源后要重载浏览器或重启 dashboard，避免把缓存旧页面误认为部署失败。

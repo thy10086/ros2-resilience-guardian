@@ -19,6 +19,7 @@ from guardian_interfaces.msg import MitigationCommand, RiskState, SafetyStatus
 
 from .dashboard_state import DashboardState
 from .dashboard_experiments import ReplayError, run_replay, sample_catalog
+from .dashboard_research import run_research_suite
 from .dashboard_jev import (
     DEFAULT_TIMEOUT_SEC,
     DEFAULT_ENDPOINT,
@@ -29,6 +30,7 @@ from .dashboard_jev import (
     parse_request,
 )
 from .dashboard_auth import DashboardAuth
+from .dashboard_credentials import CredentialStoreError
 
 
 def _frontend_dir() -> Path:
@@ -55,6 +57,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
         return self.server  # type: ignore[return-value]
 
     def do_GET(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
+        try:
+            self._get()
+        except CredentialStoreError:
+            self._credential_error()
+
+    def _credential_error(self) -> None:
+        self._json({"error": {"code": "credential_store_unavailable", "message": str(CredentialStoreError())}}, status=503)
+
+    def _get(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
             self._json({"status": "ok", "service": "guardian_dashboard"})
@@ -81,9 +92,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return
             self._experiment_samples()
             return
+        if parsed.path == "/api/research/suite":
+            if not self._require_auth():
+                return
+            self._research_suite()
+            return
         self._static(parsed.path)
 
     def do_POST(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
+        try:
+            self._post()
+        except CredentialStoreError:
+            self._credential_error()
+
+    def _post(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/login":
             self._login()
@@ -234,7 +256,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     {
                         "status": "INVALID_REQUEST",
                         "connected": False,
-                        "error": {"code": "missing_api_key", "message": "Enter a Jev API key or save one for this session"},
+                        "error": {"code": "missing_api_key", "message": "Enter a Jev API key or save one on this device"},
                     },
                     status=400,
                 )
@@ -279,6 +301,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def _experiment_samples(self) -> None:
         self._json({"schema": "guardian-replay/v1", "samples": sample_catalog()})
+
+    def _research_suite(self) -> None:
+        self._json(run_research_suite())
 
     def _experiment_replay(self) -> None:
         content_length = self.headers.get("Content-Length")

@@ -113,3 +113,16 @@
   suite passed, `compileall`, `node --check`, and `git diff --check` passed, and
   `colcon build --symlink-install` built both ROS 2 packages. The dashboard
   process also exits cleanly on Ctrl-C. Ready for the `main` push.
+# 2026-09-24 持久 Key 与 Jev 研究工作区
+
+- 已确认工作区起点 f1bae00 / main 干净，dashboard/core 服务 active；本轮不上传。
+- 已读取规划、调试、TDD、完成前验证技能及相关实现；复核开源类似项目。
+- 正在补充持久凭据与对照实验的失败用例。
+
+- 已实现 `JevKeyStore`：本机账号文件、0600/0700 权限、原子替换、拒绝 symlink/错误权限、失败不覆盖旧值；`DashboardAuth` 仅在认证请求内读取，logout 不删除持久记录。
+- 已实现 `dashboard_research.py` 与 `/api/research/suite`；研究页显示重复事件、分流、未验证来源、超时、会话复用、父证据失效和五个 ROS 2 防护样例。
+- 已完成桌面四页 hash 工作区，删除会话保存复选框，增加明确“保存 / 更新 Key”和“忘记已保存 Key”。
+- 验证：定向凭据/研究/dashboard 测试 28 passed；全量 WSL2 `201 passed`；研究 suite 7/7；ROS 2 Jazzy `colcon build --symlink-install` 两包成功；Windows compileall、node check、diff check 成功。
+- 真实 8088 HTTP：四个标签和研究 API 可见；合成 Key 保存后结束 dashboard 进程由 systemd 自动重启，重新登录仍显示 saved；清除后再次重启显示未保存。浏览器刷新工作区显示研究 7/7 PASS，Key 保存状态也验证后已清除。
+- 本轮没有真实 Jev provider 调用、没有 GitHub push、没有写入系统环境变量或输出密钥；`.env` 仍受 Git 跟踪。
+- 既有回归实验复核：`run_innovation_experiments.py`、`run_jev_efficiency_experiments.py`、`run_jev_session_experiments.py`、`run_patent_innovation_experiments.py` 均返回 `passed: true`；效率实验仍为基线 12 次→1 次、91.7% 减少，事件会话为 9 次复用，账本阻断和五组专利化实验均通过。
