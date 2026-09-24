@@ -15,7 +15,7 @@ from urllib.error import HTTPError
 
 import pytest
 
-from guardian_core.dashboard_jev import JevDashboardService, _NoRedirectHandler, parse_request
+from guardian_core.dashboard_jev import JevDashboardService, JevRequestError, _NoRedirectHandler, parse_request
 
 
 API_KEY = "jev-test-key-do-not-log"
@@ -110,6 +110,12 @@ def test_missing_api_key_is_rejected_without_calling_provider():
 
 def test_invalid_json_request_is_rejected_with_bad_request():
     assert_rejection(lambda: parse_request(b"{not-json"), 400)
+
+
+def test_saved_key_request_can_omit_key_only_when_explicitly_allowed():
+    assert parse_request(b'{"state":"saved key test"}', allow_missing_api_key=True) == (None, "saved key test")
+    with pytest.raises(JevRequestError):
+        parse_request(b'{"state":"saved key test"}')
 
 
 def test_request_larger_than_64_kibibytes_is_rejected():

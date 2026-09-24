@@ -1,5 +1,50 @@
 # Implementation plan
 
+## Current: deployed dashboard repair and protection test mapping (2026-09-24)
+
+- [complete] Reproduce deployed `/api/jev/key=404` and old open browser document without import controls; repository code alone was not deployment proof.
+- [complete] Add a visible local protection test workbench, strict JSON replay through the existing verifier/registry/risk/planner/supervisor, per-step results and examples; keep live ROS state separate and Jev advisory.
+- [complete] Add direct session-Key save and useful version/auth errors; test HTTP contracts, replay input bounds, UI file import and refresh.
+- [complete] Build the actual service workspace `ros2_ws`, restart dashboard, verify deployed endpoints and browser, update handoff and commit main.
+- Design: five small offline fixtures (normal, untrusted source, replay, critical containment, unavailable isolation); at most 64 events; fixed server-side policy profiles; no SQL, no live attack injection or provider calls in automated verification.
+
+### Validation evidence
+
+- Targeted replay/dashboard tests: `36 passed`; full WSL2 suite: `192 passed`.
+- `colcon build --symlink-install --packages-select guardian_interfaces guardian_core`: both packages finished successfully.
+- Offline scenario, Jev efficiency, Jev session and patent innovation scripts passed; innovation suite passed all groups. A first combined shell loop had a PowerShell `$script` quoting expansion and was rerun with explicit commands successfully.
+- Windows `node --check`, `compileall`, `git diff --check`, and tracked `.env` check passed.
+- Deployed HTTP: login 200; `/api/jev/key` GET/POST/clear returned 200 and correct booleans; samples returned 5 entries; critical replay returned `CONTAINING` and `ISOLATE_COMPONENT`.
+- Browser refresh verification: visible “防护测试台”, “导入内置样例”, “导入样例 JSON”, step flow, and results table; critical sample rendered `ACCEPTED → CONTAINING`, `ISOLATE_COMPONENT`, `0.15 m/s`.
+
+## Current task: local Jev sample upload and saved-key test path (2026-09-24)
+
+- [complete] Confirm comparable open-source ROS 2 security references and record the boundary: this feature is a local dashboard input path, not a ROS 2 control or security-management replacement.
+- [complete] Add bounded browser-only sample loading for TXT/LOG/CSV/JSON and document the size and send-time limits.
+- [complete] Keep saved Jev keys in the authenticated dashboard session only; never echo or persist them.
+- [complete] Add an HTTP integration regression proving a saved session key is forwarded to Jev when the test request omits `api_key`, and that clearing the key blocks the next request.
+- [complete] Run full tests, ROS 2 build, frontend syntax/diff checks, update handoff records, and commit on local `main`.
+- Scope: local experiment input and Jev proxy behavior only; no ROS 2 safety-state changes, no real provider call, no credential output.
+
+### Validation evidence
+
+- WSL2 `python3 -m pytest -q tests/test_dashboard_auth.py`: `6 passed`.
+- WSL2 `python3 -m pytest -q tests`: `175 passed`.
+- WSL2 `colcon build --symlink-install --packages-select guardian_interfaces guardian_core`: both packages finished; existing compiler clock-skew warnings did not fail the build.
+- All five offline experiment scripts passed; the Jev efficiency/session experiments used stub providers and made no live API call.
+- Windows `compileall`, frontend `node --check`, `git diff --check`, and tracked `.env` check passed. Local `http://127.0.0.1:8088` returned health 200 and the served HTML contained the sample-file and saved-key controls.
+
+## Dashboard access and local login (2026-09-24)
+
+- [complete] Fix the unauthenticated polling loop that cleared the password field while the user typed.
+- [complete] Reproduce the inaccessible 8088 behavior and identify WSL instance reaping plus stale user-service overlap as the causes.
+- [complete] Add red/green tests for admin/admin login, session expiry, protected state, login cookie, and logout revocation.
+- [complete] Implement in-memory HttpOnly/SameSite sessions, frontend login gate, protected state/Jev routes, and address reuse.
+- [complete] Move local runtime to WSL system services, remove the overlapping user units, keep WSL alive with a hidden long-running process, rebuild, and verify Windows HTTP plus ROS status.
+- [in_progress] Update handoff, commit on main, push GitHub, and perform final remote/runtime verification.
+- [complete] Re-run the full test/build/smoke regression and ignore root-level colcon outputs created by the verification command.
+- Scope: local demo authentication and runtime persistence only; no real Jev API call, no robot control changes, and no credentials written to the repository.
+
 ## GitHub publication and local runtime (2026-09-24)
 
 - [complete] Verify local main, remote authentication and remote history; preserve tracked .env and exclude generated build/runtime artifacts.

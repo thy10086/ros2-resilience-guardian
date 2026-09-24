@@ -82,7 +82,7 @@ def _safe_message(value: Any, *, limit: int = 240) -> str:
     return text.strip()[:limit]
 
 
-def parse_request(raw: bytes) -> tuple[str, str]:
+def parse_request(raw: bytes, *, allow_missing_api_key: bool = False) -> tuple[str | None, str]:
     """Parse and validate the small JSON body accepted by the dashboard."""
 
     if not isinstance(raw, (bytes, bytearray)):
@@ -98,12 +98,28 @@ def parse_request(raw: bytes) -> tuple[str, str]:
 
     api_key = value.get("api_key")
     state = value.get("state")
-    api_key = _validate_api_key(api_key)
+    normalized_key = None if api_key is None and allow_missing_api_key else _validate_api_key(api_key)
     if not isinstance(state, str) or not state.strip():
         raise JevRequestError(400, "missing_state", "Enter a test state")
     if len(state) > MAX_STATE_CHARS:
         raise JevRequestError(400, "state_too_long", "Test state is too long")
-    return api_key.strip(), state.strip()
+    return normalized_key, state.strip()
+
+
+def parse_api_key_request(raw: bytes) -> str:
+    """Parse a bounded JSON body containing only an API key for session save."""
+
+    if not isinstance(raw, (bytes, bytearray)):
+        raise JevRequestError(400, "invalid_body", "Request body must be JSON")
+    if len(raw) > MAX_REQUEST_BYTES:
+        raise JevRequestError(413, "request_too_large", "Request body is too large")
+    try:
+        value = json.loads(bytes(raw).decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise JevRequestError(400, "invalid_json", "Request body must be valid JSON") from error
+    if not isinstance(value, Mapping):
+        raise JevRequestError(400, "invalid_body", "Request body must be a JSON object")
+    return _validate_api_key(value.get("api_key"))
 
 
 def _validate_api_key(value: Any) -> str:
@@ -286,5 +302,6 @@ __all__ = [
     "MAX_API_KEY_CHARS",
     "MAX_REQUEST_BYTES",
     "MAX_STATE_CHARS",
+    "parse_api_key_request",
     "parse_request",
 ]

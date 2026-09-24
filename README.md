@@ -57,7 +57,7 @@ ros2 run guardian_core guardian_node
 
 ```bash
 ros2 run guardian_core guardian_dashboard
-# 浏览器打开 http://127.0.0.1:8080
+# 浏览器打开 http://127.0.0.1:8088（本地服务配置）
 ```
 
 也可以一次启动守护节点和前端桥接：
@@ -66,7 +66,9 @@ ros2 run guardian_core guardian_dashboard
 ros2 launch guardian_core guardian.launch.py
 ```
 
-驾驶舱通过 `GET /api/state` 提供当前状态，订阅 `/guardian/risk_state`、
+本机当前配置将 dashboard 运行在 `127.0.0.1:8088`；`8080` 已被其他本地进程占用。
+首次打开页面需要登录，用户名和密码均为 `admin`。登录会话只保存在 dashboard
+内存中，服务重启后失效，不写入 `.env`、GitHub 或日志。驾驶舱通过 `GET /api/state` 提供当前状态，订阅 `/guardian/risk_state`、
 `/guardian/mitigation_command` 和 `/guardian/safety_status`。默认只监听
 `127.0.0.1`，不会把控制接口暴露到局域网；后续接入 Webots 时应继续由
 `safety_status` 输出边界驱动实际控制器。
@@ -80,10 +82,33 @@ ros2 launch guardian_core guardian.launch.py
 该面板只返回攻击类型、任务影响、分数、置信度和人工复核建议，不会改变
 Guardian 安全状态、速度限制或机器人命令。
 
-该接口接受 `{ "api_key": "...", "state": "..." }` JSON，请求体上限为
+面板也支持“加载样例文件”：选择本地 `.txt`、`.log`、`.csv` 或 `.json` 文件后，
+浏览器只在内存中读取并把内容填入测试状态；JSON 字符串、`state` 字段和
+`summary` 字段会直接作为状态，其余 JSON 会格式化显示。文件上限为 64 KiB，
+发送状态上限为 4096 个字符，只有点击“测试连接”才会发给本地 dashboard，
+不会保存文件或上传到仓库。勾选“刷新后保留 Key（当前登录会话）”后，Key
+只保存在当前 dashboard 进程的登录会话内，刷新页面可继续测试但输入框不会回填
+明文；退出登录、会话过期或服务重启都会清除它。
+
+该接口接受 `{ "api_key": "...", "state": "..." }` JSON；已保存会话 Key 时，
+也可只提交 `{ "state": "..." }`。请求体上限为
 64 KiB，状态文本上限为 4096 个字符。成功返回 HTTP 200；输入错误返回
 400/413；上游拒绝或返回非法内容返回 502；超时返回 504。真实 API Key
 不应提交到版本库，也不应放入 `.env`。
+
+如果 Windows 访问不到 WSL dashboard，先保持一个 WSL 实例运行，再启动系统级 ROS 2 服务：
+
+```powershell
+Start-Process wsl.exe -ArgumentList @('-d','Ubuntu-24.04','--','sleep','infinity') -WindowStyle Hidden
+wsl.exe -d Ubuntu-24.04 -u root -- systemctl start guardian-core.service guardian-dashboard.service
+```
+
+服务状态和停止命令：
+
+```bash
+systemctl status guardian-core.service guardian-dashboard.service
+systemctl stop guardian-core.service guardian-dashboard.service
+```
 
 详细设计见 [docs/design.md](docs/design.md)，实验和指标见 [docs/experiments.md](docs/experiments.md)。
 
@@ -102,6 +127,40 @@ python3 experiments/run_innovation_experiments.py
 Jev 事件会话层进一步聚合连续告警、对风险和语义变化重新查询、用滞回窗口稳定人工复核状态，并把有期限的 Jev 软证据绑定到确定性父证据；同一会话的决策和账本写回串行化，不同事件仍可并行，账本的哈希链写入只在短临界区内串行，账本异常分支也受会话容量上限约束。父证据必须当前有效、`verified` 为原生布尔 `True`、策略匹配且完整父链可验证；非布尔祖先标记、过期、被替代或祖先失效都会在 provider 前阻断，provider 返回后还会按完成时刻再次校验，失败 provider 也不会绕过这道检查。迟到成功结果会消耗软证据剩余 TTL，不能建立已经过期的租约。缓存结果切换父证据只保留原软证据截止时间，到期缓存不能复活账本证据，只有新的 provider 成功结果才能建立新租约。会话 ID 和签名复用 Jev 适配器的有界上下文表示，避免超长输入放大会话层资源消耗；非布尔或未验证来源会强制进入本地 `CONTAINING`，不会复用旧 Jev 结果。实验命令为 `python3 experiments/run_jev_session_experiments.py`，设计见 [docs/jev_session_design.md](docs/jev_session_design.md)。
 
 跨层融合扩展的实验设计见 [docs/fusion_experiment_plan.md](docs/fusion_experiment_plan.md)，实现边界和后续 ROS 2 接入步骤见 [docs/fusion_implementation_plan.md](docs/fusion_implementation_plan.md)。当前跨层模块已完成纯 Python 离线验证，但还没有直接接管真实底盘、Webots 或 ROS 2 live graph introspection。
+
+### 前端防护测试台
+
+登录驾驶舱后，页面中的“防护测试台”用于验证 Guardian 的确定性安全链路。它把样例依次送入：
+
+`事件校验 → 攻击登记 → 风险评估 → 缓解规划 → 安全监督`
+
+页面提供五个内置样例：正常基线、未知来源拦截、重复序列拦截、关键组件隔离和无隔离能力停车。也可以点击“导入样例 JSON”上传自定义回放；文件只在浏览器内读取，服务端只接受 `guardian-replay/v1`、最多 64 条事件的有界数据。判断结果会显示每一步的验证码、风险分数、缓解动作、安全状态和速度上限。
+
+自定义样例的最小格式如下：
+
+```json
+{
+  "schema": "guardian-replay/v1",
+  "name": "critical wheel test",
+  "profile": "navigation",
+  "events": [
+    {
+      "at": 10,
+      "event_id": "event-1",
+      "source": "scenario_injector",
+      "component": "left_wheels",
+      "attack_type": "STOP",
+      "sequence": 1,
+      "timestamp": 10,
+      "confidence": 1
+    }
+  ]
+}
+```
+
+`profile=navigation` 允许隔离配置中的组件；`profile=no_isolation` 用于验证无法安全隔离时进入 `SAFE_STOP`。该测试台调用的就是 `guardian_node` 使用的 `EventVerifier`、`AttackRegistry`、`RiskEngine`、`MitigationPlanner` 和 `SafetySupervisor` 类，但运行在新建的离线实例中，不发布 ROS 2 事件或控制命令。Jev 面板仍然是独立的语义复核旁路：它可以补充攻击类型和人工复核建议，不能改变测试台或实时 ROS 2 的安全结论。
+
+对应接口为受登录保护的 `GET /api/experiments/samples` 和 `POST /api/experiments/replay`。接口只返回确定性回放结果，不调用外部 Jev provider。
 
 专利化研究方案、现有技术边界和对照实验见 [docs/patent_disclosure.md](docs/patent_disclosure.md)、[docs/patent_prior_art.md](docs/patent_prior_art.md) 和 [docs/patent_experiments.md](docs/patent_experiments.md)。当前新增的因果图、证据账本、预测安全包络、反事实解释和双阶段恢复协议已完成纯 Python 离线验证，尚未宣称完成实机认证或专利授权。
 ## Current implementation status

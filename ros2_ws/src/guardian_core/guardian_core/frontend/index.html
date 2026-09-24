@@ -7,14 +7,26 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="shell">
+  <section id="auth-gate" class="auth-gate" aria-labelledby="login-title">
+    <form id="login-form" class="auth-card" novalidate>
+      <p class="eyebrow">LOCAL SECURITY GATE</p>
+      <h1 id="login-title">登录安全驾驶舱</h1>
+      <p class="muted">请输入本地管理员账号后查看 ROS 2 安全状态。</p>
+      <label class="field" for="login-username"><span>用户名</span><input id="login-username" name="username" value="admin" autocomplete="username" required></label>
+      <label class="field" for="login-password"><span>密码</span><input id="login-password" name="password" type="password" autocomplete="current-password" required></label>
+      <button class="button primary" type="submit">登录</button>
+      <p id="login-feedback" class="auth-feedback" role="status" aria-live="polite">本地实验账号：admin / admin</p>
+    </form>
+  </section>
+
+  <main id="app-shell" class="shell" hidden>
     <header class="topbar">
       <div>
         <p class="eyebrow">ROS 2 SECURITY OPERATIONS</p>
         <h1>Resilience Guardian</h1>
         <p class="subtitle">面向室内移动机器人的任务感知安全防护驾驶舱</p>
       </div>
-      <div id="connection" class="connection pending">连接中</div>
+      <div class="topbar-actions"><div id="connection" class="connection pending">连接中</div><button id="logout" class="button secondary" type="button">退出登录</button></div>
     </header>
 
     <section class="hero-grid">
@@ -54,6 +66,37 @@
       <div id="timeline" class="timeline"><div class="empty">等待 ROS 2 消息</div></div>
     </section>
 
+    <section class="card protection-card" aria-labelledby="protection-title">
+      <div class="section-title">
+        <div>
+          <h2 id="protection-title">防护测试台</h2>
+          <p class="muted jev-subtitle">离线回放同一套 Guardian 防护逻辑，不注入真实 ROS 2 事件</p>
+        </div>
+        <span class="pill protection-pill">只读实验</span>
+      </div>
+      <div class="protection-flow" aria-label="防护判断流程">
+        <span>① 事件校验</span><b>→</b><span>② 攻击登记</span><b>→</b><span>③ 风险评估</span><b>→</b><span>④ 缓解规划</span><b>→</b><span>⑤ 安全监督</span>
+      </div>
+      <div class="protection-controls">
+        <label class="field" for="protection-sample-select"><span>内置防护样例</span><select id="protection-sample-select"><option value="">正在读取样例…</option></select></label>
+        <button id="protection-load" class="button secondary" type="button">导入内置样例</button>
+        <label class="button secondary compact" for="protection-file">导入样例 JSON</label>
+        <input id="protection-file" type="file" accept=".json,application/json">
+        <button id="protection-run" class="button primary" type="button" disabled>执行防护判断</button>
+      </div>
+      <p id="protection-feedback" class="muted" role="status" aria-live="polite">请选择内置样例或导入 JSON。</p>
+      <div id="protection-result" hidden>
+        <div class="protection-summary" id="protection-summary"></div>
+        <div class="protection-table-wrap">
+          <table class="protection-table">
+            <thead><tr><th>时间</th><th>事件校验</th><th>风险</th><th>缓解动作</th><th>安全状态</th><th>速度上限</th></tr></thead>
+            <tbody id="protection-steps"></tbody>
+          </table>
+        </div>
+        <p class="muted protection-note">本表展示离线决策证据。它不会发布攻击事件、修改实时 ROS 2 状态、解除 SAFE_STOP 或直接控制机器人。</p>
+      </div>
+    </section>
+
     <section class="card jev-card" aria-labelledby="jev-title">
       <div class="section-title">
         <div>
@@ -69,10 +112,20 @@
             <span>API Key</span>
             <input id="jev-api-key" name="jev-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴 TypeSafe API Key">
           </label>
+          <div class="jev-key-options">
+            <label class="checkbox-field" for="jev-save-key"><input id="jev-save-key" type="checkbox">刷新后保留 Key（当前登录会话）</label>
+            <span id="jev-key-status" class="muted">未保存</span>
+            <button id="jev-forget-key" class="button secondary compact" type="button" disabled>忘记已保存 Key</button>
+          </div>
           <label class="field" for="jev-state">
             <span>测试状态</span>
             <textarea id="jev-state" name="jev-state" rows="5" spellcheck="false">已验证导航组件在短时间内收到异常高频速度指令，来源签名有效但行为可能影响安全边界。</textarea>
           </label>
+          <div class="jev-sample-row">
+            <label class="button secondary compact" for="jev-sample-file">加载样例文件</label>
+            <input id="jev-sample-file" type="file" accept=".txt,.log,.csv,.json,text/plain,application/json">
+            <span id="jev-sample-feedback" class="muted">样例只在浏览器中读取，点击测试后才发送。</span>
+          </div>
         </div>
         <div class="jev-actions">
           <button id="jev-test" class="button primary" type="submit">测试连接</button>

@@ -17,6 +17,269 @@ function formatTime(value) {
 }
 
 const JEV_TEST_ENDPOINT = '/api/jev/test';
+const LOGIN_ENDPOINT = '/api/login';
+const JEV_KEY_ENDPOINT = '/api/jev/key';
+const JEV_KEY_CLEAR_ENDPOINT = '/api/jev/key/clear';
+const EXPERIMENT_SAMPLES_ENDPOINT = '/api/experiments/samples';
+const EXPERIMENT_REPLAY_ENDPOINT = '/api/experiments/replay';
+const MAX_SAMPLE_BYTES = 64 * 1024;
+const MAX_SAMPLE_CHARS = 4096;
+let authenticated = false;
+let jevKeySaved = false;
+let protectionSamples = [];
+let protectionSample = null;
+
+function showLogin(message = '本地实验账号：admin / admin') {
+  authenticated = false;
+  jevKeySaved = false;
+  updateJevKeyStatus(false);
+  $('app-shell').hidden = true;
+  $('auth-gate').hidden = false;
+  $('login-feedback').textContent = message;
+  $('login-feedback').className = message.includes('错误') ? 'auth-feedback error' : 'auth-feedback';
+  $('login-password').value = '';
+  $('login-password').focus();
+}
+
+function showApp() {
+  authenticated = true;
+  $('auth-gate').hidden = true;
+  $('app-shell').hidden = false;
+}
+
+function updateJevKeyStatus(saved) {
+  const status = $('jev-key-status');
+  const forget = $('jev-forget-key');
+  if (!status || !forget) return;
+  status.textContent = saved ? '已保存到当前登录会话' : '未保存';
+  forget.disabled = !saved;
+}
+
+function protectionClass(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z_]/g, '-');
+}
+
+function setProtectionFeedback(message, kind = '') {
+  const target = $('protection-feedback');
+  target.textContent = message;
+  target.className = `muted${kind ? ` ${kind}` : ''}`;
+}
+
+function setProtectionSample(sample, label = '样例已载入') {
+  protectionSample = sample;
+  $('protection-run').disabled = !sample;
+  $('protection-result').hidden = true;
+  setProtectionFeedback(label, sample ? 'success' : '');
+}
+
+function renderProtectionSamples(payload) {
+  protectionSamples = Array.isArray(payload?.samples) ? payload.samples : [];
+  const select = $('protection-sample-select');
+  select.innerHTML = protectionSamples.length
+    ? protectionSamples.map((item) => `<option value="${esc(item.id)}">${esc(item.title)} · ${esc(item.expected)}</option>`).join('')
+    : '<option value="">暂无内置样例</option>';
+  if (protectionSamples.length) setProtectionSample(null, '请选择“导入内置样例”或上传 JSON');
+  else setProtectionFeedback('内置样例读取失败，请上传 guardian-replay/v1 JSON。', 'error');
+}
+
+async function loadProtectionSamples() {
+  try {
+    const response = await fetch(EXPERIMENT_SAMPLES_ENDPOINT, {cache: 'no-store'});
+    const payload = await parseJsonResponse(response);
+    if (!response.ok) throw new Error(payload?.error?.message || `HTTP ${response.status}`);
+    renderProtectionSamples(payload);
+  } catch (error) {
+    setProtectionFeedback(`无法读取内置防护样例：${redactJevMessage(error.message)}`, 'error');
+  }
+}
+
+function loadSelectedProtectionSample() {
+  const id = $('protection-sample-select').value;
+  const entry = protectionSamples.find((item) => item.id === id);
+  if (!entry) return setProtectionSample(null, '没有可导入的内置样例');
+  setProtectionSample(entry.sample, `已导入：${entry.title} · ${entry.expected}`);
+}
+
+async function loadProtectionFile(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  if (file.size > MAX_SAMPLE_BYTES) return setProtectionFeedback('样例文件不能超过 64 KiB。', 'error');
+  try {
+    const sample = JSON.parse(await file.text());
+    if (!sample || sample.schema !== 'guardian-replay/v1') throw new Error('schema');
+    setProtectionSample(sample, `已导入文件：${file.name} · 点击“执行防护判断”`);
+  } catch (_error) {
+    setProtectionSample(null, '样例必须是有效的 guardian-replay/v1 JSON 文件');
+    setProtectionFeedback('样例必须是有效的 guardian-replay/v1 JSON 文件。', 'error');
+  }
+}
+
+function renderProtectionReport(report) {
+  const final = report.final || {};
+  const summary = report.summary || {};
+  const safety = final.safety || {};
+  const plan = final.plan || {};
+  $('protection-summary').innerHTML = [
+    `<span>最终状态 <strong>${esc(safety.state || '—')}</strong></span>`,
+    `<span>任务 <strong>${safety.mission_allowed ? '允许' : '锁定'}</strong></span>`,
+    `<span>动作 <strong>${esc(plan.action || '—')}</strong></span>`,
+    `<span>速度上限 <strong>${Number(safety.speed_limit || 0).toFixed(2)} m/s</strong></span>`,
+    `<span>接受/拒绝 <strong>${Number(summary.accepted || 0)} / ${Number(summary.rejected || 0)}</strong></span>`,
+  ].join('');
+  $('protection-steps').innerHTML = (Array.isArray(report.steps) ? report.steps : []).map((step) => {
+    const verification = step.verification || {};
+    const risk = step.risk || {};
+    const rowSafety = step.safety || {};
+    const rowPlan = step.plan || {};
+    const code = verification.code || '—';
+    return `<tr><td>${Number(step.at || 0).toFixed(2)} s</td><td class="${protectionClass(code)}">${esc(code)}</td><td>${(Number(risk.risk || 0) * 100).toFixed(1)} / ${esc(risk.reason || '—')}</td><td>${esc(rowPlan.action || '—')}</td><td class="${protectionClass(rowSafety.state)}">${esc(rowSafety.state || '—')}</td><td>${Number(rowSafety.speed_limit || 0).toFixed(2)} m/s</td></tr>`;
+  }).join('');
+  $('protection-result').hidden = false;
+}
+
+async function runProtectionReplay() {
+  if (!protectionSample) return setProtectionFeedback('请先导入一个防护样例。', 'error');
+  $('protection-run').disabled = true;
+  setProtectionFeedback('正在运行离线防护判断…');
+  try {
+    const response = await fetch(EXPERIMENT_REPLAY_ENDPOINT, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, cache: 'no-store', body: JSON.stringify(protectionSample),
+    });
+    const payload = await parseJsonResponse(response);
+    if (!response.ok || payload?.status !== 'OK' || !payload.report) throw new Error(payload?.error?.message || `HTTP ${response.status}`);
+    renderProtectionReport(payload.report);
+    setProtectionFeedback('防护判断完成：结果来自同一套校验、风险、缓解和安全监督逻辑。', 'success');
+  } catch (error) {
+    setProtectionFeedback(`防护判断失败：${redactJevMessage(error.message)}`, 'error');
+  } finally {
+    $('protection-run').disabled = !protectionSample;
+  }
+}
+
+async function loadJevKeyStatus() {
+  try {
+    const response = await fetch(JEV_KEY_ENDPOINT, {cache: 'no-store'});
+    if (!response.ok) {
+      jevKeySaved = false;
+      updateJevKeyStatus(false);
+      return;
+    }
+    const payload = await parseJsonResponse(response);
+    jevKeySaved = payload?.saved === true;
+    updateJevKeyStatus(jevKeySaved);
+  } catch (_error) {
+    jevKeySaved = false;
+    updateJevKeyStatus(false);
+  }
+}
+
+async function saveJevKey(apiKey) {
+  const response = await fetch(JEV_KEY_ENDPOINT, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    cache: 'no-store',
+    body: JSON.stringify({api_key: apiKey}),
+  });
+  const payload = await parseJsonResponse(response);
+  if (!response.ok || !payload || payload.saved !== true) {
+    if (response.status === 404) throw new Error('保存接口未部署，请重启 guardian-dashboard.service');
+    throw new Error(redactJevMessage(payload?.error?.message || `保存失败（HTTP ${response.status}）`));
+  }
+  jevKeySaved = true;
+  updateJevKeyStatus(true);
+}
+
+async function forgetJevKey() {
+  try {
+    const response = await fetch(JEV_KEY_CLEAR_ENDPOINT, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, cache: 'no-store', body: '{}',
+    });
+    if (!response.ok) throw new Error('clear failed');
+    jevKeySaved = false;
+    updateJevKeyStatus(false);
+    $('jev-api-key').value = '';
+    setJevFeedback('已清除当前登录会话中的 Jev Key');
+  } catch (_error) {
+    setJevFeedback('清除 Jev Key 失败', 'error');
+  }
+}
+
+async function loadSampleFile(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  if (file.size > MAX_SAMPLE_BYTES) {
+    $('jev-sample-feedback').textContent = '样例文件不能超过 64 KiB';
+    return;
+  }
+  try {
+    let sample = await file.text();
+    if (file.name.toLowerCase().endsWith('.json')) {
+      const parsed = JSON.parse(sample);
+      if (typeof parsed === 'string') sample = parsed;
+      else if (parsed && typeof parsed.state === 'string') sample = parsed.state;
+      else if (parsed && typeof parsed.summary === 'string') sample = parsed.summary;
+      else sample = JSON.stringify(parsed, null, 2);
+    }
+    if (!sample.trim()) throw new Error('empty');
+    if (sample.length > MAX_SAMPLE_CHARS) {
+      $('jev-sample-feedback').textContent = '样例内容超过 4096 个字符，请先缩短';
+      return;
+    }
+    $('jev-state').value = sample;
+    $('jev-sample-feedback').textContent = `已加载样例：${file.name}`;
+    setJevFeedback('样例已载入，点击“测试连接”发送');
+  } catch (_error) {
+    $('jev-sample-feedback').textContent = '无法读取样例文件，请使用 TXT、LOG、CSV 或 JSON';
+  }
+}
+
+async function login(event) {
+  event.preventDefault();
+  const username = $('login-username').value.trim();
+  const password = $('login-password').value;
+  if (!username || !password) {
+    showLogin('请输入用户名和密码');
+    return;
+  }
+  const response = await fetch(LOGIN_ENDPOINT, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, cache: 'no-store',
+    body: JSON.stringify({username, password}),
+  });
+  const payload = await parseJsonResponse(response);
+  if (!response.ok || !payload || payload.authenticated !== true) {
+    showLogin('用户名或密码错误');
+    return;
+  }
+  showApp();
+  await loadJevKeyStatus();
+  await loadProtectionSamples();
+  refresh();
+}
+
+async function logout() {
+  await fetch('/api/logout', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}', cache: 'no-store'});
+  showLogin();
+}
+
+async function setupAuth() {
+  $('login-form').addEventListener('submit', login);
+  $('logout').addEventListener('click', logout);
+  try {
+    const response = await fetch('/api/session', {cache: 'no-store'});
+    if (response.ok) {
+      showApp();
+      await loadJevKeyStatus();
+      await loadProtectionSamples();
+      refresh();
+    } else {
+      showLogin();
+    }
+  } catch (_error) {
+    showLogin('无法连接本地服务');
+  }
+}
 
 function finiteNumber(value, fallback = 0) {
   if (value === null || value === undefined || value === '') return fallback;
@@ -95,11 +358,12 @@ async function parseJsonResponse(response) {
 
 async function testJev(event) {
   event.preventDefault();
-  const apiKey = $('jev-api-key').value.trim();
+  const typedApiKey = $('jev-api-key').value.trim();
+  const useSavedKey = !typedApiKey && jevKeySaved;
   const state = $('jev-state').value.trim();
   resetJevResult();
 
-  if (!apiKey) {
+  if (!typedApiKey && !useSavedKey) {
     setJevStatus('error', '缺少 API Key');
     setJevFeedback('请输入 API Key 后再测试', 'error');
     $('jev-api-key').focus();
@@ -118,11 +382,14 @@ async function testJev(event) {
   const startedAt = performance.now();
 
   try {
+    const requestBody = {state};
+    if (typedApiKey) requestBody.api_key = typedApiKey;
+    else requestBody.use_saved_key = true;
     const response = await fetch(JEV_TEST_ENDPOINT, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       cache: 'no-store',
-      body: JSON.stringify({api_key: apiKey, state}),
+      body: JSON.stringify(requestBody),
     });
     const payload = await parseJsonResponse(response);
     if (!response.ok || !payload || payload.status !== 'OK' || payload.connected !== true || !payload.assessment) {
@@ -131,8 +398,17 @@ async function testJev(event) {
 
     renderJevAssessment(payload);
     const latency = finiteNumber(payload.latency_ms, performance.now() - startedAt);
+    let saveSuffix = '';
+    if (typedApiKey && $('jev-save-key').checked) {
+      try {
+        await saveJevKey(typedApiKey);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : '保存接口不可用';
+        saveSuffix = `（本次调用成功，但保存失败：${detail}）`;
+      }
+    }
     setJevStatus('success', '已连接');
-    setJevFeedback(`Jev 调用成功 · ${latency.toFixed(0)} ms`, 'success');
+    setJevFeedback(`Jev 调用成功 · ${latency.toFixed(0)} ms${saveSuffix}`, saveSuffix ? 'error' : 'success');
   } catch (error) {
     setJevStatus('error', '连接失败');
     const message = error instanceof Error ? error.message : '无法连接本地 Jev 接口';
@@ -156,6 +432,16 @@ function setupJev() {
   if (!form) return;
   form.addEventListener('submit', testJev);
   $('jev-clear').addEventListener('click', clearJev);
+  $('jev-forget-key').addEventListener('click', forgetJevKey);
+  $('jev-sample-file').addEventListener('change', loadSampleFile);
+}
+
+function setupProtection() {
+  const select = $('protection-sample-select');
+  if (!select) return;
+  $('protection-load').addEventListener('click', loadSelectedProtectionSample);
+  $('protection-file').addEventListener('change', loadProtectionFile);
+  $('protection-run').addEventListener('click', runProtectionReplay);
 }
 
 function render(data) {
@@ -194,8 +480,10 @@ function render(data) {
 }
 
 async function refresh() {
+  if (!authenticated) return;
   try {
     const response = await fetch('/api/state', {cache: 'no-store'});
+    if (response.status === 401) { showLogin('登录已过期，请重新登录'); return; }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     render(await response.json());
     $('connection').textContent = 'ROS 2 已连接';
@@ -207,5 +495,6 @@ async function refresh() {
 }
 
 setupJev();
-refresh();
+setupProtection();
+setupAuth();
 setInterval(refresh, 1000);

@@ -1,5 +1,31 @@
 # Findings
 
+## Deployed dashboard mismatch (2026-09-24)
+
+- Windows HTTP login succeeds but authenticated `GET /api/jev/key` returns HTML 404. Systemd dashboard PID started at 09:28 and loads `ros2_ws/install/setup.bash`; updating source/symlink assets does not reload Python modules.
+- The open in-app browser document predates the import and saved-key controls, while a new HTTP GET contains them. Both process restart and browser refresh must be verified, including save/read/clear rather than just HTML substring checks.
+- Rechecked public `ros2/sros2` repository metadata (key distribution tooling). Its responsibility differs from this offline decision workbench; no new dependency or copied source is required. No claim about uninspected projects' internals is made.
+
+## Protection replay mapping (2026-09-24)
+
+- The front-end workbench uses the existing deterministic classes in a fresh per-request process: `EventVerifier` produces `ACCEPTED`, `UNKNOWN_SOURCE`, `FUTURE`, `STALE`, or `REPLAY`; accepted events enter `AttackRegistry`; `RiskEngine` calculates `delta/gamma/psi/risk`; `MitigationPlanner` selects isolation or `SAFE_STOP`; `SafetySupervisor` maps the plan to `NORMAL`, `RESUMABLE`, `CONTAINING`, or `SAFE_STOP` and a speed limit.
+- Five built-ins provide deterministic coverage: no event, unknown source, replayed sequence, critical component with isolation, and critical component without isolation. Custom input is schema-checked, bounded to 64 events, uses fixed navigation components and trusted source, and rejects extra fields before any decision.
+- The replay endpoint returns only an audit-like result with `actuation=none`; the Jev provider is not called. This preserves the separation between an experiment explanation and real ROS 2 actuation.
+
+## Local sample upload and session-key boundary (2026-09-24)
+
+- Comparable public references inspected: [iotsrg/awesome-ros-security](https://github.com/iotsrg/awesome-ros-security) is a ROS security resource index and [Rexyyj/ROS2-SMT](https://github.com/Rexyyj/ROS2-SMT) is a ROS 2 security-management project. Neither treats browser file upload as a real-time safety decision path; the current design keeps that separation.
+- The browser sample control uses `File.text()` only. It accepts `.txt`, `.log`, `.csv`, and `.json`, limits files to 64 KiB and normalized state to 4096 characters, and clears the file input after each selection. No file bytes are persisted or sent until the explicit test action.
+- The dashboard stores one validated Jev key per authenticated session in process memory. The key-status endpoint returns only `saved: true/false`; the test endpoint can resolve an omitted key from that session, while logout, expiry, clear, and process restart remove it.
+- A real HTTP regression with a deterministic transport now proves the saved-key fallback reaches the provider boundary, never echoes the key, and returns `missing_api_key` without another provider call after clearing it. Jev remains an advisory side path and cannot publish ROS 2 commands or alter safety state.
+
+## Dashboard access and login closure (2026-09-24)
+
+- The dashboard service configuration specified 8088, but the browser failure was caused by WSL instance lifecycle: without a foreground process, the distro/systemd process group was reclaimed. Old user-level units also overlapped with the system service and caused intermittent port ownership.
+- The runtime now uses system-level `/etc/systemd/system/guardian-core.service` and `guardian-dashboard.service`, both running ROS 2 as `rob`; a hidden `sleep infinity` WSL process keeps the distro alive for localhost forwarding. `DashboardHTTPServer.allow_reuse_address` reduces restart bind races.
+- The dashboard has a local-only in-memory session gate. Defaults are `admin`/`admin`; tokens are stored as SHA-256 digests, cookies are HttpOnly and SameSite=Strict, `/api/state` and `/api/jev/test` require a valid session, and health remains public.
+- No production identity assurance is claimed. Credentials are not written to `.env`, GitHub, ROS messages, or logs; the default is intended only for this single-laptop demo.
+
 ## Publication and runtime facts (2026-09-24)
 
 - Current local main is f5ac099; .env remains tracked. User now authorizes publication of all accumulated local commits to GitHub main and local ROS 2 execution.
