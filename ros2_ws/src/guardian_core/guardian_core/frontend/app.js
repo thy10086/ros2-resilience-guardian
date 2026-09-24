@@ -18,10 +18,17 @@ function formatTime(value) {
 
 const JEV_TEST_ENDPOINT = '/api/jev/test';
 const LOGIN_ENDPOINT = '/api/login';
+const JEV_KEY_ENDPOINT = '/api/jev/key';
+const JEV_KEY_CLEAR_ENDPOINT = '/api/jev/key/clear';
+const MAX_SAMPLE_BYTES = 64 * 1024;
+const MAX_SAMPLE_CHARS = 4096;
 let authenticated = false;
+let jevKeySaved = false;
 
 function showLogin(message = '本地实验账号：admin / admin') {
   authenticated = false;
+  jevKeySaved = false;
+  updateJevKeyStatus(false);
   $('app-shell').hidden = true;
   $('auth-gate').hidden = false;
   $('login-feedback').textContent = message;
@@ -34,6 +41,91 @@ function showApp() {
   authenticated = true;
   $('auth-gate').hidden = true;
   $('app-shell').hidden = false;
+}
+
+function updateJevKeyStatus(saved) {
+  const status = $('jev-key-status');
+  const forget = $('jev-forget-key');
+  if (!status || !forget) return;
+  status.textContent = saved ? '已保存到当前登录会话' : '未保存';
+  forget.disabled = !saved;
+}
+
+async function loadJevKeyStatus() {
+  try {
+    const response = await fetch(JEV_KEY_ENDPOINT, {cache: 'no-store'});
+    if (!response.ok) {
+      jevKeySaved = false;
+      updateJevKeyStatus(false);
+      return;
+    }
+    const payload = await parseJsonResponse(response);
+    jevKeySaved = payload?.saved === true;
+    updateJevKeyStatus(jevKeySaved);
+  } catch (_error) {
+    jevKeySaved = false;
+    updateJevKeyStatus(false);
+  }
+}
+
+async function saveJevKey(apiKey) {
+  const response = await fetch(JEV_KEY_ENDPOINT, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    cache: 'no-store',
+    body: JSON.stringify({api_key: apiKey}),
+  });
+  const payload = await parseJsonResponse(response);
+  if (!response.ok || !payload || payload.saved !== true) {
+    throw new Error('无法保存 Jev Key');
+  }
+  jevKeySaved = true;
+  updateJevKeyStatus(true);
+}
+
+async function forgetJevKey() {
+  try {
+    const response = await fetch(JEV_KEY_CLEAR_ENDPOINT, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, cache: 'no-store', body: '{}',
+    });
+    if (!response.ok) throw new Error('clear failed');
+    jevKeySaved = false;
+    updateJevKeyStatus(false);
+    $('jev-api-key').value = '';
+    setJevFeedback('已清除当前登录会话中的 Jev Key');
+  } catch (_error) {
+    setJevFeedback('清除 Jev Key 失败', 'error');
+  }
+}
+
+async function loadSampleFile(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  if (file.size > MAX_SAMPLE_BYTES) {
+    $('jev-sample-feedback').textContent = '样例文件不能超过 64 KiB';
+    return;
+  }
+  try {
+    let sample = await file.text();
+    if (file.name.toLowerCase().endsWith('.json')) {
+      const parsed = JSON.parse(sample);
+      if (typeof parsed === 'string') sample = parsed;
+      else if (parsed && typeof parsed.state === 'string') sample = parsed.state;
+      else if (parsed && typeof parsed.summary === 'string') sample = parsed.summary;
+      else sample = JSON.stringify(parsed, null, 2);
+    }
+    if (!sample.trim()) throw new Error('empty');
+    if (sample.length > MAX_SAMPLE_CHARS) {
+      $('jev-sample-feedback').textContent = '样例内容超过 4096 个字符，请先缩短';
+      return;
+    }
+    $('jev-state').value = sample;
+    $('jev-sample-feedback').textContent = `已加载样例：${file.name}`;
+    setJevFeedback('样例已载入，点击“测试连接”发送');
+  } catch (_error) {
+    $('jev-sample-feedback').textContent = '无法读取样例文件，请使用 TXT、LOG、CSV 或 JSON';
+  }
 }
 
 async function login(event) {
@@ -54,6 +146,7 @@ async function login(event) {
     return;
   }
   showApp();
+  await loadJevKeyStatus();
   refresh();
 }
 
@@ -69,6 +162,7 @@ async function setupAuth() {
     const response = await fetch('/api/session', {cache: 'no-store'});
     if (response.ok) {
       showApp();
+      await loadJevKeyStatus();
       refresh();
     } else {
       showLogin();
@@ -155,11 +249,12 @@ async function parseJsonResponse(response) {
 
 async function testJev(event) {
   event.preventDefault();
-  const apiKey = $('jev-api-key').value.trim();
+  const typedApiKey = $('jev-api-key').value.trim();
+  const useSavedKey = !typedApiKey && jevKeySaved;
   const state = $('jev-state').value.trim();
   resetJevResult();
 
-  if (!apiKey) {
+  if (!typedApiKey && !useSavedKey) {
     setJevStatus('error', '缺少 API Key');
     setJevFeedback('请输入 API Key 后再测试', 'error');
     $('jev-api-key').focus();
@@ -178,11 +273,14 @@ async function testJev(event) {
   const startedAt = performance.now();
 
   try {
+    const requestBody = {state};
+    if (typedApiKey) requestBody.api_key = typedApiKey;
+    else requestBody.use_saved_key = true;
     const response = await fetch(JEV_TEST_ENDPOINT, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       cache: 'no-store',
-      body: JSON.stringify({api_key: apiKey, state}),
+      body: JSON.stringify(requestBody),
     });
     const payload = await parseJsonResponse(response);
     if (!response.ok || !payload || payload.status !== 'OK' || payload.connected !== true || !payload.assessment) {
@@ -191,8 +289,16 @@ async function testJev(event) {
 
     renderJevAssessment(payload);
     const latency = finiteNumber(payload.latency_ms, performance.now() - startedAt);
+    let saveSuffix = '';
+    if (typedApiKey && $('jev-save-key').checked) {
+      try {
+        await saveJevKey(typedApiKey);
+      } catch (_error) {
+        saveSuffix = '（本次调用成功，但保存失败）';
+      }
+    }
     setJevStatus('success', '已连接');
-    setJevFeedback(`Jev 调用成功 · ${latency.toFixed(0)} ms`, 'success');
+    setJevFeedback(`Jev 调用成功 · ${latency.toFixed(0)} ms${saveSuffix}`, saveSuffix ? 'error' : 'success');
   } catch (error) {
     setJevStatus('error', '连接失败');
     const message = error instanceof Error ? error.message : '无法连接本地 Jev 接口';
@@ -216,6 +322,8 @@ function setupJev() {
   if (!form) return;
   form.addEventListener('submit', testJev);
   $('jev-clear').addEventListener('click', clearJev);
+  $('jev-forget-key').addEventListener('click', forgetJevKey);
+  $('jev-sample-file').addEventListener('change', loadSampleFile);
 }
 
 function render(data) {

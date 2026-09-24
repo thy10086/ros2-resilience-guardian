@@ -24,6 +24,7 @@ from .dashboard_jev import (
     JevDashboardService,
     JevRequestError,
     MAX_REQUEST_BYTES,
+    parse_api_key_request,
     parse_request,
 )
 from .dashboard_auth import DashboardAuth
@@ -69,6 +70,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             else:
                 self._json({"authenticated": False, "error": {"code": "auth_required", "message": "Login required"}}, status=401)
             return
+        if parsed.path == "/api/jev/key":
+            if not self._require_auth():
+                return
+            self._jev_key_status()
+            return
         self._static(parsed.path)
 
     def do_POST(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
@@ -79,6 +85,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/logout":
             self.dashboard_server.auth.logout(self._session_token())
             self._json({"authenticated": False}, headers={"Set-Cookie": self._clear_cookie()})
+            return
+        if parsed.path == "/api/jev/key":
+            if not self._require_auth():
+                return
+            self._save_jev_key()
+            return
+        if parsed.path == "/api/jev/key/clear":
+            if not self._require_auth():
+                return
+            self.dashboard_server.auth.clear_jev_key(self._session_token())
+            self._json({"saved": False})
             return
         if parsed.path == "/api/jev/test":
             if not self._require_auth():
@@ -188,7 +205,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             )
             return
         try:
-            api_key, state = parse_request(raw)
+            api_key, state = parse_request(raw, allow_missing_api_key=True)
         except JevRequestError as error:
             self._json(
                 {
@@ -199,6 +216,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 status=error.http_status,
             )
             return
+        if api_key is None:
+            api_key = self.dashboard_server.auth.get_jev_key(self._session_token())
+            if api_key is None:
+                self._json(
+                    {
+                        "status": "INVALID_REQUEST",
+                        "connected": False,
+                        "error": {"code": "missing_api_key", "message": "Enter a Jev API key or save one for this session"},
+                    },
+                    status=400,
+                )
+                return
         try:
             response = self.dashboard_server.jev_service.test(api_key, state)
         except Exception:
@@ -214,6 +243,28 @@ class DashboardHandler(BaseHTTPRequestHandler):
             )
             return
         self._json(response.payload, status=response.http_status)
+
+    def _jev_key_status(self) -> None:
+        self._json({"saved": self.dashboard_server.auth.has_jev_key(self._session_token())})
+
+    def _save_jev_key(self) -> None:
+        content_length = self.headers.get("Content-Length")
+        try:
+            length = int(content_length or "-1")
+        except (TypeError, ValueError):
+            length = -1
+        if length < 0 or length > MAX_REQUEST_BYTES:
+            self._json({"saved": False, "error": {"code": "invalid_key_request", "message": "Key request is invalid"}}, status=400)
+            return
+        try:
+            api_key = parse_api_key_request(self.rfile.read(length))
+        except JevRequestError as error:
+            self._json({"saved": False, "error": {"code": error.code, "message": error.message}}, status=error.http_status)
+            return
+        if not self.dashboard_server.auth.remember_jev_key(self._session_token(), api_key):
+            self._json({"saved": False, "error": {"code": "auth_required", "message": "Login required"}}, status=401)
+            return
+        self._json({"saved": True})
 
     def _static(self, request_path: str) -> None:
         relative = unquote(request_path.lstrip("/")) or "index.html"

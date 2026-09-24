@@ -1,5 +1,9 @@
 # Progress
 
+- 2026-09-24: Final validation completed for the sample workflow. WSL2 dashboard integration tests passed `6 passed`, the full suite passed `175 passed`, both ROS 2 packages built successfully, all five offline experiment scripts passed, and Windows compileall/frontend syntax/diff/.env checks passed. The live local dashboard returned `/api/health` 200 and served the sample-file and saved-key controls. Existing ROS 2 build output included non-fatal compiler clock-skew warnings only. Changes are ready for a local `main` commit; no GitHub push or live Jev call was made.
+
+- 2026-09-24: Added the dashboard sample-file workflow for local Jev experiments. TXT/LOG/CSV/JSON files are read in the browser with 64 KiB/4096-character bounds and are sent only after the user clicks “测试连接”. Added an HTTP integration regression covering login, session-only Key save, Jev test without an `api_key`, response redaction, clear, and fail-closed reuse. The focused dashboard authentication suite passes `6 passed`; full regression and ROS 2 build are next.
+
 - 2026-09-24: Fixed the dashboard login input race: the one-second state poll was calling `showLogin()` on every unauthenticated 401 and clearing the password field while the user typed. The frontend now tracks authentication state and pauses `/api/state` polling until login succeeds; browser regression can type `admin/admin` and reach the dashboard.
 
 - 2026-09-24: Revalidated the local dashboard after the login/runtime fix: WSL `python3 -m pytest -q tests` passed 171 tests, both selected ROS 2 packages built successfully, and the Windows 8088 smoke flow returned health 200, unauthenticated state 401, admin/admin login 200, authenticated state 200, and post-logout state 401. Added root-level colcon output ignores because the verification build was run from the repository root.

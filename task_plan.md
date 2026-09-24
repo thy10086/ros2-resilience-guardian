@@ -1,5 +1,22 @@
 # Implementation plan
 
+## Current task: local Jev sample upload and saved-key test path (2026-09-24)
+
+- [complete] Confirm comparable open-source ROS 2 security references and record the boundary: this feature is a local dashboard input path, not a ROS 2 control or security-management replacement.
+- [complete] Add bounded browser-only sample loading for TXT/LOG/CSV/JSON and document the size and send-time limits.
+- [complete] Keep saved Jev keys in the authenticated dashboard session only; never echo or persist them.
+- [complete] Add an HTTP integration regression proving a saved session key is forwarded to Jev when the test request omits `api_key`, and that clearing the key blocks the next request.
+- [complete] Run full tests, ROS 2 build, frontend syntax/diff checks, update handoff records, and commit on local `main`.
+- Scope: local experiment input and Jev proxy behavior only; no ROS 2 safety-state changes, no real provider call, no credential output.
+
+### Validation evidence
+
+- WSL2 `python3 -m pytest -q tests/test_dashboard_auth.py`: `6 passed`.
+- WSL2 `python3 -m pytest -q tests`: `175 passed`.
+- WSL2 `colcon build --symlink-install --packages-select guardian_interfaces guardian_core`: both packages finished; existing compiler clock-skew warnings did not fail the build.
+- All five offline experiment scripts passed; the Jev efficiency/session experiments used stub providers and made no live API call.
+- Windows `compileall`, frontend `node --check`, `git diff --check`, and tracked `.env` check passed. Local `http://127.0.0.1:8088` returned health 200 and the served HTML contained the sample-file and saved-key controls.
+
 ## Dashboard access and local login (2026-09-24)
 
 - [complete] Fix the unauthenticated polling loop that cleared the password field while the user typed.

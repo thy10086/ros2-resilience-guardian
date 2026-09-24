@@ -31,6 +31,7 @@ class DashboardAuth:
         self._password = password
         self.ttl_sec = ttl
         self._sessions: dict[str, float] = {}
+        self._jev_keys: dict[str, tuple[str, float]] = {}
         self._lock = RLock()
 
     @classmethod
@@ -54,6 +55,7 @@ class DashboardAuth:
         for digest, expires_at in tuple(self._sessions.items()):
             if expires_at <= now:
                 self._sessions.pop(digest, None)
+                self._jev_keys.pop(digest, None)
 
     def login(self, username: str, password: str, *, now: float | None = None) -> str | None:
         if not isinstance(username, str) or not isinstance(password, str):
@@ -92,6 +94,59 @@ class DashboardAuth:
             return
         with self._lock:
             self._sessions.pop(digest, None)
+            self._jev_keys.pop(digest, None)
+
+    def remember_jev_key(self, token: str | None, api_key: str, *, now: float | None = None) -> bool:
+        """Keep one validated Jev key in the current in-memory login session."""
+
+        if not isinstance(api_key, str) or not api_key:
+            return False
+        if not isinstance(token, str) or not token:
+            return False
+        current = time.monotonic() if now is None else float(now)
+        if not math.isfinite(current):
+            return False
+        try:
+            digest = self._digest(token)
+        except (UnicodeEncodeError, AttributeError):
+            return False
+        with self._lock:
+            self._prune_locked(current)
+            expires_at = self._sessions.get(digest)
+            if expires_at is None or expires_at <= current:
+                return False
+            self._jev_keys[digest] = (api_key, expires_at)
+            return True
+
+    def get_jev_key(self, token: str | None, *, now: float | None = None) -> str | None:
+        """Return the session-bound Jev key for one authenticated request."""
+
+        if not isinstance(token, str) or not token:
+            return None
+        current = time.monotonic() if now is None else float(now)
+        if not math.isfinite(current):
+            return None
+        try:
+            digest = self._digest(token)
+        except (UnicodeEncodeError, AttributeError):
+            return None
+        with self._lock:
+            self._prune_locked(current)
+            entry = self._jev_keys.get(digest)
+            return entry[0] if entry is not None else None
+
+    def has_jev_key(self, token: str | None, *, now: float | None = None) -> bool:
+        return self.get_jev_key(token, now=now) is not None
+
+    def clear_jev_key(self, token: str | None) -> None:
+        if not isinstance(token, str) or not token:
+            return
+        try:
+            digest = self._digest(token)
+        except (UnicodeEncodeError, AttributeError):
+            return
+        with self._lock:
+            self._jev_keys.pop(digest, None)
 
 
 __all__ = ["DashboardAuth", "DEFAULT_PASSWORD", "DEFAULT_TTL_SEC", "DEFAULT_USERNAME"]

@@ -2,6 +2,14 @@
 
 > 本文件是项目的持续交接记录。每次代码、实验、部署或仓库配置发生变化时，必须在同一个提交中更新本文件的“变更日志”和必要的运行说明，然后再提交到 `main`。
 
+### 2026-09-24 — Jev sample-file experiment workflow
+
+- 改动：前端 Jev 面板增加本地样例文件加载，支持 `.txt`、`.log`、`.csv`、`.json`。浏览器只在内存中读取，限制文件 64 KiB、发送状态 4096 字符；JSON 字符串、`state` 或 `summary` 字段可直接转为测试状态，其余 JSON 格式化显示。只有点击“测试连接”才发送给本地 dashboard。
+- 改动：增加“刷新后保留 Key（当前登录会话）”和“忘记已保存 Key”。Key 绑定当前 HttpOnly 登录会话并只存在 dashboard 进程内存；状态接口只返回布尔值，测试请求可省略 `api_key` 复用当前会话 Key。退出、过期、清除或重启后自动失效，输入框不会回填明文。
+- 文件：`ros2_ws/src/guardian_core/guardian_core/dashboard.py`、`dashboard_auth.py`、`dashboard_jev.py`、`frontend/app.js`、`frontend/index.html`、`frontend/styles.css`、`tests/test_dashboard_auth.py`、`tests/test_dashboard_jev.py`、`README.md`、`HANDOFF.md`、`findings.md`、`progress.md`、`task_plan.md`。
+- 验证：新增真实 HTTP 集成回归，覆盖登录、保存 Key、无 `api_key` 的 Jev 测试、provider Authorization 转发、响应脱敏、清除后 fail-closed；WSL2 定向 dashboard 测试 `6 passed`，全量测试 `175 passed`。ROS 2 Jazzy 两包构建成功（仅有既有非致命 clock-skew 警告），五个离线实验、Windows compileall、前端 `node --check`、`git diff --check` 和 `.env` 跟踪检查通过；本机 8088 health 返回 200，HTML 已包含样例和会话 Key 控件。没有上传 GitHub，也没有真实 Jev provider 调用。
+- 原理边界：样例文件只是人工实验输入，Jev 仍是旁路语义建议，不进入 Guardian 实时安全决策、速度限制、`SAFE_STOP` 或 `/cmd_vel` 控制链路；因此不与 ROS 2 系统安全核心冲突。
+
 ## 1. 项目定位
 
 本项目是一个面向室内移动机器人导航的 ROS 2 系统级安全防护原型。它以 RobResilience 论文中的韧性思想为基础，扩展出“事件验证 → 攻击生命周期 → 动态风险评估 → 缓解重规划 → 安全状态机 → Web 监控”的闭环。

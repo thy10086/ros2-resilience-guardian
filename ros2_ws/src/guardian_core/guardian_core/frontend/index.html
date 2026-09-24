@@ -81,10 +81,20 @@
             <span>API Key</span>
             <input id="jev-api-key" name="jev-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴 TypeSafe API Key">
           </label>
+          <div class="jev-key-options">
+            <label class="checkbox-field" for="jev-save-key"><input id="jev-save-key" type="checkbox">刷新后保留 Key（当前登录会话）</label>
+            <span id="jev-key-status" class="muted">未保存</span>
+            <button id="jev-forget-key" class="button secondary compact" type="button" disabled>忘记已保存 Key</button>
+          </div>
           <label class="field" for="jev-state">
             <span>测试状态</span>
             <textarea id="jev-state" name="jev-state" rows="5" spellcheck="false">已验证导航组件在短时间内收到异常高频速度指令，来源签名有效但行为可能影响安全边界。</textarea>
           </label>
+          <div class="jev-sample-row">
+            <label class="button secondary compact" for="jev-sample-file">加载样例文件</label>
+            <input id="jev-sample-file" type="file" accept=".txt,.log,.csv,.json,text/plain,application/json">
+            <span id="jev-sample-feedback" class="muted">样例只在浏览器中读取，点击测试后才发送。</span>
+          </div>
         </div>
         <div class="jev-actions">
           <button id="jev-test" class="button primary" type="submit">测试连接</button>

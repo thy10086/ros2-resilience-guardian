@@ -34,6 +34,12 @@ h1, h2, p { margin: 0; } h1 { font-size: 34px; letter-spacing: -.04em; } h2 { fo
 .jev-card { margin-top: 16px; }
 .jev-subtitle { margin-top: 4px; font-size: 13px; }
 .jev-form-grid { display: grid; grid-template-columns: .85fr 1.15fr; gap: 16px; }
+.jev-key-options, .jev-sample-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; grid-column: 1 / -1; }
+.checkbox-field { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.checkbox-field input { width: 15px; height: 15px; accent-color: var(--cyan); }
+.button.compact { min-width: auto; height: 32px; padding: 0 11px; font-size: 12px; }
+#jev-sample-file { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.jev-sample-row .muted { font-size: 12px; }
 .field { display: flex; min-width: 0; flex-direction: column; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .05em; }
 .field input, .field textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; background: #0d1426; color: var(--text); font: inherit; font-size: 14px; font-weight: 500; letter-spacing: 0; outline: none; }
 .field input { height: 43px; }

@@ -1,5 +1,12 @@
 # Findings
 
+## Local sample upload and session-key boundary (2026-09-24)
+
+- Comparable public references inspected: [iotsrg/awesome-ros-security](https://github.com/iotsrg/awesome-ros-security) is a ROS security resource index and [Rexyyj/ROS2-SMT](https://github.com/Rexyyj/ROS2-SMT) is a ROS 2 security-management project. Neither treats browser file upload as a real-time safety decision path; the current design keeps that separation.
+- The browser sample control uses `File.text()` only. It accepts `.txt`, `.log`, `.csv`, and `.json`, limits files to 64 KiB and normalized state to 4096 characters, and clears the file input after each selection. No file bytes are persisted or sent until the explicit test action.
+- The dashboard stores one validated Jev key per authenticated session in process memory. The key-status endpoint returns only `saved: true/false`; the test endpoint can resolve an omitted key from that session, while logout, expiry, clear, and process restart remove it.
+- A real HTTP regression with a deterministic transport now proves the saved-key fallback reaches the provider boundary, never echoes the key, and returns `missing_api_key` without another provider call after clearing it. Jev remains an advisory side path and cannot publish ROS 2 commands or alter safety state.
+
 ## Dashboard access and login closure (2026-09-24)
 
 - The dashboard service configuration specified 8088, but the browser failure was caused by WSL instance lifecycle: without a foreground process, the distro/systemd process group was reclaimed. Old user-level units also overlapped with the system service and caused intermittent port ownership.
