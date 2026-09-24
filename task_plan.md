@@ -443,7 +443,7 @@ rejects the dashboard origin through CORS.
 - [complete] Add bounded replay and Jev-context fixtures plus a runnable offline case script and regression tests.
 - [complete] Document the exact Guardian/Jev boundary, expected state transition, front-end import steps, and industrial limitations.
 - [complete] Run focused/full tests, the industrial case script, ROS 2 build, frontend/static checks, and tracked-secret checks.
-- [pending] Commit the completed case and documentation to the local `main` branch only.
+- [complete] Commit the completed case and documentation to the local `main` branch only (`61e766a`).
 - Scope: industrial scenario analysis and user guidance; no live `/cmd_vel` publication, no real Jev provider call, no GitHub upload, and no migration.
 
 ### Validation evidence: warehouse AMR case
@@ -452,3 +452,4 @@ rejects the dashboard origin through CORS.
 - Industrial script: `ACCEPTED → REPLAY → ACCEPTED → ACCEPTED`; summary `accepted=3/rejected=1`; final `CONTAINING`, `ISOLATE_COMPONENT`, `0.15 m/s`; topics `/cmd_vel` and `/gripper/command`.
 - Full WSL2 suite: `203 passed` after sourcing both `/opt/ros/jazzy/setup.bash` and `ros2_ws/install/setup.bash`. A first run without the ROS 2 environment failed during collection with `rclpy`/`guardian_interfaces` import errors; no product code was changed for that environment-only failure.
 - ROS 2 build: `guardian_interfaces` and `guardian_core` finished successfully. Windows compileall, frontend syntax, JSON parse, `git diff --check`, and tracked `.env` checks passed.
+- Local commit evidence: `61e766a feat: add warehouse AMR safety case`; no remote push was attempted.

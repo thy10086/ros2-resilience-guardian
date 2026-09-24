@@ -12,6 +12,7 @@
 - 使用说明：详见 [docs/warehouse_amr_case.md](docs/warehouse_amr_case.md)。前端先在“防护实验室”导入回放 JSON，再在“Jev 语义分析”导入 Jev context JSON。README 已添加相同命令和结果边界。
 - 当前验证状态：代码、文档和测试已写入工作区；本条目完成前必须执行 focused/full pytest、工业脚本、ROS 2 build、静态检查、`.env` 跟踪检查和本地 `main` 提交。
 - 验证结果：定向案例 `2 passed`；工业脚本输出 `ACCEPTED → REPLAY → ACCEPTED → ACCEPTED`、最终 `CONTAINING / ISOLATE_COMPONENT / 0.15 m/s`；全量 WSL2 `203 passed`；五组离线实验通过；`guardian_interfaces` 与 `guardian_core` 构建成功；Windows compileall、前端 `node --check`、JSON、`git diff --check` 和 `.env` 跟踪检查通过。全量 pytest 必须先 source ROS 2 和 `ros2_ws/install`，否则会在收集阶段缺少 `rclpy`/`guardian_interfaces`。
+- 提交结果：已在本地 `main` 提交 `61e766a feat: add warehouse AMR safety case`，工作区随后保持干净；本轮未执行 GitHub push。
 
 ### 2026-09-24 — 持久 Jev Key 与多页面研究工作区（当前）
 
