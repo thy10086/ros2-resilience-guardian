@@ -532,3 +532,10 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 示例与文档：`experiments/industrial_conveyor_arm_safe.py`、`experiments/industrial_conveyor_arm_unsafe.py`、`docs/industrial_code_security.md`、README 工作区说明。
 - 验证：TDD 红测在缺少模块/接口/UI 时失败，绿测 `tests/test_dashboard_code_security.py` 为 `8 passed`；WSL2 全量 `220 passed`；ROS 2 Jazzy 两包构建成功；Windows `node --check`、`git diff --check` 和 `.env` 跟踪检查通过。安全样例为 `PASS`，待整改样例为 `BLOCKED → SAFE_STOP`。本轮没有真实 provider 调用、没有输出密钥、没有 GitHub 推送。
 - 运行边界：`SAFE_STOP` 是代码上线前的防护映射建议，不会直接修改 Guardian 运行状态；真实机器人仍必须通过 Guardian `safety_status` 和硬件/仿真适配器执行限速、隔离或停车。当前 WSL 用户无 systemd 重启权限，服务重启命令返回 `Interactive authentication required`，但既有 unit 保持 active，HTTP 行为由认证契约测试覆盖。
+
+### 2026-09-25 — GitHub publication of all local changes
+
+- 发布范围：将本地 `main` 上尚未同步的前端安全测试改造和工业 ROS 2 代码安全检查全部推送到 `origin/main`；未创建其他分支，未使用强制推送。
+- 包含提交：`15dbd31 ui: align dashboard with safety testing`、`f70aadc feat: add industrial code safety inspection`，以及本条交接记录提交。
+- 验证：WSL2 全量 `python3 -m pytest -q tests` 为 `220 passed`；ROS 2 Jazzy `colcon build --symlink-install --packages-select guardian_interfaces guardian_core` 两包成功；前端 `node --check`、`git diff --check` 通过；`.env` 仍由 Git 跟踪且没有非空凭据配置。
+- 仓库边界：远端地址为 `https://github.com/thy10086/ros2-resilience-guardian.git`，URL 不包含嵌入式凭据；本次不输出、不写入或提交任何 API Key。

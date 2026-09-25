@@ -517,3 +517,11 @@ rejects the dashboard origin through CORS.
 - Safety cases: the safe conveyor/arm fixture returned `PASS`; the unsafe fixture returned `BLOCKED` and mapped to `SAFE_STOP`; hard-coded credential evidence was redacted before returning the report.
 - ROS 2 build: `guardian_interfaces` and `guardian_core` finished successfully with `colcon build --symlink-install`.
 - Static checks: frontend `node --check`, `git diff --check`, and tracked `.env` verification passed. Service restart from the unprivileged WSL user reported `Interactive authentication required`; the unit remained active and the endpoint contract is covered by authenticated HTTP tests.
+
+## Current task: publish all local changes to GitHub (2026-09-25)
+
+- [complete] Compare local `main` with `origin/main` and identify all unpublished commits.
+- [complete] Run full tests, ROS 2 build, frontend syntax/diff checks and tracked `.env` verification.
+- [complete] Update `HANDOFF.md`, `progress.md` and this plan with the publication evidence.
+- [pending] Commit the publication record and push local `main` to `origin/main`.
+- Scope: publish existing project changes only; no API keys, system environment variables, database migrations or branch changes.
