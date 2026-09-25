@@ -523,5 +523,5 @@ rejects the dashboard origin through CORS.
 - [complete] Compare local `main` with `origin/main` and identify all unpublished commits.
 - [complete] Run full tests, ROS 2 build, frontend syntax/diff checks and tracked `.env` verification.
 - [complete] Update `HANDOFF.md`, `progress.md` and this plan with the publication evidence.
-- [pending] Commit the publication record and push local `main` to `origin/main`.
+- [complete] Commit the publication record and push local `main` to `origin/main`.
 - Scope: publish existing project changes only; no API keys, system environment variables, database migrations or branch changes.
