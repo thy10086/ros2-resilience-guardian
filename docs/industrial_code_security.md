@@ -14,7 +14,8 @@
 - 自动修改源文件或替用户解除安全状态。
 
 检查器使用 Python AST 和有界文本规则，输出规则编号、严重级别、行号、脱敏证据、
-整改建议和 Guardian 防护映射。
+整改建议和 Guardian 防护映射。除 `/cmd_vel` 外，还识别 Gazebo Sim 经
+`ros_gz` 桥接后的 `/model/<robot>/cmd_vel` 主题。
 
 ## 当前规则
 
@@ -33,13 +34,18 @@
 
 ## 前端操作
 
-1. 打开 `http://127.0.0.1:8088`，使用 `admin/admin` 登录。
+1. 打开 `http://127.0.0.1:8080`，使用 `admin/admin` 登录。
 2. 进入“工业代码安全检查”。
+   “防护实验室”只接收 `guardian-replay/v1` 事件回放 JSON；工业代码检查才接收
+   `.py` 源码，两者不能互换。
 3. 选择“安全输送线与机械臂控制节点”或“待整改的输送线控制节点”，点击“导入内置样例”。
 4. 点击“执行安全检查”，查看风险数量、执行器主题、代码行和 Guardian 动作。
 5. 也可以导入项目中的 `experiments/industrial_conveyor_arm_safe.py` 或
    `experiments/industrial_conveyor_arm_unsafe.py`。
-6. 对 `BLOCKED` 结果，先按行号整改，再把代码重新导入检查；检查通过后，再使用“防护实验室”
+6. 对 Gazebo Sim 源码进行检查时，导入
+   `experiments/gazebo_ros2_amr_controller_unsafe.py`，或选择内置的
+   “Gazebo Sim AMR 差速驱动风险控制节点”。该样例故意包含风险，不能直接启动。
+7. 对 `BLOCKED` 结果，先按行号整改，再把代码重新导入检查；检查通过后，再使用“防护实验室”
    的 `guardian-replay/v1` 事件样例验证运行时事件校验和安全状态。
 
 ## 与现有闭环的关系

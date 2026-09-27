@@ -5,10 +5,12 @@ import threading
 import urllib.error
 import urllib.request
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from guardian_core.dashboard_experiments import sample_catalog, run_replay, ReplayError
+import guardian_core.dashboard_experiments as dashboard_experiments
+from guardian_core.dashboard_experiments import ReplayError, run_replay, sample_catalog
 from guardian_core.dashboard import DashboardHTTPServer
 from guardian_core.dashboard_auth import DashboardAuth
 from guardian_core.dashboard_state import DashboardState
@@ -71,6 +73,224 @@ def test_replays_have_fresh_verifier_and_registry():
     assert second["summary"] == first["summary"]
     assert second["steps"][0]["verification"]["code"] == "ACCEPTED"
     assert run_replay(fixture("normal"))["final"]["risk"]["active_components"] == []
+
+
+def test_replay_report_declares_offline_evidence_boundary():
+    report = run_replay(fixture("warehouse_amr"))
+    assurance = report["assurance"]
+    assert assurance["mode"] == "OFFLINE_REPLAY"
+    assert assurance["runtime_verified"] is False
+    assert assurance["actuation"] == "none"
+    assert "ROS 2/Gazebo" in " ".join(assurance["limitations"])
+
+
+def test_jev_replay_scores_each_verified_event_and_keeps_replay_local():
+    calls = []
+
+    def fake_jev(state):
+        context = json.loads(state)
+        calls.append(context)
+        return {
+            "status": "OK",
+            "connected": True,
+            "assessment": {
+                "status": "OK",
+                "label": "unsafe_command" if context["component"] == "left_wheels" else "semantic_misbehavior",
+                "score": 0.92 if context["component"] == "left_wheels" else 0.78,
+                "confidence": 0.88,
+                "mission_impact": "critical" if context["component"] == "left_wheels" else "medium",
+                "needs_human_review": True,
+                "model": "jev-test",
+                "reason": "semantic evidence supports elevated risk",
+            },
+        }
+
+    report = dashboard_experiments.run_replay_with_jev(fixture("warehouse_amr"), fake_jev)
+    evaluation = report["jev_evaluation"]
+
+    assert len(calls) == 3
+    assert [context["event_id"] for context in calls] == [
+        "amr-dock-left-wheel-7001",
+        "amr-dock-left-wheel-7002",
+        "amr-pallet-gripper-7003",
+    ]
+    assert [item["jev"]["status"] for item in evaluation["events"]] == [
+        "OK", "SKIPPED_UNVERIFIED", "OK", "OK"
+    ]
+    assert evaluation["events"][1]["jev"]["reason"] == "REPLAY was blocked before Jev"
+    assert evaluation["events"][0]["scoring"]["composite_risk"] >= evaluation["events"][0]["scoring"]["guardian_risk"]
+    assert evaluation["aggregate"]["risk_score"] >= 75
+    assert evaluation["aggregate"]["level"] == "CRITICAL"
+    assert "Guardian hard floor" in " ".join(evaluation["aggregate"]["basis"])
+
+
+def test_aggregate_risk_never_drops_below_any_event_hard_floor():
+    report = dashboard_experiments.run_replay_with_jev(fixture("warehouse_amr"), lambda _: {
+        "status": "OK",
+        "assessment": {
+            "score": 0.01,
+            "confidence": 0.99,
+            "label": "benign",
+            "mission_impact": "low",
+        },
+    })
+    evaluation = report["jev_evaluation"]
+    hard_floor = max(item["scoring"]["hard_floor"] for item in evaluation["events"])
+    assert evaluation["aggregate"]["risk_score"] >= round(hard_floor * 100, 1)
+
+
+def test_low_confidence_jev_cannot_reduce_guardian_risk():
+    def low_confidence_jev(_state):
+        return {
+            "status": "OK",
+            "connected": True,
+            "assessment": {
+                "status": "OK",
+                "label": "benign",
+                "score": 0.05,
+                "confidence": 0.40,
+                "mission_impact": "low",
+                "needs_human_review": True,
+                "model": "jev-low-confidence",
+                "reason": "semantic response is uncertain",
+            },
+        }
+
+    report = dashboard_experiments.run_replay_with_jev(fixture("critical"), low_confidence_jev)
+    scoring = report["jev_evaluation"]["events"][0]["scoring"]
+    assert scoring["fusion_mode"] == "CONSERVATIVE_LOW_CONFIDENCE"
+    assert scoring["composite_risk"] >= scoring["guardian_risk"]
+    assert scoring["confidence_gate"] == 0.70
+
+
+def test_empty_jev_assessment_is_invalid_and_requires_review():
+    report = dashboard_experiments.run_replay_with_jev(
+        fixture("critical"),
+        lambda _: {"status": "OK", "assessment": {}},
+    )
+    event = report["jev_evaluation"]["events"][0]
+    assert event["jev"]["status"] == "INVALID"
+    assert event["jev"]["risk"] is None
+    assert report["jev_evaluation"]["status"] == "PARTIAL"
+    assert report["safety_summary"]["evidence"]["invalid_jev_events"] == 1
+
+
+def test_empty_replay_is_insufficient_not_one_hundred_percent_safe():
+    report = dashboard_experiments.run_replay_with_jev(fixture("normal"), lambda _: pytest.fail("empty"))
+    assert report["jev_evaluation"]["status"] == "INSUFFICIENT_EVIDENCE"
+    assert report["jev_evaluation"]["aggregate"]["safety_score"] is None
+    assert report["safety_summary"]["runtime_verified"] is False
+
+
+def test_guardian_rejected_event_is_not_summarized_as_safe():
+    report = dashboard_experiments.run_replay_with_jev(
+        fixture("untrusted"),
+        lambda _: pytest.fail("unverified event must not be sent to Jev"),
+    )
+    assert report["jev_evaluation"]["status"] == "LOCAL_ONLY"
+    assert "不能据此判定为安全" in report["safety_summary"]["decision"]
+    assert report["safety_summary"]["evidence"]["locally_rejected"] == 1
+
+
+@pytest.mark.parametrize("score", [None, True, "0.8", float("nan"), 1.5])
+def test_invalid_jev_scores_are_unavailable_not_zero_risk(score):
+    report = dashboard_experiments.run_replay_with_jev(fixture("critical"), lambda _: {
+        "status": "OK", "assessment": {"score": score, "confidence": .9, "label": "benign"},
+    })
+    event = report["jev_evaluation"]["events"][0]
+    assert event["jev"]["status"] == "INVALID"
+    assert event["jev"]["risk"] is None
+    assert event["scoring"]["fusion_mode"] == "GUARDIAN_ONLY"
+    assert report["jev_evaluation"]["status"] == "PARTIAL"
+
+
+def test_chinese_summary_links_evidence_to_policy_without_claiming_actuation():
+    report = dashboard_experiments.run_replay_with_jev(fixture("warehouse_amr"), lambda _: {
+        "status": "OK", "assessment": {
+            "score": .93, "confidence": .69, "label": "unsafe_command",
+            "mission_impact": "critical", "needs_human_review": True,
+        },
+    })
+    summary = report["safety_summary"]
+    assert summary["decision"] == "保持任务锁定，整改后复核"
+    assert summary["runtime_verified"] is False
+    assert summary["evidence"]["total_events"] == 4
+    assert summary["evidence"]["jev_successes"] == 3
+    assert summary["evidence"]["locally_rejected"] == 1
+    assert summary["evidence"]["low_confidence_events"] == 3
+    assert report["jev_evaluation"]["aggregate"]["risk_score"] == 85.0
+    event = report["jev_evaluation"]["events"][1]
+    assert "序列号" in " ".join(event["scoring"]["basis_zh"])
+    assert "85.0" in " ".join(event["scoring"]["basis_zh"])
+    assert "未执行" in summary["limitations"]
+
+
+def test_jev_replay_http_endpoint_uses_saved_key_and_returns_auditable_scores(tmp_path):
+    calls = []
+
+    class FakeJevService:
+        def test(self, api_key, state):
+            context = json.loads(state)
+            calls.append((api_key, context))
+            return SimpleNamespace(
+                http_status=200,
+                payload={
+                    "status": "OK",
+                    "connected": True,
+                    "assessment": {
+                        "status": "OK",
+                        "label": "unsafe_command",
+                        "score": 0.9,
+                        "confidence": 0.9,
+                        "mission_impact": "critical",
+                        "needs_human_review": True,
+                        "model": "jev-http-test",
+                        "reason": "critical component evidence",
+                    },
+                },
+            )
+
+    auth = DashboardAuth(username="admin", password="admin", ttl_sec=60)
+    http = DashboardHTTPServer(
+        ("127.0.0.1", 0),
+        DashboardState(),
+        FRONTEND,
+        auth=auth,
+        jev_service=FakeJevService(),
+    )
+    thread = threading.Thread(target=http.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{http.server_port}"
+        status, headers, _ = request_json(
+            f"{base}/api/login",
+            data=b'{"username":"admin","password":"admin"}',
+            headers={"Content-Type": "application/json"},
+        )
+        assert status == 200
+        cookie = headers["Set-Cookie"].split(";", 1)[0]
+        status, _, payload = request_json(
+            f"{base}/api/jev/key",
+            data=b'{"api_key":"saved-jev-key"}',
+            headers={"Cookie": cookie, "Content-Type": "application/json"},
+        )
+        assert status == 200
+        assert payload == {"saved": True}
+
+        status, _, payload = request_json(
+            f"{base}/api/experiments/jev-evaluate",
+            data=json.dumps({"sample": fixture("warehouse_amr")}).encode(),
+            headers={"Cookie": cookie, "Content-Type": "application/json"},
+        )
+        assert status == 200
+        assert payload["status"] == "OK"
+        assert payload["report"]["jev_evaluation"]["aggregate"]["level"] == "CRITICAL"
+        assert len(calls) == 3
+        assert all(api_key == "saved-jev-key" for api_key, _ in calls)
+    finally:
+        http.shutdown()
+        http.server_close()
+        thread.join(timeout=2)
 
 
 @pytest.mark.parametrize("field,value", [
@@ -163,6 +383,12 @@ def test_frontend_exposes_industrial_case_and_jev_boundary():
     assert "protection-industrial" in html
     assert "protection-jev-summary" in html
     assert "jev_context" in script
+    assert "protection-jev-run" in html
+    assert "protection-jev-result" in html
+    assert "/api/experiments/jev-evaluate" in script
+    assert "jev_evaluation" in script
+    assert "composite_risk" in script
+    assert "safety_score" in script
 
 
 def test_frontend_uses_security_testing_copy_without_proposal_language():

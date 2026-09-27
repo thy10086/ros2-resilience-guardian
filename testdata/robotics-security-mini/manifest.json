@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "download_date": "2026-09-27",
+  "purpose": "Small defensive robotics code/data security experiment corpus; not a labeled vulnerability benchmark.",
+  "sources": {
+    "robomimic_data": {
+      "repository": "https://huggingface.co/datasets/robomimic/robomimic_datasets",
+      "revision": "74fa018461f479cd9fd15b924a16103012096203",
+      "resolve_base": "https://huggingface.co/datasets/robomimic/robomimic_datasets/resolve/74fa018461f479cd9fd15b924a16103012096203/",
+      "selection": "v1.5/lift/ph/low_dim_v15.hdf5 and upstream dataset card",
+      "dataset_card_license_label": "mit",
+      "local_root": "data/robomimic"
+    },
+    "pusht_data": {
+      "repository": "https://huggingface.co/datasets/lerobot/pusht",
+      "revision": "7628202a2180972f291ba1bc6723834921e72c19",
+      "resolve_base": "https://huggingface.co/datasets/lerobot/pusht/resolve/7628202a2180972f291ba1bc6723834921e72c19/",
+      "selection": "All data, metadata and video files plus upstream dataset card; .gitattributes omitted.",
+      "dataset_card_license_label": "mit",
+      "local_root": "data/lerobot/pusht",
+      "format_version": "v3.0",
+      "upstream_metadata_episodes": 206,
+      "upstream_metadata_frames": 25650,
+      "counts_independently_decoded": false
+    },
+    "mujoco_code": {
+      "repository": "https://github.com/google-deepmind/mujoco",
+      "downloaded_branch": "main",
+      "revision": "a79d65c4e54d4be91f2a25dc4ecccc37d24b0e95",
+      "revision_evidence": "Git commit in tar PAX comment",
+      "pinned_archive_url": "https://codeload.github.com/google-deepmind/mujoco/tar.gz/a79d65c4e54d4be91f2a25dc4ecccc37d24b0e95",
+      "local_root": "code/mujoco",
+      "regular_files_verified_against_archive": 2206,
+      "regular_file_mismatches": 0,
+      "note": "Interrupted clone metadata remains in .git; do not treat this as a valid Git checkout."
+    },
+    "robomimic_code": {
+      "repository": "https://github.com/ARISE-Initiative/robomimic",
+      "downloaded_branch": "master",
+      "revision": "d309eaecc18acf4152a830a895a6984b8ac71b05",
+      "revision_evidence": "Git commit in tar PAX comment",
+      "pinned_archive_url": "https://codeload.github.com/ARISE-Initiative/robomimic/tar.gz/d309eaecc18acf4152a830a895a6984b8ac71b05",
+      "local_root": "code/robomimic",
+      "regular_files_verified_against_archive": 201,
+      "regular_file_mismatches": 0
+    },
+    "lerobot_code": {
+      "repository": "https://github.com/huggingface/lerobot",
+      "downloaded_branch": "main",
+      "revision": "e595b7902714ba51f91e47523f66f89c5181b649",
+      "revision_evidence": "Git commit in tar PAX comment",
+      "pinned_archive_url": "https://codeload.github.com/huggingface/lerobot/tar.gz/e595b7902714ba51f91e47523f66f89c5181b649",
+      "local_root": "code/lerobot",
+      "regular_files_verified_against_archive": 1122,
+      "regular_file_mismatches": 0,
+      "unmaterialized_documentation_symlinks": 28,
+      "unfetched_lfs_test_artifacts": 50,
+      "lfs_pointer_location": "code/lerobot/tests/artifacts/",
+      "note": "The source archive retains all symlinks; Windows extraction did not create them."
+    }
+  },
+  "files": [
+    {
+      "source": "robomimic_code",
+      "path": "code/robomimic/robomimic-master.tar.gz",
+      "bytes": 55561017,
+      "sha256": "3adecfe9c4bde325d0e5a87a5f8ee13e8ed55cfd78192f6c1c70d276eba89d9b"
+    },
+    {
+      "source": "mujoco_code",
+      "path": "code/mujoco/mujoco-main.tar.gz",
+      "bytes": 75973806,
+      "sha256": "bd145f4fc5c0b691f9dc85c107b6468fa25abb5a6f7321247ae3d7af1d77ff24"
+    },
+    {
+      "source": "lerobot_code",
+      "path": "code/lerobot/lerobot-main.tar.gz",
+      "bytes": 6735038,
+      "sha256": "e721eb3d6044f20c9abc4490f3b4903667e8bb93b95bde6920dbb655ffec0c7f"
+    },
+    {
+      "source": "robomimic_data",
+      "path": "data/robomimic/v1.5/lift/ph/low_dim_v15.hdf5",
+      "upstream_path": "v1.5/lift/ph/low_dim_v15.hdf5",
+      "bytes": 21084088,
+      "sha256": "2067777cb8b532e9263dd09fd6448c41cc31224bb27be4a3b734010ae13eb540",
+      "upstream_content_id_verified": true
+    },
+    {
+      "source": "robomimic_data",
+      "path": "data/robomimic/README.md",
+      "upstream_path": "README.md",
+      "bytes": 1065,
+      "sha256": "e09a24720408bac08425dbaa0b7b55615e4440f1af0a61133303e4b5d5d6b09a",
+      "upstream_content_id_verified": true
+    },
+    {
+      "source": "pusht_data",
+      "path": "data/lerobot/pusht/data/chunk-000/file-000.parquet",
+      "upstream_path": "data/chunk-000/file-000.parquet",
+      "bytes": 674393,
+      "sha256": "9abc0431f12d10c33b5b37b1bf1e6e557c8ae1c8c29fb86658969e48fcbbbf01",
+      "upstream_content_id_verified": true
+    },
+    {
+      "source": "pusht_data",
+      "path": "data/lerobot/pusht/meta/episodes/chunk-000/file-000.parquet",
+      "upstream_path": "meta/episodes/chunk-000/file-000.parquet",
+      "bytes": 106584,
+      "sha256": "bc1226f33d3d1635ec1954f9942073709be8e106fde5f4f16b9d52edc4e0ebc4",
+      "upstream_content_id_verified": true
+    },
+    {
+      "source": "pusht_data",
+      "path": "data/lerobot/pusht/meta/info.json",
+      "upstream_path": "meta/info.json",
+      "bytes": 2261,
+      "sha256": "0b46becc21ad92b117da1e95daf44110bb21d0bde75638b4ad167c8ccd959d38",
+      "upstream_content_id_verified": true
+    },
+    {
+      "source": "pusht_data",
+      "path": "data/lerobot/pusht/meta/stats.json",
+      "upstream_path": "meta/stats.json",
+      "bytes": 4371,
+      "sha256": "2a58f97df48893274c587fdf09f5cecb31fe385b1e188a82197a8972ccfb9d6d",
+      "upstream_content_id_verified": true
+    },
+    {
+      "source": "pusht_data",
+      "path": "data/lerobot/pusht/meta/tasks.parquet",
+      "upstream_path": "meta/tasks.parquet",
+      "bytes": 2265,
+      "sha256": "95535f5152771bc0a6ab0fd93d23d7c1fecd9b7a13dc117852dfdd94f5b2c711",
+      "upstream_content_id_verified": true
+    },
+    {
+      "source": "pusht_data",
+      "path": "data/lerobot/pusht/videos/observation.image/chunk-000/file-000.mp4",
+      "upstream_path": "videos/observation.image/chunk-000/file-000.mp4",
+      "bytes": 6890970,
+      "sha256": "f58d11857651dad5983c021b56a50a68a6ce19068834c1fb5cac099219fb3a78",
+      "upstream_content_id_verified": true
+    },
+    {
+      "source": "pusht_data",
+      "path": "data/lerobot/pusht/README.md",
+      "upstream_path": "README.md",
+      "bytes": 3538,
+      "sha256": "246e94b68f204bfcd05bb32e23631c3316b8de6152d7a85e693d4455540ef72f",
+      "upstream_content_id_verified": true
+    }
+  ],
+  "verification": {
+    "source_regular_files_checked": 3529,
+    "source_regular_file_mismatches": 0,
+    "data_and_dataset_card_upstream_content_matches": 9,
+    "json_metadata_parsed": true,
+    "binary_format_headers_checked": true,
+    "hdf5_semantic_read_tested": false,
+    "parquet_semantic_read_tested": false,
+    "video_decode_tested": false,
+    "downloaded_project_code_executed": false,
+    "simulation_or_training_tested": false,
+    "dependencies_installed": false,
+    "vulnerability_scan_performed": false
+  }
+}

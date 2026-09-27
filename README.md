@@ -118,6 +118,43 @@ Jev 不在这条实时控制链路中。它只对经过 Guardian 确定性校验
 人工复核建议；即使 Jev Key 缺失或 provider 超时，`CONTAINING`、限速和停车仍由
 本地 Guardian 状态机完成。
 
+### 代码沙箱仿真与运行证据
+
+登录后进入“代码沙箱仿真”。这里与“工业代码安全检查”不同：安全检查只读
+AST/规则，沙箱会在固定场景中真正运行一个受限的 Python 控制器，或解析一个
+SDF/URDF 模型并使用内置控制器，生成轨迹和风险事件。
+
+Python 文件必须定义：
+
+```python
+def control(state):
+    return {"linear_x": 0.2, "angular_z": 0.0}
+```
+
+`state` 只包含时间、位姿、障碍物净距、速度上限和安全许可。上传的 Python 不得
+导入 ROS 2、网络、文件、进程或动态执行接口。XML 只支持根节点为 `sdf` 或
+`robot` 的 SDF/URDF，禁止 `DOCTYPE`、外部 URI、`plugin` 和 `include`。
+
+可直接上传仓库中的三个实验文件：
+
+- `experiments/sandbox_safe_controller.py`
+- `experiments/sandbox_unsafe_controller.py`
+- `experiments/sandbox_warehouse_obstacle.sdf`
+
+点击“运行沙箱仿真”后，页面会显示源码 SHA-256、隔离提供方、是否真正执行源码、
+固定步长引擎、请求速度与实际施加速度、超速周期、碰撞周期、最小障碍净距、
+运动轨迹和事件证据。若已保存 Jev Key，后端只把这些服务器生成的指标/事件摘要
+发给 Jev，不发送源码、完整轨迹或本地路径。Jev 是旁路解释，不会改变本地
+“必须阻断/需要整改/当前场景通过”的确定性结论。
+
+本机当前优先选择 Docker；没有可用 Docker 镜像时使用 WSL
+`unshare-userns` 的用户、挂载、PID 和网络命名空间，并关闭网络。两者都不可用时
+直接失败关闭，不会在 Dashboard 进程中执行上传源码。当前引擎
+`guardian-kinematic-v1` 是固定步长二维工程筛查，不等同于 Gazebo 物理认证；
+SDF 另外会在本机存在 `gz` 时执行 `gz sdf --check`，但不加载 XML 插件。
+WSL `unshare` 不是完整 VM 或 rootfs 隔离，当前版本适合本地工程验证，不用于
+恶意多租户代码执行；部署到外部用户环境时应配置只读容器镜像或 VM 级隔离。
+
 打开页面后，在“Jev 连接测试”面板中输入 TypeSafe API Key 和一段简短的
 测试状态，点击“测试连接”即可执行一次旁路请求。浏览器只把请求发给本地
 `POST /api/jev/test`，由 dashboard 后端默认调用固定的
@@ -191,7 +228,9 @@ Jev 事件会话层进一步聚合连续告警、对风险和语义变化重新�
 `/cmd_vel` 与 `/gripper/command` 主题、模拟威胁和 Jev 摘要；点击“执行防护判断”即可
 在网页内运行四条事件的离线 Guardian 回放。点击“带入 Jev 语义分析”会把经过整理的摘要
 复制到 Jev 页面，供用户检查后决定是否调用真实 provider。网页不会发布 ROS 2 事件，也不会
-把 Jev 结果写回安全状态。
+把 Jev 结果写回 Guardian 安全状态。执行 Guardian 回放后，还可以点击“运行 Jev 综合评价”，
+对每条已验证事件单独调用 Jev，再按 Guardian 客观风险 60% + Jev 语义风险 40% 计算综合风险、
+安全分和风险等级。重放、过期、未知来源等未验证事件不会外发给 Jev，而是保留本地硬证据。
 
 自定义样例的最小格式如下：
 
@@ -239,7 +278,9 @@ python3 experiments/run_warehouse_amr_case.py
 `experiments/warehouse_amr_jev_context.json`。两个文件都只用于本地实验；案例脚本不
 发布 ROS 2 事件，也不调用真实 Jev provider。
 
-对应接口为受登录保护的 `GET /api/experiments/samples` 和 `POST /api/experiments/replay`。接口只返回确定性回放结果，不调用外部 Jev provider。
+对应接口为受登录保护的 `GET /api/experiments/samples`、`POST /api/experiments/replay` 和
+`POST /api/experiments/jev-evaluate`。后者使用已保存的 Jev Key，对最多 16 条事件做有界逐事件评价；
+网络失败、Key 缺失或模型返回非法内容时保留 Guardian 硬安全下限。
 
 ### 多页面工作区与安全测试分析
 
@@ -249,6 +290,7 @@ python3 experiments/run_warehouse_amr_case.py
 - **防护实验室**：导入或上传 `guardian-replay/v1` 样例，查看五阶段逐步结果。
 - **工程仿真**：启动仓储 AMR 数字孪生，观察攻击注入和 Guardian 安全反馈如何影响实际速度。
 - **工业代码安全检查**：导入 ROS 2 Python 控制节点，检查执行器边界、急停门控、动态执行、凭据暴露和阻塞调用；代码只读分析，不会执行上传内容。规则和操作见 [docs/industrial_code_security.md](docs/industrial_code_security.md)。
+- 工业代码检查还提供 Gazebo Sim 风格的 AMR 源码：`experiments/gazebo_ros2_amr_controller_unsafe.py`。它使用 `/model/amr_07/cmd_vel` 这类 `ros_gz` 桥接主题，是故意包含风险的检查夹具，不能直接启动。
 - **Jev 语义分析**：手动执行有界旁路请求，保存/更新或删除本机 Key；Jev 不进入控制闭环。
 - **安全测试分析**：运行 `/api/research/suite` 的离线测试套件，展示高效判断路径、调用减少、会话复用、超时回退、父证据阻断和 ROS 2 安全案例。
 

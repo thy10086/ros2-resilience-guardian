@@ -42,6 +42,20 @@ def _bounded(value: Any, default: float = 0.0) -> float:
     return max(0.0, min(1.0, number))
 
 
+def _optional_bounded(value: Any) -> float | None:
+    """Return a bounded float, preserving the difference between absent and zero."""
+
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not math.isfinite(number):
+        return None
+    return max(0.0, min(1.0, number))
+
+
 def _safe_text(value: Any, *, limit: int = _MAX_TEXT) -> str:
     text = str(value or "").replace("\x00", " ")
     text = "".join(character if character.isprintable() else " " for character in text)
@@ -207,6 +221,16 @@ class JevSemanticAdvisor:
 
     ATTACK_LABELS = {"flooding", "replay", "stale", "unsafe_command", "semantic_misbehavior", "benign"}
     IMPACT_LABELS = {"low", "medium", "critical"}
+    ATTACK_SEVERITY = {
+        "benign": 0.0,
+        "stale": 0.5,
+        "flooding": 0.6,
+        "replay": 0.7,
+        "semantic_misbehavior": 0.8,
+        "unsafe_command": 1.0,
+    }
+    IMPACT_SEVERITY = {"low": 0.0, "medium": 0.6, "critical": 1.0}
+    HUMAN_REVIEW_SEVERITY = 0.35
 
     def __init__(
         self,
@@ -352,21 +376,28 @@ class JevSemanticAdvisor:
         mission_impact = _normal_label(impact.get("choice"), self.IMPACT_LABELS, unknown="unknown")
         attack_probabilities = attack.get("probabilities") if isinstance(attack.get("probabilities"), Mapping) else {}
         impact_probabilities = impact.get("probabilities") if isinstance(impact.get("probabilities"), Mapping) else {}
-        attack_score = _bounded(attack_probabilities.get(label, 0.0)) if label != "UNKNOWN" else 0.0
-        impact_score = _bounded(impact_probabilities.get(mission_impact, 0.0)) if mission_impact != "unknown" else 0.0
-        if mission_impact == "medium":
-            impact_score *= 0.6
         review_probability = _bounded(review.get("noul", 0.0))
-        score = max(attack_score, impact_score, review_probability * 0.8)
+        needs_human_review = review_probability >= 0.5
+        attack_severity = self.ATTACK_SEVERITY.get(label, 0.0)
+        impact_severity = self.IMPACT_SEVERITY.get(mission_impact, 0.0)
+        review_severity = self.HUMAN_REVIEW_SEVERITY if needs_human_review else 0.0
+        score = max(attack_severity, impact_severity, review_severity)
 
         confidence_values = [
-            _bounded(attack.get("confidence"), default=-1.0),
-            _bounded(impact.get("confidence"), default=-1.0),
+            self._answer_confidence(attack, label, attack_probabilities),
+            self._answer_confidence(impact, mission_impact, impact_probabilities),
         ]
-        confidence_values = [value for value in confidence_values if value >= 0.0]
+        confidence_values = [value for value in confidence_values if value is not None]
         confidence = sum(confidence_values) / len(confidence_values) if confidence_values else 0.5
+        if label == "UNKNOWN" or mission_impact == "unknown":
+            confidence *= 0.5
         model = _safe_text(payload.get("model") or self.config.model, limit=96)
-        reason = f"Jev classified {label} with {mission_impact} mission impact"
+        review_reason = "human review requested" if needs_human_review else "human review not requested"
+        reason = (
+            f"Jev classified {label} (attack severity {attack_severity:.2f}) with "
+            f"{mission_impact} mission impact (impact severity {impact_severity:.2f}); "
+            f"{review_reason}; risk is the maximum semantic severity"
+        )
         return JevAssessment(
             status=JevAssessmentStatus.OK,
             event_id=_safe_text(context.event_id, limit=96),
@@ -374,12 +405,26 @@ class JevSemanticAdvisor:
             score=_bounded(score),
             confidence=_bounded(confidence),
             mission_impact=mission_impact,
-            needs_human_review=review_probability >= 0.5,
+            needs_human_review=needs_human_review,
             model=model or self.config.model,
             observed_at=now,
             expires_at=now + float(self.config.cache_ttl_sec),
             reason=reason,
         )
+
+    @staticmethod
+    def _answer_confidence(
+        answer: Mapping[str, Any],
+        label: str,
+        probabilities: Mapping[str, Any],
+    ) -> float | None:
+        """Use answer confidence and selected-label probability as corroborating evidence."""
+
+        explicit = _optional_bounded(answer.get("confidence"))
+        selected = None if label in {"UNKNOWN", "unknown"} else _optional_bounded(probabilities.get(label))
+        if explicit is not None and selected is not None:
+            return min(explicit, selected)
+        return explicit if explicit is not None else selected
 
     def _result(self, status: JevAssessmentStatus, context: SemanticContext, now: float, reason: str) -> JevAssessment:
         return JevAssessment(

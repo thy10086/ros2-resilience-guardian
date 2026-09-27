@@ -25,19 +25,138 @@
     </header>
 
     <nav class="workspace-nav" aria-label="工作区页面">
-      <button class="workspace-tab active" data-panel="realtime" type="button">实时防护</button>
-      <button class="workspace-tab" data-panel="protection" type="button">防护实验室</button>
+      <button class="workspace-tab active" data-panel="protection" type="button">防护实验室</button>
       <button class="workspace-tab" data-panel="simulation" type="button">工程仿真</button>
-      <button class="workspace-tab" data-panel="code-security" type="button">工业代码安全检查</button>
       <button class="workspace-tab" data-panel="jev" type="button">Jev 语义分析</button>
+      <button class="workspace-tab" data-panel="realtime" type="button">实时防护</button>
+      <button class="workspace-tab" data-panel="code-security" type="button">工业代码安全检查</button>
+      <button class="workspace-tab" data-panel="dataset-security" type="button">数据集安全审计</button>
+      <button class="workspace-tab" data-panel="sandbox" type="button">代码沙箱仿真</button>
       <button class="workspace-tab" data-panel="research" type="button">安全测试分析</button>
     </nav>
 
-    <section id="panel-realtime" class="workspace-panel active" data-panel-section="realtime">
-      <div class="panel-heading"><div><p class="eyebrow">01 / LIVE GUARDIAN</p><h2>实时防护</h2><p class="muted">ROS 2 状态话题的只读映射；安全核心负责最终状态、速度和停车。</p></div><span class="pill">确定性闭环</span></div>
+    <section id="panel-protection" class="workspace-panel active" data-panel-section="protection">
+      <div class="panel-heading"><div><p class="eyebrow">01 / PROTECTION REPLAY</p><h2>防护实验室</h2><p class="muted">导入样例，逐步观察事件校验、风险评估、缓解规划和安全监督。</p></div><span class="pill protection-pill">只读实验</span></div>
+      <article class="card protection-card"><div class="protection-flow" aria-label="防护判断流程"><span>① 事件校验</span><b>→</b><span>② 攻击登记</span><b>→</b><span>③ 风险评估</span><b>→</b><span>④ 缓解规划</span><b>→</b><span>⑤ 安全监督</span></div>
+        <section id="protection-recent-result" class="protection-recent-result" hidden aria-labelledby="protection-recent-title">
+          <div class="section-title"><div><p class="eyebrow">LAST CHECK</p><h3 id="protection-recent-title">最近一次检查结果</h3></div><span id="protection-recent-state" class="pill protection-pill">—</span></div>
+          <div class="protection-recent-grid">
+            <div><span>安全结论</span><strong id="protection-recent-decision">—</strong></div>
+            <div><span>风险等级</span><strong id="protection-recent-level">—</strong></div>
+            <div><span>综合安全分</span><strong id="protection-recent-safety-score">—</strong></div>
+            <div><span>检查时间</span><strong id="protection-recent-time">—</strong></div>
+          </div>
+          <p id="protection-recent-reason" class="protection-reason">—</p>
+          <div class="protection-recent-footer"><span id="protection-recent-name" class="muted">—</span><button id="protection-open-recent" class="button secondary compact" type="button">查看完整结果</button></div>
+        </section>
+        <section id="protection-recent-empty" class="protection-empty-state" aria-labelledby="protection-empty-title">
+          <div><p class="eyebrow">FIRST CHECK</p><h3 id="protection-empty-title">暂无检查记录</h3><p>导入一个工业仿真文件，预览解析结果后再开始安全检查。</p></div>
+          <span class="pill">等待首次检查</span>
+        </section>
+        <article id="protection-industrial" class="industrial-case-card" hidden>
+          <div class="section-title"><div><p class="eyebrow">WAREHOUSE AMR / ROS 2 SIMULATION</p><h3>仓储 AMR 托盘运输</h3><p id="protection-industrial-description" class="muted">—</p></div><span class="pill protection-pill">工业案例</span></div>
+          <div class="industrial-meta"><div><span>机器人 / 任务</span><strong id="protection-industrial-mission">—</strong></div><div><span>任务阶段</span><strong id="protection-industrial-phase">—</strong></div><div><span>ROS 2 主题</span><strong id="protection-industrial-topics">—</strong></div><div><span>威胁输入</span><strong id="protection-industrial-threats">—</strong></div></div>
+          <div class="industrial-jev"><div><span class="sub-label">Jev 旁路摘要</span><p id="protection-jev-summary" class="muted">—</p></div><button id="protection-jev-load" class="button secondary compact" type="button">带入 Jev 语义分析</button></div>
+          <p class="industrial-boundary"><strong>安全边界</strong> Guardian 决定 REPLAY、CONTAINING、隔离动作和速度上限；Jev 只提供攻击分类与人工复核建议，不发布 /cmd_vel。</p>
+        </article>
+        <div class="protection-controls"><label class="field" for="protection-sample-select"><span>内置防护样例</span><select id="protection-sample-select"><option value="">正在读取样例…</option></select></label><button id="protection-load" class="button secondary" type="button">导入内置样例</button><input id="protection-file" class="file-input-visible" type="file" accept=".json,.py,.xml,.sdf,.world,.urdf,application/json,text/x-python,application/xml,text/xml"><span id="protection-file-name" class="file-input-name" role="status">未选择文件</span><button id="protection-run" class="button primary" type="button" disabled>开始安全检查</button><button id="protection-jev-run" class="button secondary" type="button" disabled>运行 Jev 综合评价</button></div><p id="protection-feedback" class="muted" role="status" aria-live="polite">请选择内置样例或导入 JSON/PY/XML/SDF/URDF 文件。</p>
+        <section id="protection-file-preview" class="protection-file-preview" hidden aria-labelledby="protection-preview-title">
+          <div class="section-title"><div><p class="eyebrow">INPUT PREVIEW</p><h3 id="protection-preview-title">导入文件预览</h3></div><span id="protection-preview-status" class="pill">—</span></div>
+          <div class="protection-preview-grid">
+            <div><span>文件名</span><strong id="protection-preview-name">—</strong></div>
+            <div><span>类型</span><strong id="protection-preview-type">—</strong></div>
+            <div><span>大小</span><strong id="protection-preview-size">—</strong></div>
+            <div><span>解析状态</span><strong id="protection-preview-parser">—</strong></div>
+            <div class="protection-preview-wide"><span>检测到的机器人 / 节点 / 主题</span><strong id="protection-preview-entities">—</strong></div>
+          </div>
+          <pre id="protection-preview-source" class="protection-preview-source" aria-label="文件前 20 行预览"></pre>
+          <button id="protection-forward-check" class="button secondary compact" type="button" hidden>转到对应检查</button>
+        </section>
+        <div id="protection-result" hidden>
+          <section class="protection-verdict" aria-labelledby="protection-verdict-title">
+            <div class="section-title"><div><p class="eyebrow">GUARDIAN DECISION</p><h3 id="protection-verdict-title">实验结论</h3></div><span id="protection-verdict-state" class="pill protection-pill">—</span></div>
+            <div class="protection-verdict-grid">
+              <div><span>样例名称</span><strong id="protection-verdict-name">—</strong></div>
+              <div><span>安全配置</span><strong id="protection-verdict-profile">—</strong></div>
+              <div><span>任务许可</span><strong id="protection-verdict-mission">—</strong></div>
+              <div><span>最终缓解动作</span><strong id="protection-verdict-action">—</strong></div>
+              <div><span>速度上限</span><strong id="protection-verdict-speed">—</strong></div>
+              <div><span>事件总数</span><strong id="protection-verdict-total">0</strong></div>
+              <div><span>接受 / 拒绝</span><strong id="protection-verdict-counts">0 / 0</strong></div>
+            </div>
+            <p id="protection-verdict-reason" class="protection-reason">—</p>
+          </section>
+
+          <details id="protection-technical-details" class="protection-details">
+            <summary>查看技术详情（逐动作安全程度、事件、Jev、规则和证据）</summary>
+            <div class="protection-details-body">
+          <section id="protection-assurance" class="protection-assurance" aria-labelledby="protection-assurance-title">
+            <div class="section-title"><div><p class="eyebrow">EVIDENCE BOUNDARY</p><h3 id="protection-assurance-title">这次实验证明了什么</h3></div><span class="pill">离线证据</span></div>
+            <div class="protection-assurance-grid">
+              <div><span>证据模式</span><strong id="protection-assurance-mode">—</strong></div>
+              <div><span>离线逻辑检查完成度</span><strong id="protection-assurance-coverage">—</strong></div>
+              <div><span>真实运行已验证</span><strong id="protection-assurance-runtime">—</strong></div>
+              <div><span>实际执行器动作</span><strong id="protection-assurance-actuation">—</strong></div>
+            </div>
+            <p id="protection-assurance-limitations" class="protection-reason">—</p>
+          </section>
+
+          <section id="protection-jev-result" class="protection-jev-result" aria-labelledby="protection-jev-result-title" hidden>
+            <div class="section-title"><div><p class="eyebrow">JEV EVIDENCE FUSION</p><h3 id="protection-jev-result-title">Jev 逐动作安全判断与综合评分</h3></div><span id="protection-jev-status" class="pill protection-pill">—</span></div>
+            <div class="protection-jev-summary-grid">
+              <div><span>综合风险分</span><strong id="protection-jev-risk-score">—</strong></div>
+              <div><span>综合安全分</span><strong id="protection-jev-safety-score">—</strong></div>
+              <div><span>风险等级</span><strong id="protection-jev-level">—</strong></div>
+              <div><span>Jev 调用次数</span><strong id="protection-jev-calls">0</strong></div>
+            </div>
+            <p id="protection-jev-method" class="muted protection-jev-method">—</p>
+            <div class="protection-jev-table-wrap"><table class="protection-jev-table"><thead><tr><th>时间</th><th>事件 / 动作</th><th>Guardian 校验</th><th>Jev 类型</th><th>Jev 风险</th><th>置信度</th><th>综合风险</th><th>动作安全程度</th><th>判断依据</th></tr></thead><tbody id="protection-jev-events"></tbody></table></div>
+            <p id="protection-jev-basis" class="protection-reason">—</p>
+            <div id="protection-safety-summary" class="protection-safety-summary">
+              <div class="section-title"><div><p class="eyebrow">FINAL SAFETY SUMMARY</p><h3>中文安全总结</h3></div><span id="protection-summary-state" class="pill protection-pill">—</span></div>
+              <p id="protection-summary-decision" class="protection-summary-decision">—</p>
+              <div class="protection-summary-evidence"><span id="protection-summary-evidence">—</span><span id="protection-summary-limitations">—</span></div>
+            </div>
+          </section>
+
+          <section class="protection-evidence" aria-labelledby="protection-evidence-title">
+            <div class="section-title"><div><p class="eyebrow">EVENT EVIDENCE</p><h3 id="protection-evidence-title">事件证据</h3></div><span class="muted">逐条对应回放输入</span></div>
+            <div class="protection-evidence-table-wrap"><table class="protection-evidence-table"><thead><tr><th>时间</th><th>事件 ID</th><th>来源</th><th>组件</th><th>攻击类型</th><th>序列号</th><th>置信度</th><th>校验结果</th></tr></thead><tbody id="protection-evidence"></tbody></table></div>
+          </section>
+
+          <section class="protection-steps-section" aria-labelledby="protection-steps-title">
+            <div class="section-title"><div><p class="eyebrow">SAFETY PIPELINE</p><h3 id="protection-steps-title">逐步安全判定</h3></div><span class="muted">校验 → 风险 → 缓解 → 监督</span></div>
+            <div class="protection-table-wrap"><table class="protection-table"><thead><tr><th>时间</th><th>事件校验</th><th>风险</th><th>缓解动作</th><th>安全状态</th><th>速度上限</th></tr></thead><tbody id="protection-steps"></tbody></table></div>
+          </section>
+
+          <div class="protection-detail-grid">
+            <section id="protection-policy" class="protection-policy" aria-labelledby="protection-policy-title">
+              <div class="section-title"><div><p class="eyebrow">DECISION BASIS</p><h3 id="protection-policy-title">最终判定依据</h3></div></div>
+              <dl class="protection-policy-list">
+                <div><dt>可信来源</dt><dd id="protection-policy-sources">—</dd></div>
+                <div><dt>时间窗口</dt><dd id="protection-policy-window">—</dd></div>
+                <div><dt>风险阈值</dt><dd id="protection-policy-thresholds">—</dd></div>
+                <div><dt>可缓解设备</dt><dd id="protection-policy-devices">—</dd></div>
+              </dl>
+            </section>
+            <section class="protection-boundary" aria-labelledby="protection-boundary-title">
+              <div class="section-title"><div><p class="eyebrow">SAFETY BOUNDARY</p><h3 id="protection-boundary-title">安全边界说明</h3></div></div>
+              <p>本结论由 Guardian 的确定性校验、风险聚合、缓解规划和安全状态机给出。Jev 仅可对已验证事件提供语义分类与人工复核建议，不能改变任务许可、速度上限、隔离动作或 ROS 2 控制输出。</p>
+              <p id="protection-boundary-result" class="protection-reason">—</p>
+            </section>
+          </div>
+          <p class="muted protection-note">结果来自同一套离线 Guardian 逻辑，不会发布 ROS 2 事件、解除 SAFE_STOP 或控制机器人。</p>
+            </div>
+          </details>
+        </div>
+      </article>
+    </section>
+
+    <section id="panel-realtime" class="workspace-panel" data-panel-section="realtime" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">04 / LIVE GUARDIAN</p><h2>实时防护</h2><p class="muted">ROS 2 状态话题的只读映射；安全核心负责最终状态、速度和停车。</p></div><span class="pill">确定性闭环</span></div>
       <section class="hero-grid">
         <article class="card state-card" id="state-card"><div class="card-label">安全状态</div><div class="state-row"><span id="safety-state">STARTING</span><span id="mission-badge" class="badge">任务锁定</span></div><p id="safety-reason" class="muted">等待 Guardian ROS 2 状态</p><div class="speed"><span>当前速度上限</span><strong><span id="speed-limit">0.00</span> m/s</strong></div></article>
-        <article class="card risk-card"><div class="card-label">动态风险评分</div><div class="risk-score"><span id="risk-score">0</span><small>/ 100</small></div><div class="meter"><span id="risk-meter"></span></div><div class="metric-row"><span>ψ <b id="psi">0.000</b></span><span>δ <b id="delta">false</b></span><span>γ <b id="gamma">false</b></span></div></article>
+      <article class="card risk-card"><div class="card-label">动态风险评分</div><div class="risk-score"><span id="risk-score">0</span><small>/ 100</small></div><div class="meter"><span id="risk-meter"></span></div><div class="metric-row"><span title="数值越高，说明当前任务安全余量越大。">安全余量（ψ） <b id="psi">0.000</b></span><span title="true 表示没有关键组件持续受影响。">关键组件完整性（δ） <b id="delta">false</b></span><span title="true 表示当前风险没有超过任务阈值。">风险阈值是否通过（γ） <b id="gamma">false</b></span></div></article>
       </section>
       <section class="content-grid">
         <article class="card"><div class="section-title"><h2>攻击面与关键组件</h2><span id="risk-state" class="pill">STARTING</span></div><div class="chips" id="active-components"><span class="empty">暂无活动组件</span></div><div class="sub-label">关键组件</div><div class="chips critical" id="critical-components"><span class="empty">暂无关键组件</span></div><p id="risk-reason" class="muted">等待风险评估</p></article>
@@ -46,20 +165,8 @@
       <section class="card timeline-card"><div class="section-title"><h2>安全事件时间线</h2><span id="last-updated" class="muted">尚无更新</span></div><div id="timeline" class="timeline"><div class="empty">等待 ROS 2 消息</div></div></section>
     </section>
 
-    <section id="panel-protection" class="workspace-panel" data-panel-section="protection" hidden>
-      <div class="panel-heading"><div><p class="eyebrow">02 / PROTECTION REPLAY</p><h2>防护实验室</h2><p class="muted">导入样例，逐步观察事件校验、风险评估、缓解规划和安全监督。</p></div><span class="pill protection-pill">只读实验</span></div>
-      <article class="card protection-card"><div class="protection-flow" aria-label="防护判断流程"><span>① 事件校验</span><b>→</b><span>② 攻击登记</span><b>→</b><span>③ 风险评估</span><b>→</b><span>④ 缓解规划</span><b>→</b><span>⑤ 安全监督</span></div>
-        <article id="protection-industrial" class="industrial-case-card" hidden>
-          <div class="section-title"><div><p class="eyebrow">WAREHOUSE AMR / ROS 2 SIMULATION</p><h3>仓储 AMR 托盘运输</h3><p id="protection-industrial-description" class="muted">—</p></div><span class="pill protection-pill">工业案例</span></div>
-          <div class="industrial-meta"><div><span>机器人 / 任务</span><strong id="protection-industrial-mission">—</strong></div><div><span>任务阶段</span><strong id="protection-industrial-phase">—</strong></div><div><span>ROS 2 主题</span><strong id="protection-industrial-topics">—</strong></div><div><span>威胁输入</span><strong id="protection-industrial-threats">—</strong></div></div>
-          <div class="industrial-jev"><div><span class="sub-label">Jev 旁路摘要</span><p id="protection-jev-summary" class="muted">—</p></div><button id="protection-jev-load" class="button secondary compact" type="button">带入 Jev 语义分析</button></div>
-          <p class="industrial-boundary"><strong>安全边界</strong> Guardian 决定 REPLAY、CONTAINING、隔离动作和速度上限；Jev 只提供攻击分类与人工复核建议，不发布 /cmd_vel。</p>
-        </article>
-        <div class="protection-controls"><label class="field" for="protection-sample-select"><span>内置防护样例</span><select id="protection-sample-select"><option value="">正在读取样例…</option></select></label><button id="protection-load" class="button secondary" type="button">导入内置样例</button><label class="button secondary compact" for="protection-file">导入样例 JSON</label><input id="protection-file" type="file" accept=".json,application/json"><button id="protection-run" class="button primary" type="button" disabled>执行防护判断</button></div><p id="protection-feedback" class="muted" role="status" aria-live="polite">请选择内置样例或导入 JSON。</p><div id="protection-result" hidden><div class="protection-summary" id="protection-summary"></div><div class="protection-table-wrap"><table class="protection-table"><thead><tr><th>时间</th><th>事件校验</th><th>风险</th><th>缓解动作</th><th>安全状态</th><th>速度上限</th></tr></thead><tbody id="protection-steps"></tbody></table></div><p class="muted protection-note">结果来自同一套离线 Guardian 逻辑，不会发布 ROS 2 事件、解除 SAFE_STOP 或控制机器人。</p></div></article>
-    </section>
-
     <section id="panel-simulation" class="workspace-panel" data-panel-section="simulation" hidden>
-      <div class="panel-heading"><div><p class="eyebrow">03 / CLOSED-LOOP DIGITAL TWIN</p><h2>ROS 2 工程仿真</h2><p class="muted">控制笔记本上的仓储 AMR 数字孪生，观察控制指令、攻击注入、Guardian 反馈和实际运动的闭环结果。</p></div><span class="pill simulation-pill">真实 ROS 2 话题</span></div>
+      <div class="panel-heading"><div><p class="eyebrow">02 / CLOSED-LOOP DIGITAL TWIN</p><h2>ROS 2 工程仿真</h2><p class="muted">控制笔记本上的仓储 AMR 数字孪生，观察控制指令、攻击注入、Guardian 反馈和实际运动的闭环结果。</p></div><span class="pill simulation-pill">真实 ROS 2 话题</span></div>
       <article class="card simulation-card">
         <div class="simulation-banner"><div><p class="eyebrow">WAREHOUSE AMR / PALLET TRANSFER</p><h3>AMR-07：A-12 → P-07</h3><p class="muted">场景将请求速度、实际速度、托盘抓取状态和 Guardian 安全状态绑定到同一个仿真节点。</p></div><span id="simulation-connection" class="pill simulation-offline">等待仿真节点</span></div>
         <div class="simulation-controls" role="group" aria-label="仿真控制">
@@ -88,43 +195,221 @@
     </section>
 
     <section id="panel-code-security" class="workspace-panel" data-panel-section="code-security" hidden>
-      <div class="panel-heading"><div><p class="eyebrow">04 / INDUSTRIAL CODE CHECK</p><h2>工业代码安全检查</h2><p class="muted">导入 ROS 2 Python 控制节点，检查执行器边界、急停门控、动态执行和凭据暴露。</p></div><span class="pill">只读检查</span></div>
+      <div class="panel-heading"><div><p class="eyebrow">05 / INDUSTRIAL CODE CHECK</p><h2>工业代码安全检查</h2><p class="muted">导入 ROS 2 Python 控制节点，检查执行器边界、急停门控、动态执行和凭据暴露。</p></div><span class="pill">只读检查</span></div>
       <article class="card code-security-card">
         <div class="code-security-controls">
           <label class="field" for="code-security-sample-select"><span>内置工业样例</span><select id="code-security-sample-select"><option value="">正在读取样例…</option></select></label>
           <button id="code-security-load" class="button secondary" type="button">导入内置样例</button>
-          <label class="button secondary compact" for="code-security-file">导入 Python 文件</label>
-          <input id="code-security-file" type="file" accept=".py,text/x-python,text/plain">
+          <input id="code-security-file" class="file-input-visible" type="file" accept=".py,text/x-python,text/plain">
+          <span id="code-security-file-name" class="file-input-name" role="status">未选择文件</span>
           <button id="code-security-run" class="button primary" type="button" disabled>执行安全检查</button>
+          <button id="code-security-jev-run" class="button secondary" type="button" disabled>运行 Jev 置信度复核</button>
+        </div>
+        <div class="code-security-jev-controls">
+          <label class="field" for="code-security-jev-key"><span>Jev API Key（可选）</span><input id="code-security-jev-key" type="password" autocomplete="off" spellcheck="false" placeholder="留空则复用已保存 Key"></label>
+          <span class="muted">Jev 只接收静态检查摘要，不接收完整源码。</span>
         </div>
         <label class="field code-security-source-field" for="code-security-source"><span>待检查 ROS 2 控制代码</span><textarea id="code-security-source" rows="16" spellcheck="false" placeholder="导入内置样例或上传一个 ROS 2 Python 控制节点…"></textarea></label>
         <p id="code-security-feedback" class="muted" role="status" aria-live="polite">系统只读取源代码文本，不会执行、导入或启动上传的代码。</p>
         <div id="code-security-result" hidden>
-          <div class="code-security-summary">
-            <span>检查结论 <strong id="code-security-verdict">—</strong></span>
-            <span>关键 <strong id="code-security-critical">0</strong></span>
-            <span>高风险 <strong id="code-security-high">0</strong></span>
-            <span>中风险 <strong id="code-security-medium">0</strong></span>
-            <span>执行器主题 <strong id="code-security-topics">—</strong></span>
-            <span>Guardian 映射 <strong id="code-security-mapping">—</strong></span>
-          </div>
-          <div class="code-security-table-wrap"><table class="code-security-table"><thead><tr><th>级别</th><th>规则</th><th>行</th><th>证据</th><th>建议</th><th>Guardian 动作</th></tr></thead><tbody id="code-security-findings"></tbody></table></div>
+          <section class="code-security-decision" aria-labelledby="code-security-decision-title">
+            <div class="code-security-decision-main">
+              <div>
+                <p class="eyebrow">先看结论</p>
+                <h3 id="code-security-decision-title">上线建议：<strong id="code-security-decision">—</strong></h3>
+                <p id="code-security-next-step" class="code-security-next-step">—</p>
+              </div>
+              <span id="code-security-verdict" class="pill protection-pill">—</span>
+            </div>
+            <div class="code-security-summary">
+              <span>发现问题 <strong id="code-security-total">0</strong></span>
+              <span>必须阻断 <strong id="code-security-critical">0</strong></span>
+              <span>高风险 <strong id="code-security-high">0</strong></span>
+              <span>待复核 <strong id="code-security-medium">0</strong></span>
+            </div>
+            <div class="code-security-context">
+              <div><span>影响的执行器主题</span><strong id="code-security-topics">—</strong></div>
+              <div><span>Guardian 防护动作</span><strong id="code-security-mapping">—</strong></div>
+            </div>
+          </section>
+          <details id="code-security-technical-details" class="code-security-details">
+            <summary>查看技术证据（规则、代码行、修复建议）</summary>
+            <div class="code-security-table-wrap"><table class="code-security-table"><thead><tr><th>严重程度</th><th>问题</th><th>代码位置</th><th>代码证据</th><th>建议怎么改</th><th>防护动作</th></tr></thead><tbody id="code-security-findings"></tbody></table></div>
+          </details>
           <p id="code-security-boundary" class="muted code-security-boundary">—</p>
+          <section id="code-security-assurance" class="code-security-assurance" aria-labelledby="code-security-assurance-title">
+            <div class="section-title"><div><p class="eyebrow">STATIC ASSURANCE</p><h3 id="code-security-assurance-title">检查证据边界</h3></div><span class="pill">静态分析</span></div>
+            <div class="code-security-assurance-grid">
+              <div><span>检查模式</span><strong id="code-security-assurance-mode">—</strong></div>
+              <div><span>静态检查项满足度</span><strong id="code-security-coverage">—</strong></div>
+              <div><span>真实运行已验证</span><strong id="code-security-runtime">—</strong></div>
+              <div><span>源码已执行</span><strong id="code-security-executed">—</strong></div>
+            </div>
+            <p id="code-security-missing-controls" class="protection-reason">—</p>
+            <p id="code-security-assurance-limitations" class="muted code-security-boundary">—</p>
+          </section>
+        </div>
+        <section id="code-security-jev-result" class="code-security-jev-result" hidden aria-labelledby="code-security-jev-title">
+          <div class="section-title"><div><p class="eyebrow">JEV CONFIDENCE REVIEW</p><h3 id="code-security-jev-title">Jev 语义置信度复核</h3></div><span id="code-security-jev-status" class="pill">未运行</span></div>
+          <div class="code-security-jev-headline">
+            <div><span class="sub-label">Jev 的人话结论</span><strong id="code-security-jev-decision">—</strong><p id="code-security-jev-explanation" class="muted">—</p></div>
+          </div>
+          <div class="code-security-jev-grid">
+            <div><span>风险倾向（0-100）</span><small>Jev 认为风险有多高</small><strong id="code-security-jev-score">—</strong></div>
+            <div><span>判断把握（0-100）</span><small>Jev 对这次判断有多确定</small><strong id="code-security-jev-confidence">—</strong></div>
+            <div><span>对机器人任务的影响</span><small>是否可能影响运行安全</small><strong id="code-security-jev-impact">—</strong></div>
+            <div><span>是否需要人工确认</span><small>交给工程师复核的建议</small><strong id="code-security-jev-review">—</strong></div>
+            <div><span>原始语义标签</span><small>便于审计和接口对照</small><strong id="code-security-jev-label">—</strong></div>
+          </div>
+          <p id="code-security-jev-reason" class="protection-reason">—</p>
+          <p id="code-security-jev-boundary" class="muted code-security-boundary">Jev 只提供语义置信度，不改变本地静态检查结论或 Guardian 映射。</p>
+        </section>
+      </article>
+    </section>
+
+    <section id="panel-dataset-security" class="workspace-panel" data-panel-section="dataset-security" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">06 / DATASET SECURITY AUDIT</p><h2>数据集安全审计</h2><p class="muted">选择本地文件、文件夹或 ZIP 后进行只读检查；不会执行源码、训练模型或启动仿真。</p></div><span class="pill">只读扫描</span></div>
+      <article class="card dataset-security-card">
+        <div class="dataset-security-toolbar">
+          <div><span class="sub-label">当前上传批次</span><strong id="dataset-security-name">未选择文件</strong><p id="dataset-security-feedback" class="muted" role="status" aria-live="polite">请选择要审计的本地文件、文件夹或 ZIP。</p></div>
+          <button id="dataset-security-run" class="button primary" type="button" disabled>开始安全审计</button>
+        </div>
+        <div class="dataset-security-upload">
+          <div class="dataset-security-upload-options">
+            <label class="field dataset-security-upload-option" for="dataset-security-files-input"><span>选择多个文件</span><input id="dataset-security-files-input" class="file-input-visible" type="file" multiple accept=".py,.pyi,.c,.cc,.cpp,.h,.hpp,.js,.ts,.sh,.xml,.sdf,.world,.urdf,.yaml,.yml,.json,.toml,.ini,.cfg,.md,.txt,.h5,.hdf5,.parquet,.mp4,.avi,.mov,.bag,.safetensors,.npy,.npz,.mat,.png,.jpg,.jpeg,.gif,.webp,.obj,.stl,.msh,.zip,.tar,.gz"></label>
+            <label class="field dataset-security-upload-option" for="dataset-security-folder-input"><span>选择整个文件夹</span><input id="dataset-security-folder-input" class="file-input-visible" type="file" multiple webkitdirectory directory></label>
+            <label class="field dataset-security-upload-option" for="dataset-security-zip-input"><span>选择 ZIP 数据集</span><input id="dataset-security-zip-input" class="file-input-visible" type="file" accept=".zip,application/zip"></label>
+          </div>
+          <div class="dataset-security-upload-status">
+            <div><span class="sub-label">待审计清单</span><strong id="dataset-security-upload-summary">尚未选择文件</strong></div>
+            <progress id="dataset-security-upload-progress" max="100" value="0" hidden></progress>
+            <ul id="dataset-security-file-list" class="dataset-security-file-list" aria-live="polite"><li class="empty">选择后将在这里显示文件数量、大小和相对路径。</li></ul>
+          </div>
+        </div>
+        <section id="dataset-security-result" hidden>
+          <div class="code-security-decision dataset-security-decision">
+            <div class="code-security-decision-main">
+              <div><p class="eyebrow">先看结论</p><h3>数据集建议：<strong id="dataset-security-decision">—</strong></h3><p id="dataset-security-next-step" class="code-security-next-step">—</p></div>
+              <span id="dataset-security-verdict" class="pill protection-pill">—</span>
+            </div>
+            <div class="code-security-summary">
+              <span>文件总数 <strong id="dataset-security-files">0</strong></span>
+              <span>代码文件 <strong id="dataset-security-code">0</strong></span>
+              <span>必须阻断 <strong id="dataset-security-critical">0</strong></span>
+              <span>高风险 <strong id="dataset-security-high">0</strong></span>
+              <span>待复核 <strong id="dataset-security-medium">0</strong></span>
+            </div>
+          </div>
+          <div class="code-security-context dataset-security-context">
+            <div><span>代码扫描</span><strong id="dataset-security-python">—</strong></div>
+            <div><span>格式头检查</span><strong id="dataset-security-formats">—</strong></div>
+            <div><span>manifest 哈希</span><strong id="dataset-security-hashes">—</strong></div>
+            <div><span>实际执行 / 训练 / 仿真</span><strong id="dataset-security-executed">—</strong></div>
+          </div>
+          <section class="dataset-security-safety-summary">
+            <div class="section-title"><div><p class="eyebrow">EVIDENCE BOUNDARY</p><h3>这次审计证明了什么</h3></div><span class="pill">静态证据</span></div>
+            <p id="dataset-security-summary" class="protection-summary-decision">—</p>
+            <p id="dataset-security-limitations" class="muted">—</p>
+          </section>
+          <div class="dataset-security-detail-grid">
+            <div><span>格式校验明细</span><p id="dataset-security-format-items">—</p></div>
+            <div><span>manifest 哈希明细</span><p id="dataset-security-manifest-detail">—</p></div>
+          </div>
+          <details class="code-security-details" open>
+            <summary>查看前 20 条风险证据</summary>
+            <div class="code-security-table-wrap"><table class="code-security-table"><thead><tr><th>严重程度</th><th>文件</th><th>问题</th><th>位置</th><th>证据</th><th>建议</th></tr></thead><tbody id="dataset-security-findings"></tbody></table></div>
+          </details>
+        </section>
+      </article>
+    </section>
+
+    <section id="panel-sandbox" class="workspace-panel" data-panel-section="sandbox" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">07 / SANDBOX EVIDENCE</p><h2>代码沙箱仿真</h2><p class="muted">导入可运行的 Python 控制器或 SDF/URDF 模型，在受限执行器和固定场景中生成可复核的运动证据。</p></div><span class="pill sandbox-pill">源码不进入 Dashboard 进程</span></div>
+      <article class="card sandbox-card">
+        <div class="sandbox-controls">
+          <label class="field" for="sandbox-sample-select"><span>内置仿真样例</span><select id="sandbox-sample-select"><option value="">正在读取样例…</option></select></label>
+          <button id="sandbox-load" class="button secondary" type="button">导入内置样例</button>
+          <input id="sandbox-file" class="file-input-visible" type="file" accept=".py,.sdf,.world,.urdf,.xml,text/x-python,application/xml,text/xml">
+          <span id="sandbox-file-name" class="file-input-name" role="status">未选择文件</span>
+          <label class="field sandbox-duration" for="sandbox-duration"><span>仿真时长（秒）</span><input id="sandbox-duration" type="number" min="0.2" max="8" step="0.1" value="4"></label>
+          <button id="sandbox-run" class="button primary" type="button" disabled>运行沙箱仿真</button>
+        </div>
+        <div class="sandbox-jev-controls">
+          <label class="field" for="sandbox-jev-key"><span>Jev API Key（可选）</span><input id="sandbox-jev-key" type="password" autocomplete="off" spellcheck="false" placeholder="留空则复用已保存 Key"></label>
+          <span class="muted">Jev 只接收仿真指标和事件摘要，不接收源码、文件路径或完整轨迹。</span>
+        </div>
+        <label class="field sandbox-source-field" for="sandbox-source"><span>待运行的控制器或模型文件</span><textarea id="sandbox-source" rows="16" spellcheck="false" placeholder="导入 Python、SDF 或 URDF 文件…"></textarea></label>
+        <p id="sandbox-feedback" class="muted" role="status" aria-live="polite">Python 需要定义 control(state) 或 step(state)；XML 仅支持 SDF/URDF 模型数据。</p>
+        <section class="sandbox-boundary">
+          <div><strong>执行边界</strong><span id="sandbox-runtime-boundary">正在检测隔离执行器…</span></div>
+          <div><strong>结果含义</strong><span>这是固定步长工程筛查，不是 Gazebo 实机认证；通过后仍应进入更高保真仿真、硬件在环和人工评审。</span></div>
+        </section>
+        <div id="sandbox-result" hidden>
+          <section class="sandbox-verdict">
+            <div class="section-title"><div><p class="eyebrow">RUNTIME EVIDENCE</p><h3>仿真结论</h3></div><span id="sandbox-verdict" class="pill sandbox-pill">—</span></div>
+            <div class="sandbox-summary-grid">
+              <div><span>风险分</span><strong id="sandbox-risk-score">—</strong></div>
+              <div><span>安全分</span><strong id="sandbox-safety-score">—</strong></div>
+              <div><span>仿真引擎</span><strong id="sandbox-engine">—</strong></div>
+              <div><span>隔离状态</span><strong id="sandbox-isolation">—</strong></div>
+              <div><span>源码是否执行</span><strong id="sandbox-executed">—</strong></div>
+              <div><span>源码哈希</span><strong id="sandbox-hash" class="mono">—</strong></div>
+            </div>
+            <p id="sandbox-summary" class="sandbox-summary-text">—</p>
+          </section>
+          <section class="sandbox-evidence-grid">
+            <div class="sandbox-metrics">
+              <div class="section-title"><div><p class="eyebrow">MEASUREMENTS</p><h3>实际测量指标</h3></div><span class="muted">固定步长</span></div>
+              <dl class="sandbox-metric-list">
+                <div><dt>控制周期</dt><dd id="sandbox-metric-steps">—</dd></div>
+                <div><dt>最大请求速度</dt><dd id="sandbox-metric-requested">—</dd></div>
+                <div><dt>最大施加速度</dt><dd id="sandbox-metric-applied">—</dd></div>
+                <div><dt>安全上限</dt><dd id="sandbox-metric-limit">—</dd></div>
+                <div><dt>超速周期</dt><dd id="sandbox-metric-overspeed">—</dd></div>
+                <div><dt>碰撞周期</dt><dd id="sandbox-metric-collision">—</dd></div>
+                <div><dt>最小障碍净距</dt><dd id="sandbox-metric-distance">—</dd></div>
+              </dl>
+            </div>
+            <div class="sandbox-plot">
+              <div class="section-title"><div><p class="eyebrow">TRAJECTORY</p><h3>运动轨迹证据</h3></div><span class="muted">蓝线=实际位移 · 红点=碰撞</span></div>
+              <canvas id="sandbox-canvas" width="720" height="260" aria-label="机器人运动轨迹图"></canvas>
+            </div>
+          </section>
+          <section class="sandbox-events">
+            <div class="section-title"><div><p class="eyebrow">EVENTS</p><h3>发生了什么</h3></div><span id="sandbox-event-count" class="pill">0 个事件</span></div>
+            <div class="sandbox-table-wrap"><table class="sandbox-table"><thead><tr><th>时间</th><th>严重程度</th><th>事件</th><th>测量证据</th></tr></thead><tbody id="sandbox-events"></tbody></table></div>
+          </section>
+          <section id="sandbox-jev-result" class="sandbox-jev-result" hidden>
+            <div class="section-title"><div><p class="eyebrow">JEV EVIDENCE REVIEW</p><h3>Jev 对仿真证据的复核</h3></div><span id="sandbox-jev-status" class="pill">未调用</span></div>
+            <div class="sandbox-jev-grid">
+              <div><span>语义标签</span><strong id="sandbox-jev-label">—</strong></div>
+              <div><span>风险倾向</span><strong id="sandbox-jev-score">—</strong></div>
+              <div><span>判断把握</span><strong id="sandbox-jev-confidence">—</strong></div>
+              <div><span>任务影响</span><strong id="sandbox-jev-impact">—</strong></div>
+              <div><span>需人工确认</span><strong id="sandbox-jev-review">—</strong></div>
+            </div>
+            <p id="sandbox-jev-explanation" class="sandbox-summary-text">—</p>
+          </section>
+          <section class="sandbox-safety-summary">
+            <div class="section-title"><div><p class="eyebrow">CHINESE SAFETY SUMMARY</p><h3>中文安全总结</h3></div><span id="sandbox-summary-state" class="pill sandbox-pill">—</span></div>
+            <p id="sandbox-safety-summary">—</p>
+            <p id="sandbox-limitations" class="muted">—</p>
+          </section>
         </div>
       </article>
     </section>
 
     <section id="panel-jev" class="workspace-panel" data-panel-section="jev" hidden>
-      <div class="panel-heading"><div><p class="eyebrow">04 / SEMANTIC ADVISOR</p><h2>Jev 语义分析</h2><p class="muted">Jev 只接收已验证事件的有界摘要，返回软证据和人工复核建议。</p></div><span class="pill">旁路建议</span></div>
+      <div class="panel-heading"><div><p class="eyebrow">03 / SEMANTIC ADVISOR</p><h2>Jev 语义分析</h2><p class="muted">Jev 只接收已验证事件的有界摘要，返回软证据和人工复核建议。</p></div><span class="pill">旁路建议</span></div>
       <article class="card jev-card"><div class="section-title"><div><h2>Jev 连接测试</h2><p class="muted jev-subtitle">Key 持久保存在本机受限目录；不会回填浏览器或写入 Git。</p></div><span id="jev-status" class="pill jev-status idle" role="status" aria-live="polite">未测试</span></div>
         <form id="jev-form" novalidate><div class="jev-form-grid"><label class="field" for="jev-api-key"><span>API Key</span><input id="jev-api-key" name="jev-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴 TypeSafe API Key"></label><div class="jev-key-options"><span id="jev-key-status" class="muted">未保存</span><button id="jev-save-key-now" class="button secondary compact" type="button">保存 / 更新 Key</button><button id="jev-forget-key" class="button secondary compact" type="button" disabled>忘记已保存 Key</button></div><label class="field" for="jev-state"><span>测试状态</span><textarea id="jev-state" name="jev-state" rows="5" spellcheck="false">已验证导航组件在短时间内收到异常高频速度指令，来源签名有效但行为可能影响安全边界。</textarea></label><div class="jev-sample-row"><label class="button secondary compact" for="jev-sample-file">加载样例文件</label><input id="jev-sample-file" type="file" accept=".txt,.log,.csv,.json,text/plain,application/json"><span id="jev-sample-feedback" class="muted">样例只在浏览器中读取，点击测试后才发送。</span></div></div><div class="jev-actions"><button id="jev-test" class="button primary" type="submit">测试连接</button><button id="jev-clear" class="button secondary" type="button">清空输入</button><span id="jev-feedback" class="muted" role="status" aria-live="polite">输入 API Key 后开始测试</span></div></form>
-        <div id="jev-result" class="jev-result" hidden aria-live="polite"><div class="sub-label">标准化判断</div><div class="jev-result-grid"><div class="jev-metric"><span>攻击类型</span><strong id="jev-label">—</strong></div><div class="jev-metric"><span>任务影响</span><strong id="jev-impact">—</strong></div><div class="jev-metric"><span>辅助评分</span><strong id="jev-score">—</strong></div><div class="jev-metric"><span>置信度</span><strong id="jev-confidence">—</strong></div><div class="jev-metric"><span>人工复核</span><strong id="jev-review">—</strong></div><div class="jev-metric"><span>模型 / 延迟</span><strong id="jev-model">—</strong></div></div><p id="jev-reason" class="muted jev-reason">—</p></div>
+        <div id="jev-result" class="jev-result" hidden aria-live="polite"><div class="sub-label">标准化判断</div><div class="jev-result-grid"><div class="jev-metric"><span>攻击类型</span><strong id="jev-label">—</strong></div><div class="jev-metric"><span>对机器人任务的影响</span><strong id="jev-impact">—</strong></div><div class="jev-metric"><span>风险倾向（0-100）</span><strong id="jev-score">—</strong></div><div class="jev-metric"><span>判断把握（0-100）</span><strong id="jev-confidence">—</strong></div><div class="jev-metric"><span>是否需要人工确认</span><strong id="jev-review">—</strong></div><div class="jev-metric"><span>服务信息（技术）</span><strong id="jev-model">—</strong></div></div><p id="jev-reason" class="muted jev-reason">—</p></div>
       </article>
       <aside class="boundary-callout"><strong>安全边界</strong><span>Jev 不能改变 SafetyStatus、速度限制、恢复门控、SAFE_STOP 或发布 /cmd_vel；网络失败时确定性 ROS 2 路径继续生效。</span></aside>
     </section>
 
     <section id="panel-research" class="workspace-panel" data-panel-section="research" hidden>
-      <div class="panel-heading"><div><p class="eyebrow">05 / SAFETY TESTING</p><h2>安全测试分析</h2><p class="muted">用生产代码运行本地测试，查看 Jev 辅助判断与事件会话层的调度结果。</p></div><button id="research-run" class="button primary" type="button">运行测试套件</button></div>
+      <div class="panel-heading"><div><p class="eyebrow">07 / SAFETY TESTING</p><h2>安全测试分析</h2><p class="muted">用生产代码运行本地测试，查看 Jev 辅助判断与事件会话层的调度结果。</p></div><button id="research-run" class="button primary" type="button">运行测试套件</button></div>
       <article class="card research-overview"><div class="research-grid"><div><span>安全路径</span><strong>确定性安全闭环 + Jev 辅助判断</strong></div><div><span>执行机制</span><strong>本地分流 · TTL/LRU · single-flight · 会话复用</strong></div><div><span>测试模式</span><strong id="research-mode">尚未运行</strong></div><div><span>在线调用</span><strong id="research-calls">—</strong></div></div><p id="research-feedback" class="muted" role="status">套件使用离线 stub，不会调用真实 API 或控制机器人。</p></article>
       <article class="card"><div class="section-title"><h2>Jev 辅助判断案例</h2><span class="pill">可重复</span></div><div class="research-table-wrap"><table class="research-table"><thead><tr><th>案例</th><th>路径</th><th>调用次数</th><th>结果</th><th>判断结论</th></tr></thead><tbody id="research-cases"><tr><td colspan="5" class="empty">点击“运行测试套件”</td></tr></tbody></table></div></article>
       <article class="card"><div class="section-title"><h2>ROS 2 防护案例映射</h2><span class="pill protection-pill">最终状态由 Guardian 决定</span></div><div class="research-table-wrap"><table class="research-table"><thead><tr><th>案例</th><th>安全状态</th><th>缓解动作</th><th>速度上限</th><th>结论</th></tr></thead><tbody id="research-protection"><tr><td colspan="5" class="empty">等待实验结果</td></tr></tbody></table></div></article>

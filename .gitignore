@@ -16,6 +16,12 @@ ros2_ws/log/
 experiments/results/
 *.bag
 *.db3
+/output/
+/.playwright-cli/
+dashboard-runtime.stdout.log
+dashboard-runtime.stderr.log
+ros2_ws/src/guardian_core/build/
+testdata/**/.git/
 
 # Editor / OS
 .vscode/

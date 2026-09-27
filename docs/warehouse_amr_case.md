@@ -64,9 +64,11 @@ Guardian 风险、状态机和缓解动作（确定性安全结论）
         ↓
 有界摘要（不包含高频原始遥测、密钥或完整日志）
         ↓
-Jev 判断攻击类型、任务影响和人工复核建议
+Jev 逐事件判断攻击类型、任务影响、风险程度和人工复核建议
         ↓
-软证据，供研究和运维界面查看
+Guardian 客观风险 60% + Jev 语义风险 40%
+        ↓
+逐事件风险分、安全分和综合评价（不改变 Guardian 硬安全状态）
 ```
 
 `experiments/warehouse_amr_jev_context.json` 就是这一摘要，可在前端的“Jev 语义分析”
@@ -86,16 +88,18 @@ Jev 不能执行以下动作：解除 `CONTAINING` 或 `SAFE_STOP`、修改 `spe
 
 ## 前端操作步骤
 
-1. 打开 `http://127.0.0.1:8088`，使用 `admin/admin` 登录。
+1. 打开 `http://127.0.0.1:8080`，使用 `admin/admin` 登录。
 2. 进入“防护实验室”，在“内置防护样例”中选择“仓储 AMR 托盘运输”，点击“导入内置样例”。
    页面会显示 `amr-07`、`A-12 → P-07`、任务阶段、两个 ROS 2 主题和三类威胁。
 3. 点击“执行防护判断”，逐步查看四条事件的验证码、风险分数、缓解动作和速度上限。
-4. 点击案例卡片中的“带入 Jev 语义分析”，页面会把有界摘要填入 Jev 状态框；也可以进入
-   “Jev 语义分析”后点击“加载样例文件”，选择 `experiments/warehouse_amr_jev_context.json`。
-5. 在确认摘要中没有密钥、原始敏感日志或不必要的高频数据后，再点击“测试连接”。
-   结果中的攻击类型、任务影响和人工复核建议属于 Jev 语义输出；防护实验室中的
-   `REPLAY`、`CONTAINING`、`ISOLATE_COMPONENT` 和 `0.15 m/s` 属于 Guardian 确定性输出。
-6. 需要改变场景时，点击“导入样例 JSON”上传回放文件，或复制回放 JSON，修改 `sequence`、`component`、`profile` 或事件
+4. 在“Jev 语义分析”页面保存 API Key，返回防护实验室后点击“运行 Jev 综合评价”。
+   系统只为通过 Guardian 校验的事件调用 Jev；`REPLAY` 事件会显示为本地拦截，不会外发。
+5. 查看每条事件的 Jev 类型、Jev 风险、置信度、Guardian 风险、综合风险、安全分和判断依据，
+   再查看整体综合风险。`CONTAINING`、`ISOLATE_COMPONENT` 和 `0.15 m/s` 仍然属于 Guardian
+   的确定性执行边界，Jev 只能提供加权语义证据和人工复核建议。
+6. 点击案例卡片中的“带入 Jev 语义分析”可以手动查看有界摘要；也可以使用
+   `experiments/warehouse_amr_jev_context.json` 做单次连接测试。
+7. 需要改变场景时，点击“导入样例 JSON”上传回放文件，或复制回放 JSON，修改 `sequence`、`component`、`profile` 或事件
    时间，再次导入。`profile=no_isolation` 可验证无法隔离时是否进入 `SAFE_STOP`。
 
 ## ROS 2 闭环仿真操作

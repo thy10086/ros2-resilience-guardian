@@ -1,0 +1,13 @@
+# Keep large or binary corpus payloads in Git LFS.
+testdata/robotics-security-mini/**/*.tar.gz filter=lfs diff=lfs merge=lfs -text
+testdata/robotics-security-mini/**/*.hdf5 filter=lfs diff=lfs merge=lfs -text
+testdata/robotics-security-mini/**/*.mp4 filter=lfs diff=lfs merge=lfs -text
+testdata/robotics-security-mini/**/*.safetensors filter=lfs diff=lfs merge=lfs -text
+testdata/robotics-security-mini/**/*.parquet filter=lfs diff=lfs merge=lfs -text
+testdata/robotics-security-mini/**/*.png filter=lfs diff=lfs merge=lfs -text
+testdata/robotics-security-mini/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+testdata/robotics-security-mini/**/*.jpeg filter=lfs diff=lfs merge=lfs -text
+testdata/robotics-security-mini/**/*.gif filter=lfs diff=lfs merge=lfs -text
+testdata/robotics-security-mini/**/*.webp filter=lfs diff=lfs merge=lfs -text
+testdata/robotics-security-mini/**/*.obj filter=lfs diff=lfs merge=lfs -text
+testdata/robotics-security-mini/**/*.stl filter=lfs diff=lfs merge=lfs -text

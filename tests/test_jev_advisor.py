@@ -42,31 +42,42 @@ def context(*, sequence=1, source_verified=True, summary="high-rate command anom
     )
 
 
-def valid_response():
+def response_for(
+    *,
+    attack="unsafe_command",
+    attack_confidence=0.92,
+    attack_probability=0.92,
+    impact="critical",
+    impact_confidence=0.88,
+    impact_probability=0.90,
+    review=1.0,
+):
     return json.dumps(
         {
             "model": "jev-1.13.0",
             "answers": {
                 "attack_type": {
                     "type": "choice",
-                    "choice": "unsafe_command",
-                    "confidence": 0.92,
+                    "choice": attack,
+                    "confidence": attack_confidence,
                     "probabilities": {
-                        "unsafe_command": 0.92,
-                        "flooding": 0.05,
-                        "replay": 0.03,
+                        attack: attack_probability,
                     },
                 },
                 "mission_impact": {
                     "type": "choice",
-                    "choice": "critical",
-                    "confidence": 0.88,
-                    "probabilities": {"low": 0.02, "medium": 0.08, "critical": 0.90},
+                    "choice": impact,
+                    "confidence": impact_confidence,
+                    "probabilities": {impact: impact_probability},
                 },
-                "needs_human_review": {"type": "noul", "noul": 1.0},
+                "needs_human_review": {"type": "noul", "noul": review},
             },
         }
     ).encode("utf-8")
+
+
+def valid_response():
+    return response_for()
 
 
 def test_disabled_advisor_is_a_noop_without_calling_the_network():
@@ -96,7 +107,7 @@ def test_verified_context_maps_typed_answers_and_redacts_summary():
     assert result.label == "unsafe_command"
     assert result.mission_impact == "critical"
     assert result.needs_human_review is True
-    assert result.score == 0.92
+    assert result.score == 1.0
     assert result.confidence == 0.9
     audit = result.audit_payload()
     assert "secret" not in json.dumps(audit).lower()
@@ -106,6 +117,102 @@ def test_verified_context_maps_typed_answers_and_redacts_summary():
     assert "raw-secret" not in request
     assert '"model":"jev-latest"' in request
     assert '"questions"' in request
+
+
+def test_category_probabilities_are_evidence_not_risk_severity():
+    high_severity = FakeTransport(
+        response=response_for(
+            attack="unsafe_command",
+            attack_confidence=0.01,
+            attack_probability=0.01,
+            impact="low",
+            impact_confidence=0.01,
+            impact_probability=0.01,
+            review=0.0,
+        )
+    )
+    high_severity_result = JevSemanticAdvisor(
+        JevAdvisorConfig(enabled=True, api_key="secret"), transport=high_severity
+    ).evaluate(context())
+
+    low_severity = FakeTransport(
+        response=response_for(
+            attack="benign",
+            attack_confidence=0.99,
+            attack_probability=0.99,
+            impact="low",
+            impact_confidence=0.99,
+            impact_probability=0.99,
+            review=0.0,
+        )
+    )
+    low_severity_result = JevSemanticAdvisor(
+        JevAdvisorConfig(enabled=True, api_key="secret"), transport=low_severity
+    ).evaluate(context())
+
+    assert high_severity_result.score == 1.0
+    assert low_severity_result.score == 0.0
+    assert high_severity_result.score > low_severity_result.score
+
+
+def test_risk_score_is_monotonic_for_attack_impact_and_review_signals():
+    def evaluate(**kwargs):
+        transport = FakeTransport(response=response_for(**kwargs))
+        return JevSemanticAdvisor(
+            JevAdvisorConfig(enabled=True, api_key="secret"), transport=transport
+        ).evaluate(context())
+
+    benign = evaluate(attack="benign", impact="low", review=0.0, attack_probability=0.01, impact_probability=0.01)
+    replay = evaluate(attack="replay", impact="low", review=0.0, attack_probability=0.01, impact_probability=0.01)
+    unsafe = evaluate(
+        attack="unsafe_command", impact="low", review=0.0,
+        attack_probability=0.01, impact_probability=0.01,
+    )
+    medium = evaluate(attack="benign", impact="medium", review=0.0, attack_probability=0.01, impact_probability=0.01)
+    critical = evaluate(attack="benign", impact="critical", review=0.0, attack_probability=0.01, impact_probability=0.01)
+    review = evaluate(attack="benign", impact="low", review=1.0, attack_probability=0.01, impact_probability=0.01)
+
+    assert benign.score < replay.score < unsafe.score
+    assert benign.score < medium.score < critical.score
+    assert review.needs_human_review is True
+    assert review.score > benign.score
+
+
+def test_probability_and_confidence_evidence_raise_confidence_without_raising_score():
+    high_evidence = FakeTransport(
+        response=response_for(
+            attack="replay",
+            attack_confidence=0.95,
+            attack_probability=0.95,
+            impact="medium",
+            impact_confidence=0.95,
+            impact_probability=0.95,
+            review=0.0,
+        )
+    )
+    low_evidence = FakeTransport(
+        response=response_for(
+            attack="replay",
+            attack_confidence=0.20,
+            attack_probability=0.20,
+            impact="medium",
+            impact_confidence=0.20,
+            impact_probability=0.20,
+            review=0.0,
+        )
+    )
+
+    high = JevSemanticAdvisor(
+        JevAdvisorConfig(enabled=True, api_key="secret"), transport=high_evidence
+    ).evaluate(context())
+    low = JevSemanticAdvisor(
+        JevAdvisorConfig(enabled=True, api_key="secret"), transport=low_evidence
+    ).evaluate(context())
+
+    assert high.score == low.score
+    assert high.confidence > low.confidence
+    assert high.confidence == 0.95
+    assert low.confidence == 0.2
 
 
 def test_rejected_source_is_never_sent_to_jev():
