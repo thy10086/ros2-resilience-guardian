@@ -550,3 +550,12 @@ python3 experiments/run_guardian_scenario.py --scenario 3b
 - 包含提交：`15dbd31 ui: align dashboard with safety testing`、`f70aadc feat: add industrial code safety inspection`，以及本条交接记录提交。
 - 验证：WSL2 全量 `python3 -m pytest -q tests` 为 `220 passed`；ROS 2 Jazzy `colcon build --symlink-install --packages-select guardian_interfaces guardian_core` 两包成功；前端 `node --check`、`git diff --check` 通过；`.env` 仍由 Git 跟踪且没有非空凭据配置。
 - 仓库边界：远端地址为 `https://github.com/thy10086/ros2-resilience-guardian.git`，URL 不包含嵌入式凭据；本次不输出、不写入或提交任何 API Key。
+
+### 2026-09-28 — Standalone Codex project checkout
+
+- 项目目录：Windows `C:\Users\thy\Documents\Codex\ros2-resilience-guardian`，对应 WSL 路径 `/mnt/c/Users/thy/Documents/Codex/ros2-resilience-guardian`。
+- 目的：将项目从聊天工作目录中独立出来，后续前端、ROS 2 核心、实验样例、测试集和文档增删均以该目录为准；未复制 `build/`、`install/`、`log/` 等旧运行产物。
+- 导航文档：新增 `PROJECT_GUIDE.md`，说明目录职责、前后端修改位置、工业样例入口、测试命令和 Git 约束。
+- 运行状态：新目录已用 ROS 2 Humble `colcon build --symlink-install` 构建成功；Dashboard 由新目录源码运行在 `http://127.0.0.1:8088`，Guardian 和 AMR 仿真节点已启动。
+- 验证：新目录执行 `python3 -m pytest -q tests` 为 `300 passed`；Git HEAD 为 `a5604c4`，353 个 Git LFS 对象已检出。
+- 边界：本次只整理项目目录和交接文档，不改变安全判定、Jev 权限、机器人控制边界或测试集内容。
