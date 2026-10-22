@@ -16,6 +16,7 @@ class DashboardState:
     def __init__(self, timeline_limit: int = 100) -> None:
         self._lock = Lock()
         self._timeline: deque[dict[str, Any]] = deque(maxlen=timeline_limit)
+        self._high_water: dict[str, tuple[float, int, int]] = {}
         self._state: dict[str, Any] = {
             "updated_at": None,
             "risk": {
@@ -44,6 +45,21 @@ class DashboardState:
                 "mission_allowed": False,
                 "reason": "等待 Guardian ROS 2 状态",
                 "plan_id": "",
+            },
+            "ack": {
+                "timestamp": None,
+                "profile_id": "",
+                "command_epoch": 0,
+                "transmission_id": 0,
+                "feedback_sequence": 0,
+                "adapter_id": "",
+                "plan_id": "",
+                "action": "NONE",
+                "components": [],
+                "accepted": False,
+                "active": False,
+                "safe_stop_confirmed": False,
+                "reason": "等待执行适配器确认",
             },
             "simulation": {
                 "robot_id": "amr-07",
@@ -85,6 +101,10 @@ class DashboardState:
     def update_mitigation(self, message: Any) -> None:
         payload = {
             "timestamp": float(message.timestamp),
+            "profile_id": str(getattr(message, "profile_id", "")),
+            "command_epoch": int(getattr(message, "command_epoch", 0)),
+            "transmission_id": int(getattr(message, "transmission_id", 0)),
+            "adapter_id": str(getattr(message, "adapter_id", "")),
             "plan_id": str(message.plan_id),
             "action": str(message.action),
             "components": sorted(str(item) for item in message.components),
@@ -96,6 +116,10 @@ class DashboardState:
     def update_safety(self, message: Any) -> None:
         payload = {
             "timestamp": float(message.timestamp),
+            "profile_id": str(getattr(message, "profile_id", "")),
+            "command_epoch": int(getattr(message, "command_epoch", 0)),
+            "transmission_id": int(getattr(message, "transmission_id", 0)),
+            "adapter_id": str(getattr(message, "adapter_id", "")),
             "state": str(message.state),
             "speed_limit": float(message.speed_limit),
             "mission_allowed": bool(message.mission_allowed),
@@ -103,6 +127,24 @@ class DashboardState:
             "plan_id": str(message.plan_id),
         }
         self._update("safety", payload, payload["timestamp"])
+
+    def update_ack(self, message: Any) -> None:
+        payload = {
+            "timestamp": float(message.timestamp),
+            "profile_id": str(getattr(message, "profile_id", "")),
+            "command_epoch": int(getattr(message, "command_epoch", 0)),
+            "transmission_id": int(getattr(message, "transmission_id", 0)),
+            "feedback_sequence": int(getattr(message, "feedback_sequence", 0)),
+            "adapter_id": str(getattr(message, "adapter_id", "")),
+            "plan_id": str(getattr(message, "plan_id", "")),
+            "action": str(getattr(message, "action", "NONE")),
+            "components": sorted(str(item) for item in getattr(message, "components", [])),
+            "accepted": bool(getattr(message, "accepted", False)),
+            "active": bool(getattr(message, "active", False)),
+            "safe_stop_confirmed": bool(getattr(message, "safe_stop_confirmed", False)),
+            "reason": str(getattr(message, "reason", "")),
+        }
+        self._update("ack", payload, payload["timestamp"])
 
     def update_simulation(self, message: Any) -> None:
         """Cache bounded simulator telemetry without flooding the timeline."""
@@ -133,9 +175,21 @@ class DashboardState:
 
     def _update(self, category: str, payload: dict[str, Any], timestamp: float) -> None:
         with self._lock:
-            self._state[category] = payload
-            self._state["updated_at"] = timestamp
-            self._timeline.appendleft({"category": category, **payload})
+            order = (
+                timestamp,
+                int(payload.get("command_epoch", 0)),
+                int(payload.get("transmission_id", 0)),
+            )
+            previous = self._high_water.get(category)
+            stale = previous is not None and order < previous
+            if not stale:
+                self._high_water[category] = order
+                self._state[category] = payload
+                self._state["updated_at"] = timestamp
+            timeline_item = {"category": category, **payload}
+            if stale:
+                timeline_item["stale"] = True
+            self._timeline.appendleft(timeline_item)
             self._state["timeline"] = list(self._timeline)
 
     def snapshot(self) -> dict[str, Any]:

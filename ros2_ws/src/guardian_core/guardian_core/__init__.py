@@ -2,6 +2,7 @@ from .audit import AuditLogger
 from .models import (
     ActionType,
     AttackEvent,
+    ContainmentPolicy,
     GuardianConfig,
     MitigationPlan,
     RiskAssessment,
@@ -9,6 +10,12 @@ from .models import (
     SafetyState,
     VerificationCode,
 )
+from .config import (
+    DEFAULT_CONTAINMENT_POLICY_JSON,
+    DEFAULT_SECURITY_PROFILE_JSON,
+    parse_containment_policies,
+)
+from .security_profile import ResourcePolicy, SecurityProfile, parse_security_profile
 from .planner import MitigationPlanner
 from .registry import AttackRegistry
 from .risk_engine import RiskEngine
@@ -72,7 +79,7 @@ from .jev_incident_session import (
 )
 
 __all__ = [
-    "ActionType", "AttackEvent", "AuditLogger", "GuardianConfig", "MitigationPlan",
+    "ActionType", "AttackEvent", "AuditLogger", "ContainmentPolicy", "GuardianConfig", "MitigationPlan",
     "MitigationPlanner", "RiskAssessment", "RiskEngine", "SafetyDecision", "SafetyState",
     "AttackRegistry", "SafetySupervisor", "VerificationCode", "EventVerifier",
     "EvidenceBundle", "EvidenceFusion", "FusionDecision", "GraphEdge", "GraphNode",
@@ -90,5 +97,7 @@ __all__ = [
     "JevEfficientAssessment", "JevEfficientJudge", "JevEfficiencyMetrics",
     "JevEfficiencyPolicy", "JevRoute",
     "JevIncidentSession", "JevSessionConfig", "JevSessionDecision",
-    "JevSessionRoute", "JevSessionState",
+    "JevSessionRoute", "JevSessionState", "DEFAULT_CONTAINMENT_POLICY_JSON",
+    "DEFAULT_SECURITY_PROFILE_JSON", "parse_containment_policies",
+    "ResourcePolicy", "SecurityProfile", "parse_security_profile",
 ]

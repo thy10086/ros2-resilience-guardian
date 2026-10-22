@@ -9,7 +9,14 @@ body { margin: 0; min-width: 320px; background: var(--bg); color: var(--text); f
 .auth-feedback { color: var(--muted); font-size: 13px; }
 .auth-feedback.error { color: var(--red); }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
-.workspace-nav { display: flex; gap: 0; margin: 0 0 24px; padding: 0; border-bottom: 1px solid var(--line); background: transparent; }
+.workspace-nav { display: flex; flex-direction: column; gap: 0; margin: 0 0 24px; padding: 0; border-bottom: 1px solid var(--line); background: transparent; }
+.workspace-groups, .workspace-subnav { display: flex; align-items: center; gap: 4px; }
+.workspace-groups { border-bottom: 1px solid var(--line); }
+.workspace-group { flex: 0 0 auto; padding: 12px 18px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font: inherit; font-weight: 700; cursor: pointer; }
+.workspace-group.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+.workspace-group:hover, .workspace-group:focus-visible { background: var(--panel-2); color: var(--text); }
+.workspace-group:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
+.workspace-hint { color: var(--muted); font-size: 12px; padding: 8px; }
 .workspace-tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 11px 15px 10px; color: var(--muted); background: transparent; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .workspace-tab:hover, .workspace-tab:focus-visible { color: var(--text); background: var(--panel-2); }
 .workspace-tab.active { color: var(--text); background: transparent; border-bottom-color: var(--cyan); }
@@ -511,4 +518,135 @@ body { background: var(--bg); }
   .dataset-security-toolbar { flex-direction: column; }
   .dataset-security-upload-options { grid-template-columns: 1fr; }
   .dataset-security-detail-grid { grid-template-columns: 1fr; }
+}
+
+.ros-graph-card { margin-top: 16px; }
+.ros-graph-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; }
+.ros-graph-controls .field { min-width: 320px; flex: 1 1 420px; }
+.ros-graph-controls select { width: 100%; height: 43px; border: 1px solid var(--line); border-radius: 3px; padding: 0 12px; background: var(--panel); color: var(--text); font: inherit; }
+.ros-graph-input-summary { display: grid; gap: 9px; margin-top: 16px; padding: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.ros-graph-input-summary .sub-label { margin: 0; }
+.ros-graph-input-summary strong { display: block; margin-top: 4px; font-size: 14px; }
+.ros-graph-file-list { display: grid; gap: 4px; max-height: 150px; margin: 0; padding: 10px 12px; overflow: auto; border: 1px solid var(--line); background: var(--panel-2); list-style: none; }
+.ros-graph-file-list li { display: flex; justify-content: space-between; gap: 16px; color: var(--muted); font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+.ros-graph-file-list li > span:last-child { flex: 0 0 auto; }
+#ros-graph-feedback { margin-top: 12px; }
+#ros-graph-feedback.error { color: var(--red); }
+#ros-graph-feedback.success { color: var(--cyan); }
+.ros-graph-boundary { display: flex; gap: 10px; margin-top: 14px; padding: 11px 12px; border-left: 2px solid var(--line); background: var(--panel-2); color: var(--muted); font-size: 12px; line-height: 1.65; }
+.ros-graph-boundary strong { flex: 0 0 auto; color: var(--text); }
+.ros-graph-decision { margin-top: 18px; padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.ros-graph-decision-main { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.ros-graph-decision h3 { margin: 4px 0 0; font-size: 20px; }
+.ros-graph-decision h3 strong { color: var(--cyan); }
+.ros-graph-next-step { max-width: 780px; margin-top: 8px; color: var(--muted); line-height: 1.6; }
+.ros-graph-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0 18px; margin-top: 14px; }
+.ros-graph-summary span { min-width: 0; padding: 9px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.ros-graph-summary strong { display: block; margin-top: 3px; color: var(--text); font-size: 16px; }
+.ros-graph-context { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 18px; margin-top: 8px; }
+.ros-graph-context > div { min-width: 0; padding: 9px 0; border-top: 1px solid var(--line); }
+.ros-graph-context span { display: block; color: var(--muted); font-size: 11px; }
+.ros-graph-context strong { display: block; margin-top: 4px; color: var(--text); font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+.ros-graph-assurance, .ros-graph-visual, .ros-graph-findings-section, .ros-graph-paths-section { margin-top: 21px; padding-top: 18px; border-top: 1px solid var(--line); }
+.ros-graph-assurance h3, .ros-graph-visual h3, .ros-graph-findings-section h3, .ros-graph-paths-section h3 { margin: 3px 0 0; font-size: 17px; }
+.ros-graph-assurance-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 18px; }
+.ros-graph-assurance-grid > div { min-width: 0; min-height: 64px; padding: 10px 0; border-top: 1px solid var(--line); }
+.ros-graph-assurance-grid span { display: block; color: var(--muted); font-size: 11px; }
+.ros-graph-assurance-grid strong { display: block; margin-top: 6px; color: var(--text); font-size: 14px; overflow-wrap: anywhere; }
+.ros-graph-boundary-text { margin-top: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.ros-graph-svg-wrap { overflow-x: auto; border: 1px solid var(--line); background: var(--panel); }
+.ros-graph-svg { display: block; width: 960px; min-width: 960px; height: 480px; color: var(--muted); font: 11px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.ros-graph-svg-empty, .ros-graph-svg-note { fill: var(--muted); font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 14px; }
+.ros-graph-svg-note { font-size: 11px; }
+.ros-graph-svg-edge line { stroke: #aeb6bc; stroke-width: 1.2; }
+.ros-graph-svg-edge text { fill: var(--muted); font-size: 10px; text-anchor: middle; }
+.ros-graph-svg-edge.danger line { stroke: var(--red); stroke-width: 2.4; }
+.ros-graph-svg-edge.danger text { fill: var(--red); font-weight: 700; }
+.ros-graph-svg marker path { fill: #aeb6bc; }
+.ros-graph-svg-edge.danger marker path { fill: var(--red); }
+.ros-graph-svg-node rect { fill: var(--panel); stroke: #aeb6bc; stroke-width: 1.2; }
+.ros-graph-svg-node text { fill: var(--text); font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 12px; }
+.ros-graph-svg-node text.kind { fill: var(--muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 9px; }
+.ros-graph-svg-node.file rect { stroke: #8c969e; }
+.ros-graph-svg-node.code rect { stroke: var(--blue); }
+.ros-graph-svg-node.resource rect { stroke: #8a6a20; }
+.ros-graph-svg-node.topic rect { stroke: var(--cyan); }
+.ros-graph-svg-node.actuator rect { fill: #fff0f1; stroke: var(--red); }
+.ros-graph-svg-node.trust rect { fill: #fff7e5; stroke: var(--amber); }
+.ros-graph-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 3px; background: var(--panel); }
+.ros-graph-table { width: 100%; min-width: 1040px; border-collapse: collapse; font-size: 12px; }
+.ros-graph-table th, .ros-graph-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.ros-graph-table th { color: var(--muted); background: var(--panel-2); }
+.ros-graph-table tr:last-child td { border-bottom: 0; }
+.ros-graph-table td { color: var(--text); }
+.ros-graph-table td.critical { color: var(--red); font-weight: 800; }
+.ros-graph-table td.high, .ros-graph-table td.medium { color: var(--amber); font-weight: 800; }
+.ros-graph-table td.low { color: var(--cyan); font-weight: 800; }
+.ros-graph-table .code-security-evidence { max-width: 270px; }
+.ros-graph-paths { display: grid; gap: 8px; margin: 0; padding: 0 0 0 24px; }
+.ros-graph-paths li { padding: 9px 0 9px 4px; border-bottom: 1px solid var(--line); color: var(--text); }
+.ros-graph-paths li:last-child { border-bottom: 0; }
+.ros-graph-path-route { display: block; line-height: 1.6; overflow-wrap: anywhere; }
+.ros-graph-path-route span { color: var(--muted); }
+.ros-graph-paths small { display: block; margin-top: 4px; color: var(--muted); font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+
+@media (max-width: 900px) {
+  .ros-graph-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ros-graph-context, .ros-graph-assurance-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+  .ros-graph-controls { align-items: stretch; flex-direction: column; }
+  .ros-graph-controls .field { min-width: 0; width: 100%; }
+  .ros-graph-controls .button, .ros-graph-controls .file-input-visible { width: 100%; }
+  .ros-graph-file-list li { align-items: start; flex-direction: column; gap: 2px; }
+  .ros-graph-decision-main { flex-direction: column; }
+  .ros-graph-summary, .ros-graph-context, .ros-graph-assurance-grid { grid-template-columns: 1fr; }
+  .ros-graph-boundary { align-items: start; flex-direction: column; gap: 4px; }
+}
+:root { --recovery-rule: #dfe3e6; }
+.agents-card { margin-bottom: 20px; }
+.agents-config { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 14px; margin-top: 18px; }
+.agents-config .field { min-width: 0; }
+.agents-input-controls { margin-top: 18px; }
+.agents-boundary { line-height: 1.7; overflow-wrap: anywhere; }
+.agents-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 18px 0; }
+.agents-detail-grid table { min-width: 370px; }
+.agents-detail-grid caption { text-align: left; padding: 10px 12px; font-weight: 600; }
+@media (max-width: 1000px) { .agents-config { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .agents-config, .agents-detail-grid { grid-template-columns: minmax(0, 1fr); } }
+.recovery-check-card, .recovery-evaluation-card { margin-bottom: 20px; }
+.recovery-flow { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 0 20px; }
+.recovery-flow span { padding: 7px 10px; border: 1px solid var(--recovery-rule); border-radius: 6px; font-size: 12px; }
+.recovery-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 14px; }
+.recovery-controls .field { min-width: 230px; flex: 1; }
+.recovery-controls select { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--recovery-rule); border-radius: 3px; color: var(--text); background: #fff; }
+.recovery-conclusion { line-height: 1.7; border-left: 3px solid #68776c; padding: 9px 14px; background: #f1f4f0; }
+.recovery-metrics { margin: 18px 0; }
+.recovery-table { min-width: 680px; }
+.recovery-table caption { text-align: left; padding: 10px 12px; font-weight: 600; }
+.recovery-binding { max-width: 350px; overflow-wrap: anywhere; font-family: ui-monospace, monospace; font-size: 11px; }
+.recovery-details { margin-top: 16px; }
+.recovery-details summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+.recovery-details p { line-height: 1.7; overflow-wrap: anywhere; }
+.recovery-details summary:focus-visible { outline: 2px solid #68776c; outline-offset: 3px; }
+.research-view-nav, .workflow-next { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.research-view-nav { margin: 18px 0 10px; }
+.research-view-nav .active { color: var(--cyan); border-color: var(--cyan); background: #eaf3f0; }
+.workspace-view-help { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+.workflow-next { padding: 12px 0; }
+.workflow-next span, .workflow-next small { color: var(--muted); font-size: 12px; }
+.workflow-input-summary { margin: 14px 0 8px; padding: 10px 12px; border-left: 3px solid var(--cyan); background: var(--panel-2); overflow-wrap: anywhere; }
+@media (max-width: 620px) {
+  .workspace-groups { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; }
+  .workspace-group { padding: 10px 3px; font-size: 12px; }
+  .workspace-subnav { flex-wrap: wrap; }
+  .workspace-hint { flex-basis: 100%; }
+  .workflow-next { align-items: stretch; }
+  .workflow-next small { flex-basis: 100%; }
+}
+@media (max-width: 620px) {
+  .recovery-controls { align-items: stretch; }
+  .recovery-controls .field { min-width: 0; flex-basis: 100%; }
+  .recovery-controls .button { flex: 1; }
 }

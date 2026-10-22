@@ -41,6 +41,81 @@ def test_dashboard_state_tracks_latest_messages_and_timeline():
     assert snapshot["timeline"][0]["category"] == "safety"
 
 
+def test_dashboard_state_exposes_ack_and_rejects_late_messages():
+    state = DashboardState(timeline_limit=10)
+    state.update_mitigation(SimpleNamespace(
+        timestamp=10.0,
+        profile_id="p",
+        command_epoch=2,
+        transmission_id=3,
+        adapter_id="a",
+        plan_id="plan-new",
+        action="SAFE_STOP",
+        components=[],
+        requires_safe_stop=True,
+        reason="stop",
+    ))
+    state.update_safety(SimpleNamespace(
+        timestamp=10.0,
+        profile_id="p",
+        command_epoch=2,
+        transmission_id=3,
+        adapter_id="a",
+        state="SAFE_STOP",
+        speed_limit=0.0,
+        mission_allowed=False,
+        reason="stop",
+        plan_id="plan-new",
+    ))
+    state.update_ack(SimpleNamespace(
+        timestamp=10.1,
+        profile_id="p",
+        command_epoch=2,
+        transmission_id=3,
+        feedback_sequence=4,
+        adapter_id="a",
+        plan_id="plan-new",
+        action="SAFE_STOP",
+        components=[],
+        accepted=True,
+        active=True,
+        safe_stop_confirmed=True,
+        reason="applied",
+    ))
+
+    state.update_mitigation(SimpleNamespace(
+        timestamp=5.0,
+        profile_id="p",
+        command_epoch=1,
+        transmission_id=1,
+        adapter_id="a",
+        plan_id="old-plan",
+        action="NONE",
+        components=[],
+        requires_safe_stop=False,
+        reason="late",
+    ))
+    state.update_safety(SimpleNamespace(
+        timestamp=5.0,
+        profile_id="p",
+        command_epoch=1,
+        transmission_id=1,
+        adapter_id="a",
+        state="NORMAL",
+        speed_limit=0.35,
+        mission_allowed=True,
+        reason="late",
+        plan_id="old-plan",
+    ))
+
+    snapshot = state.snapshot()
+    assert snapshot["mitigation"]["plan_id"] == "plan-new"
+    assert snapshot["safety"]["state"] == "SAFE_STOP"
+    assert snapshot["ack"]["feedback_sequence"] == 4
+    assert any(item["category"] == "ack" for item in snapshot["timeline"])
+    assert any(item["category"] == "mitigation" and item.get("stale") for item in snapshot["timeline"])
+
+
 def test_dashboard_state_tracks_bounded_simulation_telemetry_without_timeline_flooding():
     state = DashboardState(timeline_limit=1)
     state.update_simulation(SimpleNamespace(data='{"phase":"DOCK_TO_PALLET","x":1.25,"actual_speed":0.0,"pallet_loaded":true,"attack_mode":"speed_abuse","mitigation_components":["left_wheels"],"extra":"discard"}'))

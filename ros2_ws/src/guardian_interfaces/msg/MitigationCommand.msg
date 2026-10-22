@@ -1,6 +1,11 @@
 float64 timestamp
+string profile_id
+uint64 command_epoch
+uint64 transmission_id
+string adapter_id
 string plan_id
 string action
 string[] components
 bool requires_safe_stop
 string reason
+string signature

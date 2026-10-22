@@ -2,14 +2,21 @@
 <package format="3">
   <name>guardian_core</name>
   <version>0.1.0</version>
-  <description>Mission-aware zero-trust resilience guardian for ROS 2 robots.</description>
+  <description>Evidence and context-bound safe recovery for ROS 2 robots.</description>
   <maintainer email="thy10086@users.noreply.github.com">thy10086</maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
   <depend>rclpy</depend>
+  <depend>rcl_interfaces</depend>
   <depend>guardian_interfaces</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
+  <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
+  <test_depend>launch_testing</test_depend>
+  <test_depend>launch_testing_ros</test_depend>
   <export><build_type>ament_python</build_type></export>
 </package>

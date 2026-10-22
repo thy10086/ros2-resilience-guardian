@@ -8,7 +8,10 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/AttackEvent.msg"
   "msg/RiskState.msg"
   "msg/MitigationCommand.msg"
+  "msg/MitigationAck.msg"
   "msg/SafetyStatus.msg"
+  "msg/RecoveryTelemetry.msg"
+  "msg/IndependentObservation.msg"
 )
 
 ament_export_dependencies(rosidl_default_runtime)

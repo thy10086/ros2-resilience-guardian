@@ -28,11 +28,15 @@ const CODE_SECURITY_INSPECT_ENDPOINT = '/api/code-security/inspect';
 const CODE_SECURITY_JEV_ENDPOINT = '/api/code-security/jev-evaluate';
 const SANDBOX_SAMPLES_ENDPOINT = '/api/sandbox/samples';
 const SANDBOX_RUN_ENDPOINT = '/api/sandbox/run';
+const ROS_GRAPH_SAMPLES_ENDPOINT = '/api/ros-graph/samples';
+const ROS_GRAPH_INSPECT_ENDPOINT = '/api/ros-graph/inspect';
 const DATASET_SECURITY_SCAN_ENDPOINT = '/api/dataset-security/scan';
 const RESEARCH_ENDPOINT = '/api/research/suite';
 const SIMULATION_CONTROL_ENDPOINT = '/api/simulation/control';
 const PROTECTION_RECENT_RESULT_KEY = 'guardian.protection.recent-result.v1';
 const MAX_SAMPLE_BYTES = 64 * 1024;
+const MAX_ROS_GRAPH_FILES = 128;
+const MAX_ROS_GRAPH_TOTAL_BYTES = 512 * 1024;
 const MAX_SAMPLE_CHARS = 4096;
 let authenticated = false;
 let jevKeySaved = false;
@@ -44,11 +48,16 @@ let codeSecuritySamples = [];
 let codeSecuritySource = '';
 let codeSecurityFilename = 'dashboard-input.py';
 let codeSecurityReport = null;
+let codeSecurityGeneration = 0;
 let sandboxSamples = [];
 let sandboxSource = '';
 let sandboxFilename = 'dashboard-sandbox.py';
 let sandboxKind = 'python';
 let sandboxReport = null;
+let rosGraphSamples = [];
+let rosGraphFiles = [];
+let rosGraphReport = null;
+let rosGraphGeneration = 0;
 let datasetReport = null;
 let datasetUploadFiles = [];
 let datasetUploadGeneration = 0;
@@ -57,6 +66,7 @@ let protectionImportedFile = null;
 let simulationCommandBusy = false;
 
 function showLogin(message = '本地实验账号：admin / admin') {
+  window.AgentReviewDashboard.reset();
   authenticated = false;
   jevKeySaved = false;
   updateJevKeyStatus(false);
@@ -72,6 +82,7 @@ function showApp() {
   authenticated = true;
   $('auth-gate').hidden = true;
   $('app-shell').hidden = false;
+  window.RecoveryDashboard.load();
 }
 
 function updateJevKeyStatus(saved) {
@@ -725,10 +736,13 @@ function setCodeSecurityFileName(message, kind = '') {
 }
 
 function setCodeSecuritySource(source, label = '代码已载入') {
+  codeSecurityGeneration += 1;
   codeSecuritySource = String(source || '');
   codeSecurityReport = null;
   $('code-security-source').value = codeSecuritySource;
   $('code-security-run').disabled = !codeSecuritySource.trim();
+  $('code-security-to-graph').disabled = !codeSecuritySource.trim();
+  $('code-security-to-agents').disabled = !codeSecuritySource.trim();
   $('code-security-jev-run').disabled = true;
   resetCodeSecurityJevEvaluation();
   $('code-security-result').hidden = true;
@@ -741,8 +755,10 @@ function renderCodeSecuritySamples(payload) {
   select.innerHTML = codeSecuritySamples.length
     ? codeSecuritySamples.map((item) => `<option value="${esc(item.id)}">${esc(item.title)}</option>`).join('')
     : '<option value="">暂无内置工业样例</option>';
-  if (codeSecuritySamples.length) setCodeSecuritySource('', '请选择“导入内置样例”或上传 Python 文件');
-  else setCodeSecurityFeedback('内置工业样例读取失败，请上传 Python 文件。', 'error');
+  if (!codeSecuritySource.trim()) {
+    if (codeSecuritySamples.length) setCodeSecuritySource('', '请选择“导入内置样例”或上传 Python 文件');
+    else setCodeSecurityFeedback('内置工业样例读取失败，请上传 Python 文件。', 'error');
+  }
 }
 
 async function loadCodeSecuritySamples() {
@@ -865,7 +881,12 @@ function renderCodeSecurityJevEvaluation(payload) {
 async function runCodeSecurityInspection() {
   const source = $('code-security-source').value;
   if (!source.trim()) return setCodeSecurityFeedback('请先导入或粘贴 ROS 2 Python 控制代码。', 'error');
+  const current = ++codeSecurityGeneration;
   const button = $('code-security-run');
+  codeSecurityReport = null;
+  $('code-security-result').hidden = true;
+  $('code-security-jev-run').disabled = true;
+  resetCodeSecurityJevEvaluation();
   button.disabled = true;
   setCodeSecurityFeedback('正在进行只读安全检查…');
   try {
@@ -876,15 +897,357 @@ async function runCodeSecurityInspection() {
       body: JSON.stringify({source, filename: codeSecurityFilename, profile: 'conveyor_robot_arm'}),
     });
     const payload = await parseJsonResponse(response);
+    if (current !== codeSecurityGeneration) return;
     if (!response.ok || payload?.status !== 'OK' || !payload.report) throw new Error(payload?.error?.message || `HTTP ${response.status}`);
     codeSecuritySource = source;
     renderCodeSecurityReport(payload.report);
     const verdict = payload.report.summary?.verdict || 'REVIEW';
     setCodeSecurityFeedback(`安全检查完成：${verdict}。已生成 Guardian 防护映射。`, verdict === 'PASS' ? 'success' : 'error');
   } catch (error) {
-    setCodeSecurityFeedback(`安全检查失败：${redactJevMessage(error.message)}`, 'error');
+    if (current === codeSecurityGeneration) setCodeSecurityFeedback(`安全检查失败：${redactJevMessage(error.message)}`, 'error');
   } finally {
-    button.disabled = false;
+    if (current === codeSecurityGeneration) button.disabled = !$('code-security-source').value.trim();
+  }
+}
+
+const ROS_GRAPH_SEVERITY_LABELS = {
+  critical: '必须阻断',
+  high: '高风险',
+  medium: '待复核',
+  low: '低风险',
+};
+
+const ROS_GRAPH_ACTION_LABELS = {
+  SAFE_STOP: '立即停车（SAFE_STOP）',
+  ISOLATE_COMPONENT: '隔离组件（ISOLATE_COMPONENT）',
+  REVIEW_REQUIRED: '人工复核（REVIEW_REQUIRED）',
+  NONE: '无需额外动作',
+};
+
+const ROS_GRAPH_PROVENANCE_LABELS = {
+  EXTRACTED: 'EXTRACTED · AST/源码提取',
+  INFERRED: 'INFERRED · 配置推断',
+  UNSUPPORTED: 'UNSUPPORTED · 语言未覆盖',
+};
+
+function rosGraphSeverityLabel(value) {
+  return ROS_GRAPH_SEVERITY_LABELS[String(value || '').toLowerCase()] || String(value || '—');
+}
+
+function rosGraphSeverityClass(value) {
+  const severity = String(value || '').toLowerCase();
+  return Object.prototype.hasOwnProperty.call(ROS_GRAPH_SEVERITY_LABELS, severity) ? severity : 'medium';
+}
+
+function rosGraphActionLabel(value) {
+  return ROS_GRAPH_ACTION_LABELS[String(value || '')] || String(value || '—');
+}
+
+function rosGraphProvenanceLabel(value) {
+  return ROS_GRAPH_PROVENANCE_LABELS[String(value || '')] || String(value || '—');
+}
+
+function rosGraphVerdictLabel(value) {
+  return {
+    BLOCKED: '必须阻断',
+    REVIEW: '复核后再进入下一步',
+    PASS: '当前规则通过',
+  }[String(value || '').toUpperCase()] || '需要复核';
+}
+
+function rosGraphNextStep(report) {
+  const summary = report?.summary || {};
+  if (String(summary.verdict || '').toUpperCase() === 'BLOCKED') {
+    return `发现 ${Number(summary.critical || 0)} 个必须阻断证据；先隔离项目、修复危险路径或补齐受信解析器，再进入仿真和人工评审。`;
+  }
+  if (Number(summary.high || 0) > 0 || Number(summary.medium || 0) > 0) {
+    return '存在需要整改或人工复核的控制路径；静态图通过不等于 ROS 2、DDS 或执行器运行安全。';
+  }
+  return '当前规则未发现明显危险路径，可以进入隔离仿真、SROS2/DDS 权限复核和人工上线评审。';
+}
+
+function setRosGraphFeedback(message, kind = '') {
+  const target = $('ros-graph-feedback');
+  if (!target) return;
+  target.textContent = message;
+  target.className = `muted${kind ? ` ${kind}` : ''}`;
+}
+
+function setRosGraphFileName(message, kind = '') {
+  const target = $('ros-graph-file-name');
+  if (!target) return;
+  target.textContent = message;
+  target.className = `file-input-name${kind ? ` ${kind}` : ''}`;
+}
+
+function rosGraphSourceBytes(source) {
+  return new TextEncoder().encode(String(source || '')).length;
+}
+
+function formatRosGraphBytes(value) {
+  const bytes = Number(value || 0);
+  if (bytes < 1024) return `${bytes} B`;
+  return `${(bytes / 1024).toFixed(1)} KiB`;
+}
+
+function renderRosGraphFileList() {
+  const list = $('ros-graph-file-list');
+  const summary = $('ros-graph-files-summary');
+  const inspectButton = $('ros-graph-inspect');
+  $('ros-graph-to-agents').disabled = !rosGraphFiles.length;
+  if (!list || !summary || !inspectButton) return;
+  if (!rosGraphFiles.length) {
+    summary.textContent = '尚未选择文件';
+    list.innerHTML = '<li class="empty">选择文件后将在这里显示相对路径和大小。</li>';
+    inspectButton.disabled = true;
+    return;
+  }
+  const totalBytes = rosGraphFiles.reduce((total, item) => total + rosGraphSourceBytes(item.source), 0);
+  summary.textContent = `${rosGraphFiles.length} 个文件 · ${formatRosGraphBytes(totalBytes)} · 等待检查`;
+  list.innerHTML = rosGraphFiles.map((item) => (
+    `<li><span class="mono">${esc(item.filename)}</span><span>${formatRosGraphBytes(rosGraphSourceBytes(item.source))}</span></li>`
+  )).join('');
+  inspectButton.disabled = false;
+}
+
+function setRosGraphFiles(files, label = '文件已载入') {
+  rosGraphGeneration += 1;
+  rosGraphFiles = (Array.isArray(files) ? files : [])
+    .map((item) => ({
+      filename: String(item?.filename || ''),
+      source: String(item?.source || ''),
+    }))
+    .filter((item) => item.filename && item.source.trim());
+  rosGraphReport = null;
+  const result = $('ros-graph-result');
+  if (result) result.hidden = true;
+  renderRosGraphFileList();
+  setRosGraphFeedback(label, rosGraphFiles.length ? 'success' : '');
+}
+
+function renderRosGraphSamples(payload) {
+  rosGraphSamples = Array.isArray(payload?.samples) ? payload.samples : [];
+  const select = $('ros-graph-sample-select');
+  if (!select) return;
+  select.innerHTML = rosGraphSamples.length
+    ? rosGraphSamples.map((item) => `<option value="${esc(item.id)}">${esc(item.title)}</option>`).join('')
+    : '<option value="">暂无内置 ROS 安全图样例</option>';
+  if (rosGraphFiles.length) return;
+  if (rosGraphSamples.length) {
+    setRosGraphFiles([], '请选择“导入内置样例”或选择多个本地源码/配置文件');
+  } else {
+    setRosGraphFeedback('内置 ROS 安全图样例读取失败，请选择本地文件。', 'error');
+  }
+}
+
+async function loadRosGraphSamples() {
+  try {
+    const response = await fetch(ROS_GRAPH_SAMPLES_ENDPOINT, {cache: 'no-store'});
+    const payload = await parseJsonResponse(response);
+    if (!response.ok) throw new Error(payload?.error?.message || `HTTP ${response.status}`);
+    renderRosGraphSamples(payload);
+  } catch (error) {
+    setRosGraphFeedback(`无法读取 ROS 安全图样例：${redactJevMessage(error.message)}`, 'error');
+  }
+}
+
+function loadSelectedRosGraphSample() {
+  const id = $('ros-graph-sample-select').value;
+  const entry = rosGraphSamples.find((item) => String(item.id) === id);
+  if (!entry) return setRosGraphFiles([], '没有可导入的 ROS 安全图样例');
+  setRosGraphFileName('未选择本地文件');
+  setRosGraphFiles(entry.files, `已导入：${entry.title} · 点击“检查 ROS 安全图”`);
+}
+
+async function loadRosGraphFiles(event) {
+  const input = event.currentTarget;
+  const selected = Array.from(input.files || []);
+  input.value = '';
+  if (!selected.length) return;
+  if (selected.length > MAX_ROS_GRAPH_FILES) {
+    setRosGraphFiles([], `文件数量超过上限：最多 ${MAX_ROS_GRAPH_FILES} 个。`);
+    setRosGraphFeedback(`ROS 安全图最多检查 ${MAX_ROS_GRAPH_FILES} 个文件。`, 'error');
+    return;
+  }
+  const totalBytes = selected.reduce((total, file) => total + Number(file.size || 0), 0);
+  if (selected.some((file) => Number(file.size || 0) > MAX_SAMPLE_BYTES)) {
+    setRosGraphFiles([], '存在超过 64 KiB 的文件。');
+    setRosGraphFeedback('单个 ROS 安全图文件不能超过 64 KiB。', 'error');
+    return;
+  }
+  if (totalBytes > MAX_ROS_GRAPH_TOTAL_BYTES) {
+    setRosGraphFiles([], '文件总大小超过 512 KiB。');
+    setRosGraphFeedback('ROS 安全图本批源码总大小不能超过 512 KiB。', 'error');
+    return;
+  }
+  try {
+    const files = await Promise.all(selected.map(async (file) => ({
+      filename: file.webkitRelativePath || file.name,
+      source: await file.text(),
+    })));
+    setRosGraphFileName(`${files.length} 个文件 · 已读取`, 'success');
+    setRosGraphFiles(files, `已读取 ${files.length} 个文件 · 点击“检查 ROS 安全图”`);
+  } catch (error) {
+    setRosGraphFiles([], '文件读取失败');
+    setRosGraphFeedback(`ROS 安全图文件读取失败：${redactJevMessage(error.message)}`, 'error');
+  }
+}
+
+function renderRosGraph(report) {
+  const summary = report?.summary || {};
+  const nodes = Array.isArray(report?.nodes) ? report.nodes : [];
+  const edges = Array.isArray(report?.edges) ? report.edges : [];
+  const findings = Array.isArray(report?.findings) ? report.findings : [];
+  const paths = Array.isArray(report?.paths) ? report.paths : [];
+  const assurance = report?.assurance || {};
+  const verdict = String(summary.verdict || 'REVIEW').toUpperCase();
+  const provenanceCounts = ['EXTRACTED', 'INFERRED', 'UNSUPPORTED']
+    .map((kind) => `${kind} ${nodes.filter((item) => item?.provenance === kind).length}`)
+    .join(' · ');
+
+  rosGraphReport = report;
+  $('ros-graph-decision').textContent = rosGraphVerdictLabel(verdict);
+  $('ros-graph-verdict').textContent = rosGraphVerdictLabel(verdict);
+  $('ros-graph-verdict').className = `pill protection-pill ${protectionClass(verdict)}`;
+  $('ros-graph-next-step').textContent = rosGraphNextStep(report);
+  $('ros-graph-files-count').textContent = String(Array.isArray(report?.files) ? report.files.length : 0);
+  $('ros-graph-nodes-count').textContent = String(nodes.length);
+  $('ros-graph-edges-count').textContent = String(edges.length);
+  $('ros-graph-findings-count').textContent = String(findings.length);
+  $('ros-graph-paths-count').textContent = String(paths.length);
+  $('ros-graph-profile').textContent = String(report?.profile || '—');
+  $('ros-graph-action').textContent = rosGraphActionLabel(summary.guardian_action);
+  $('ros-graph-provenance').textContent = provenanceCounts;
+  $('ros-graph-execution').textContent = report?.execution === 'not_executed' ? '未执行源码' : String(report?.execution || '—');
+  $('ros-graph-conclusion').textContent = `结论：${rosGraphVerdictLabel(verdict)}。共发现 ${Number(summary.total || findings.length)} 条证据，其中必须阻断 ${Number(summary.critical || 0)} 条、高风险 ${Number(summary.high || 0)} 条、待复核 ${Number(summary.medium || 0)} 条。`;
+  $('ros-graph-assurance-mode').textContent = assurance.mode === 'STATIC_ONLY' ? '静态分析（未执行源码）' : String(assurance.mode || '—');
+  $('ros-graph-assurance-coverage').textContent = Number.isFinite(Number(assurance.coverage_score))
+    ? `${Number(assurance.coverage_score).toFixed(1)} / 100`
+    : '证据不足';
+  $('ros-graph-assurance-runtime').textContent = assurance.runtime_verified === true ? '已验证' : '未验证';
+  $('ros-graph-assurance-executed').textContent = assurance.source_executed === true ? '是' : '否';
+  $('ros-graph-assurance-limitations').textContent = `限制：${Array.isArray(assurance.limitations) && assurance.limitations.length ? assurance.limitations.join('；') : '只覆盖当前静态规则。'}`;
+
+  $('ros-graph-findings').innerHTML = findings.length
+    ? findings.map((item) => (
+      `<tr><td class="${rosGraphSeverityClass(item.severity)}"><strong>${esc(rosGraphSeverityLabel(item.severity))}</strong><small class="code-security-raw">${esc(item.severity || '')}</small></td><td><span class="code-security-rule-id">${esc(item.rule_id || '—')}</span><br>${esc(item.file || '—')}</td><td>第 ${Number(item.line || 0)} 行</td><td class="code-security-evidence">${esc(item.evidence || item.title || '—')}</td><td>${esc(item.recommendation || '—')}</td><td>${esc(rosGraphActionLabel(item.guardian_action))}</td></tr>`
+    )).join('')
+    : '<tr><td colspan="6" class="empty">没有发现当前规则覆盖的安全问题。</td></tr>';
+
+  const nodeLabels = new Map(nodes.map((item) => [String(item.id), String(item.label || item.id || '—')]));
+  $('ros-graph-paths').innerHTML = paths.length
+    ? paths.map((path) => {
+      const labels = (Array.isArray(path.node_ids) ? path.node_ids : [])
+        .map((nodeId) => nodeLabels.get(String(nodeId)) || String(nodeId));
+      const provenance = rosGraphProvenanceLabel(path.provenance);
+      return `<li><span class="ros-graph-path-route">${labels.map((label) => esc(label)).join(' <span aria-hidden="true">→</span> ')}</span><small>${esc(path.finding_rule_id || '—')} · ${esc(provenance)} · 置信度 ${(Number(path.confidence || 0) * 100).toFixed(0)}%</small></li>`;
+    }).join('')
+    : '<li class="empty">没有形成可追溯的危险控制路径。</li>';
+
+  renderRosGraphSvg(report);
+  $('ros-graph-result').hidden = false;
+}
+
+function renderRosGraphSvg(report) {
+  const svg = $('ros-graph-svg');
+  if (!svg) return;
+  const sourceNodes = Array.isArray(report?.nodes) ? report.nodes : [];
+  const sourceEdges = Array.isArray(report?.edges) ? report.edges : [];
+  const paths = Array.isArray(report?.paths) ? report.paths : [];
+  const visibleNodes = sourceNodes.slice(0, 48);
+  const visibleIds = new Set(visibleNodes.map((item) => String(item.id)));
+  const visibleEdges = sourceEdges.filter((item) => visibleIds.has(String(item.source)) && visibleIds.has(String(item.target))).slice(0, 96);
+  const pathEdgeIds = new Set(paths.flatMap((path) => Array.isArray(path.edge_ids) ? path.edge_ids.map((id) => String(id)) : []));
+  const columnFor = {
+    file: 0,
+    class: 1,
+    function: 1,
+    publisher: 2,
+    subscriber: 2,
+    topic: 3,
+    actuator: 3,
+    trust_zone: 4,
+  };
+  const positions = new Map();
+  const columnRows = [0, 0, 0, 0, 0];
+  visibleNodes.forEach((node) => {
+    const column = Object.prototype.hasOwnProperty.call(columnFor, node.kind) ? columnFor[node.kind] : 1;
+    const row = columnRows[column] % 6;
+    columnRows[column] += 1;
+    positions.set(String(node.id), {
+      x: 24 + column * 188,
+      y: 32 + row * 70,
+      width: 164,
+      height: 48,
+    });
+  });
+  const nodeClass = (kind) => ({
+    file: 'file',
+    class: 'code',
+    function: 'code',
+    publisher: 'resource',
+    subscriber: 'resource',
+    topic: 'topic',
+    actuator: 'actuator',
+    trust_zone: 'trust',
+  }[kind] || 'code');
+  const edgeMarkup = visibleEdges.map((edge) => {
+    const source = positions.get(String(edge.source));
+    const target = positions.get(String(edge.target));
+    if (!source || !target) return '';
+    const highlighted = pathEdgeIds.has(String(edge.id));
+    const x1 = source.x + source.width;
+    const y1 = source.y + source.height / 2;
+    const x2 = target.x;
+    const y2 = target.y + target.height / 2;
+    const label = esc(edge.kind || 'edge');
+    return `<g class="ros-graph-svg-edge ${highlighted ? 'danger' : ''}"><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" marker-end="url(#ros-graph-arrow)"></line><text x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 4}">${label}</text></g>`;
+  }).join('');
+  const nodeMarkup = visibleNodes.map((node) => {
+    const position = positions.get(String(node.id));
+    const provenance = rosGraphProvenanceLabel(node.provenance);
+    const label = esc(node.label || node.id || '—');
+    const kind = esc(node.kind || 'node');
+    const file = esc(node.file || '—');
+    const line = Number(node.line || 0);
+    return `<g class="ros-graph-svg-node ${nodeClass(node.kind)}" transform="translate(${position.x} ${position.y})"><title>${label} · ${file}:${line} · ${esc(provenance)}</title><rect width="${position.width}" height="${position.height}" rx="2"></rect><text x="8" y="19">${label}</text><text x="8" y="36" class="kind">${kind} · ${esc(provenance.split(' · ')[0])}</text></g>`;
+  }).join('');
+  const truncated = Math.max(0, sourceNodes.length - visibleNodes.length);
+  const truncatedMarkup = truncated ? `<text x="24" y="466" class="ros-graph-svg-note">仅显示前 ${truncated + visibleNodes.length} 个节点中的 ${visibleNodes.length} 个</text>` : '';
+  svg.innerHTML = `<title id="ros-graph-svg-title">ROS 2 静态安全图</title><desc id="ros-graph-svg-desc">显示代码文件、代码节点、ROS 资源和带有安全证据的关系边。</desc><defs><marker id="ros-graph-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z"></path></marker></defs>${edgeMarkup}${nodeMarkup}${truncatedMarkup}`;
+}
+
+async function inspectRosGraph() {
+  if (!rosGraphFiles.length) return setRosGraphFeedback('请先导入内置样例或选择至少一个本地文件。', 'error');
+  const current = ++rosGraphGeneration;
+  const button = $('ros-graph-inspect');
+  rosGraphReport = null;
+  $('ros-graph-result').hidden = true;
+  button.disabled = true;
+  setRosGraphFeedback('正在进行有界静态分析：不会执行源码、启动 ROS 2 或控制机器人…');
+  try {
+    const response = await fetch(ROS_GRAPH_INSPECT_ENDPOINT, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      cache: 'no-store',
+      body: JSON.stringify({files: rosGraphFiles, profile: 'ros2_generic'}),
+    });
+    const payload = await parseJsonResponse(response);
+    if (response.status === 401) {
+      showLogin('登录已过期，请重新登录');
+      return;
+    }
+    if (current !== rosGraphGeneration) return;
+    if (!response.ok || payload?.status !== 'OK' || !payload.report) {
+      throw new Error(payload?.error?.message || `HTTP ${response.status}`);
+    }
+    renderRosGraph(payload.report);
+    const verdict = payload.report.summary?.verdict || 'REVIEW';
+    setRosGraphFeedback(`ROS 安全图完成：${rosGraphVerdictLabel(verdict)}；报告仅用于静态审计，不执行源码。`, verdict === 'PASS' ? 'success' : 'error');
+  } catch (error) {
+    if (current === rosGraphGeneration) setRosGraphFeedback(`ROS 安全图失败：${redactJevMessage(error.message)}`, 'error');
+  } finally {
+    if (current === rosGraphGeneration) button.disabled = !rosGraphFiles.length;
   }
 }
 
@@ -1107,6 +1470,7 @@ async function runCodeSecurityJevEvaluation() {
   if (!typedApiKey && !jevKeySaved) {
     return setCodeSecurityFeedback('请先在 Jev 页面保存 API Key，或在此处输入本次使用的 Key。', 'error');
   }
+  const current = ++codeSecurityGeneration;
   const button = $('code-security-jev-run');
   button.disabled = true;
   setCodeSecurityFeedback('正在调用 Jev 复核工业代码风险置信度…');
@@ -1124,6 +1488,7 @@ async function runCodeSecurityJevEvaluation() {
       body: JSON.stringify(requestBody),
     });
     const payload = await parseJsonResponse(response);
+    if (current !== codeSecurityGeneration) return;
     if (!response.ok || payload?.status !== 'OK' || !payload.report || !payload.jev) {
       throw new Error(payload?.error?.message || `HTTP ${response.status}`);
     }
@@ -1133,18 +1498,19 @@ async function runCodeSecurityJevEvaluation() {
       try {
         await saveJevKey(typedApiKey);
       } catch (_error) {
-        setCodeSecurityFeedback('Jev 复核完成，但 API Key 持久保存失败。', 'error');
+        if (current === codeSecurityGeneration) setCodeSecurityFeedback('Jev 复核完成，但 API Key 持久保存失败。', 'error');
         return;
       }
     }
+    if (current !== codeSecurityGeneration) return;
     const jev = payload.jev || {};
     const assessment = jev.assessment || {};
     const status = jev.status === 'OK' ? '已连接' : 'LOCAL_ONLY';
     setCodeSecurityFeedback(`Jev 置信度复核完成：${status}；置信度 ${codeSecurityJevRatio(assessment.confidence)}。本地结论保持 ${payload.report.summary?.verdict || 'REVIEW'}。`, 'success');
   } catch (error) {
-    setCodeSecurityFeedback(`Jev 置信度复核失败：${redactJevMessage(error.message)}`, 'error');
+    if (current === codeSecurityGeneration) setCodeSecurityFeedback(`Jev 置信度复核失败：${redactJevMessage(error.message)}`, 'error');
   } finally {
-    button.disabled = !codeSecurityReport;
+    if (current === codeSecurityGeneration) button.disabled = !codeSecurityReport;
   }
 }
 
@@ -1541,6 +1907,7 @@ async function login(event) {
     await loadJevKeyStatus();
     await loadProtectionSamples();
     await loadCodeSecuritySamples();
+    await loadRosGraphSamples();
     await loadSandboxSamples();
     refresh();
   } catch (_error) {
@@ -1549,6 +1916,7 @@ async function login(event) {
 }
 
 async function logout() {
+  window.AgentReviewDashboard.reset();
   await fetch('/api/logout', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}', cache: 'no-store'});
   showLogin();
 }
@@ -1563,6 +1931,7 @@ async function setupAuth() {
       await loadJevKeyStatus();
       await loadProtectionSamples();
       await loadCodeSecuritySamples();
+      await loadRosGraphSamples();
       await loadSandboxSamples();
       refresh();
     } else {
@@ -1769,9 +2138,53 @@ function setupCodeSecurity() {
   });
   $('code-security-run').addEventListener('click', runCodeSecurityInspection);
   $('code-security-jev-run').addEventListener('click', runCodeSecurityJevEvaluation);
+  $('code-security-to-graph').addEventListener('click', () => {
+    const source = $('code-security-source').value;
+    if (!source.trim()) return;
+    $('ros-graph-files').value = '';
+    setRosGraphFiles([{filename: codeSecurityFilename, source}], '已带入单文件检查中的当前源码，点击“检查 ROS 安全图”继续。');
+    setRosGraphFileName(`来自单文件检查：${codeSecurityFilename}`);
+    setWorkspacePanel('ros-graph');
+  });
+  $('code-security-to-agents').addEventListener('click', () => {
+    const source = $('code-security-source').value;
+    if (!source.trim()) return;
+    if (window.AgentReviewDashboard.useInput({files: [{filename: codeSecurityFilename, source}]}, `单文件检查 · ${codeSecurityFilename}`)) {
+      setWorkspacePanel('research/agents');
+    } else setCodeSecurityFeedback('多智能体任务正在运行，请先完成或取消该任务再带入源码。', 'error');
+  });
   $('code-security-source').addEventListener('input', () => {
+    codeSecurityGeneration += 1;
     codeSecuritySource = $('code-security-source').value;
     $('code-security-run').disabled = !codeSecuritySource.trim();
+    $('code-security-to-graph').disabled = !codeSecuritySource.trim();
+    $('code-security-to-agents').disabled = !codeSecuritySource.trim();
+    codeSecurityReport = null;
+    $('code-security-result').hidden = true;
+    $('code-security-jev-run').disabled = true;
+    resetCodeSecurityJevEvaluation();
+  });
+}
+
+function setupRosGraph() {
+  const select = $('ros-graph-sample-select');
+  if (!select) return;
+  $('ros-graph-load').addEventListener('click', loadSelectedRosGraphSample);
+  $('ros-graph-files').addEventListener('click', () => {
+    setRosGraphFileName('正在等待选择多个源码或配置文件…');
+    setRosGraphFeedback('选择文件后会先显示文件清单，不会立即执行或上传源码。');
+  });
+  $('ros-graph-files').addEventListener('change', loadRosGraphFiles);
+  $('ros-graph-files').addEventListener('cancel', () => {
+    setRosGraphFileName('未选择文件');
+    setRosGraphFeedback('未选择新文件，当前图分析输入保持不变。');
+  });
+  $('ros-graph-inspect').addEventListener('click', inspectRosGraph);
+  $('ros-graph-to-agents').addEventListener('click', () => {
+    if (!rosGraphFiles.length) return;
+    if (window.AgentReviewDashboard.useInput({files: rosGraphFiles}, `ROS 安全图 · ${rosGraphFiles.length} 个文件`)) {
+      setWorkspacePanel('research/agents');
+    } else setRosGraphFeedback('多智能体任务正在运行，请先完成或取消该任务再带入文件。', 'error');
   });
 }
 
@@ -1832,7 +2245,7 @@ async function sendSimulationControl(action, type = null) {
     if (response.status === 401) { showLogin('登录已过期，请重新登录'); return; }
     if (!response.ok || payload?.status !== 'SENT') throw new Error(payload?.error?.message || `HTTP ${response.status}`);
     const detail = action === 'reset'
-      ? '场景已重置；Guardian 会在已登记事件的 TTL 到期后恢复 NORMAL。'
+      ? '场景已重置；Guardian 的安全锁存和已登记事件不会被此操作清除。'
       : `已发送：${action === 'attack' ? `攻击 / ${type}` : action}。请观察下方实际速度和 Guardian 状态变化。`;
     simulationFeedback(detail, 'success');
     await refresh();
@@ -1870,9 +2283,29 @@ function renderSimulation(simulation) {
   if (stateTarget) stateTarget.className = stateClass(state);
 }
 
+const workspaceGroups = {
+  inspect: ['code-security', 'ros-graph', 'dataset-security'],
+  recovery: ['research'], simulate: ['protection', 'simulation', 'sandbox'],
+  monitor: ['realtime'], services: ['jev'],
+};
+const workspaceLastPanel = {};
+let researchView = 'trace';
+
 function setWorkspacePanel(panel) {
-  const allowed = new Set(['realtime', 'protection', 'simulation', 'code-security', 'dataset-security', 'sandbox', 'jev', 'research']);
+  const route = String(panel).split('/');
+  panel = route[0];
+  const allowed = new Set(['realtime', 'protection', 'simulation', 'code-security', 'ros-graph', 'dataset-security', 'sandbox', 'jev', 'research']);
   const selected = allowed.has(panel) ? panel : 'protection';
+  const group = Object.keys(workspaceGroups).find((name) => workspaceGroups[name].includes(selected));
+  workspaceLastPanel[group] = selected;
+  document.querySelectorAll('[data-workspace-group]').forEach((button) => {
+    const active = button.dataset.workspaceGroup === group;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  document.querySelectorAll('[data-workspace-subnav]').forEach((section) => {
+    section.hidden = section.dataset.workspaceSubnav !== group || workspaceGroups[group].length === 1;
+  });
   document.querySelectorAll('.workspace-tab').forEach((tab) => {
     const active = tab.dataset.panel === selected;
     tab.classList.toggle('active', active);
@@ -1882,12 +2315,41 @@ function setWorkspacePanel(panel) {
     section.hidden = section.dataset.panelSection !== selected;
     section.classList.toggle('active', section.dataset.panelSection === selected);
   });
-  if (window.location.hash !== `#${selected}`) history.replaceState(null, '', `#${selected}`);
+  if (selected === 'research') setResearchView(route[1] || 'trace', false);
+  const hash = selected === 'research' && researchView !== 'trace' ? `#research/${researchView}` : `#${selected}`;
+  if (window.location.hash !== hash) history.replaceState(null, '', hash);
+}
+
+function setResearchView(view, updateRoute = true) {
+  const descriptions = {
+    trace: ['无需模型接口', '加载样例或导入 JSON / JSONL，直接检查已有轨迹，无需 API Key。'],
+    agents: ['需要模型接口', '模型规划固定恢复测试并复核结果。可使用其他检查页带入的数据；点击运行后才调用模型。'],
+    evaluation: ['历史记录与离线自检', '查看已完成的实验快照，或手动运行 Jev 离线调度自检；它们不是当前输入的检测结果。'],
+  };
+  researchView = Object.hasOwn(descriptions, view) ? view : 'trace';
+  document.querySelectorAll('[data-research-view]').forEach((button) => {
+    const active = button.dataset.researchView === researchView;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  document.querySelectorAll('[data-research-section]').forEach((section) => {
+    section.hidden = section.dataset.researchSection !== researchView;
+  });
+  $('research-view-badge').textContent = descriptions[researchView][0];
+  $('research-view-help').textContent = descriptions[researchView][1];
+  if (updateRoute) setWorkspacePanel(`research/${researchView}`);
 }
 
 function setupWorkspace() {
+  document.querySelectorAll('[data-workspace-group]').forEach((button) => button.addEventListener('click', () => {
+    const group = button.dataset.workspaceGroup;
+    const panel = workspaceLastPanel[group] || workspaceGroups[group][0];
+    setWorkspacePanel(panel === 'research' ? `research/${researchView}` : panel);
+  }));
+  document.querySelectorAll('[data-research-view]').forEach((button) => button.addEventListener('click', () => setResearchView(button.dataset.researchView)));
   document.querySelectorAll('.workspace-tab').forEach((tab) => tab.addEventListener('click', () => setWorkspacePanel(tab.dataset.panel)));
   setWorkspacePanel(window.location.hash.slice(1) || 'protection');
+  window.addEventListener('hashchange', () => setWorkspacePanel(window.location.hash.slice(1) || 'protection'));
 }
 
 function researchRouteConclusion(item) {
@@ -1931,6 +2393,7 @@ async function runResearchSuite() {
 
 function setupResearch() {
   $('research-run').addEventListener('click', runResearchSuite);
+  window.RecoveryDashboard.setup();
 }
 
 function setupSimulation() {
@@ -1947,6 +2410,7 @@ function render(data) {
   const risk = data.risk || {};
   const mitigation = data.mitigation || {};
   const safety = data.safety || {};
+  const ack = data.ack || {};
   const riskValue = Math.max(0, Math.min(100, Number(risk.risk || 0) * 100));
   const safetyState = safety.state || 'STARTING';
   $('state-card').className = `card state-card ${stateClass(safetyState)}`;
@@ -1969,12 +2433,28 @@ function render(data) {
   $('mitigation-action').textContent = mitigation.action || 'NONE';
   $('mitigation-reason').textContent = mitigation.reason || '—';
   chips($('mitigation-components'), mitigation.components);
+  const ackAccepted = ack.accepted === true && ack.active === true;
+  const ackState = $('ack-state');
+  if (ackState) {
+    ackState.textContent = ackAccepted ? (ack.safe_stop_confirmed ? '已确认停车' : '已确认执行') : '等待确认';
+    ackState.className = `pill ${ackAccepted ? 'success' : 'warning'}`;
+  }
+  const ackIdentity = $('ack-identity');
+  if (ackIdentity) {
+    ackIdentity.textContent = ack.adapter_id
+      ? `${ack.adapter_id} · e${Number(ack.command_epoch || 0)}/t${Number(ack.transmission_id || 0)}`
+      : '—';
+  }
+  const ackSequence = $('ack-sequence');
+  if (ackSequence) ackSequence.textContent = String(Number(ack.feedback_sequence || 0));
+  const ackReason = $('ack-reason');
+  if (ackReason) ackReason.textContent = ack.reason || '尚未收到执行适配器确认';
   renderSimulation(data.simulation);
   $('last-updated').textContent = data.updated_at ? `最近更新 ${formatTime(data.updated_at)}` : '尚无更新';
   const timeline = Array.isArray(data.timeline) ? data.timeline : [];
   $('timeline').innerHTML = timeline.length ? timeline.slice(0, 30).map((item) => {
-    const label = item.category === 'risk' ? '风险评估' : item.category === 'mitigation' ? '缓解规划' : '安全监督';
-    const summary = item.category === 'risk' ? `${esc(item.state)} · 风险 ${(Number(item.risk || 0) * 100).toFixed(1)}` : item.category === 'mitigation' ? esc(item.action) : `${esc(item.state)} · ${Number(item.speed_limit || 0).toFixed(2)} m/s`;
+    const label = item.category === 'risk' ? '风险评估' : item.category === 'mitigation' ? '缓解规划' : item.category === 'safety' ? '安全监督' : '执行确认';
+    const summary = item.category === 'risk' ? `${esc(item.state)} · 风险 ${(Number(item.risk || 0) * 100).toFixed(1)}` : item.category === 'mitigation' ? esc(item.action) : item.category === 'safety' ? `${esc(item.state)} · ${Number(item.speed_limit || 0).toFixed(2)} m/s` : `${esc(item.action || 'NONE')} · 序列 ${Number(item.feedback_sequence || 0)}`;
     return `<div class="timeline-item"><span class="dot ${stateClass(item.state)}"></span><div><b>${label}</b><span class="timeline-summary">${summary}</span><small>${formatTime(item.timestamp)} · ${esc(item.reason || '')}</small></div></div>`;
   }).join('') : '<div class="empty">等待 ROS 2 消息</div>';
 }
@@ -1997,6 +2477,7 @@ async function refresh() {
 setupJev();
 setupProtection();
 setupCodeSecurity();
+setupRosGraph();
 setupSandbox();
 setupDatasetSecurity();
 setupSimulation();

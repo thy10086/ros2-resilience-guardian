@@ -19,12 +19,17 @@ class RiskEngine:
         # Multiple telemetry events may describe the same ongoing component attack.
         # Count a component once and use its newest verified event for severity/confidence.
         latest_by_component: dict[str, AttackRecord] = {}
+        first_seen_by_component: dict[str, float] = {}
         for record in records:
             component = record.event.component
             if component in excluded:
                 continue
+            first_seen_by_component[component] = min(
+                record.first_seen,
+                first_seen_by_component.get(component, record.first_seen),
+            )
             previous = latest_by_component.get(component)
-            if previous is None or record.event.sequence >= previous.event.sequence:
+            if previous is None or self._observation_key(record) > self._observation_key(previous):
                 latest_by_component[component] = record
         records = tuple(latest_by_component.values())
         active = frozenset(record.event.component for record in records)
@@ -40,7 +45,21 @@ class RiskEngine:
         degradation = 1.0 - psi
         persistence = 0.0
         if records:
-            persistence = min(1.0, sum(min(1.0, record.age / max(self.config.max_event_age_sec, 0.1)) for record in records) / len(records))
+            persistence = min(
+                1.0,
+                sum(
+                    min(
+                        1.0,
+                        max(
+                            0.0,
+                            (now - first_seen_by_component[record.event.component])
+                            / max(self.config.max_event_age_sec, 0.1),
+                        ),
+                    )
+                    for record in records
+                )
+                / len(records),
+            )
         confidence_risk = 0.0
         if records:
             confidence_risk = sum(1.0 - record.event.confidence for record in records) / len(records)
@@ -58,3 +77,9 @@ class RiskEngine:
         else:
             reason = "verified attacks remain within mission tolerance"
         return RiskAssessment(now, delta, gamma, psi, risk, critical, active, k_crit, k_base, reason)
+
+    @staticmethod
+    def _observation_key(record: AttackRecord) -> tuple[float, float, float]:
+        # Source-local sequence numbers are incomparable; equal-time ties keep
+        # the higher-confidence observation as the conservative policy.
+        return (record.last_seen, record.event.timestamp, record.event.confidence)

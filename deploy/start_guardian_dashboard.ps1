@@ -1,19 +1,52 @@
+[CmdletBinding()]
+param(
+    [ValidateSet("auto", "humble", "jazzy")]
+    [string] $Distro = "auto",
+    [string] $WslDistro = "",
+    [string] $Workspace = ""
+)
+
 $ErrorActionPreference = "Stop"
 
-$workspace = Split-Path -Parent $PSScriptRoot
-$workspaceWsl = "/mnt/c/Users/thy/Documents/Codex/2026-09-25/new-chat/work/ros2-resilience-guardian"
-$command = @"
-source /opt/ros/humble/setup.bash
-cd $workspaceWsl/ros2_ws
-source install/setup.bash
-export PYTHONPATH=$workspaceWsl/ros2_ws/src/guardian_core:$workspaceWsl/ros2_ws/src/guardian_interfaces:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages:$workspaceWsl/ros2_ws/install/guardian_core/lib/python3.10/site-packages:$workspaceWsl/ros2_ws/install/guardian_interfaces/local/lib/python3.10/dist-packages
-export GUARDIAN_FRONTEND_DIR=$workspaceWsl/ros2_ws/src/guardian_core/guardian_core/frontend
-exec python3 -c 'from guardian_core.dashboard import main; main()' --ros-args -p port:=8088 -p host:=127.0.0.1
-"@
+function ConvertTo-BashArgument([string] $Value) {
+    return "'" + $Value.Replace("'", "'\''") + "'"
+}
+
+$repo = if ($Workspace) {
+    (Resolve-Path -LiteralPath $Workspace).Path
+} else {
+    (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+}
+
+$wslPathArguments = @()
+if ($WslDistro) {
+    $wslPathArguments += @("-d", $WslDistro)
+}
+$wslPathArguments += @("--", "wslpath", "-a", $repo)
+$workspaceWsl = (& wsl.exe @wslPathArguments).Trim()
+if ($LASTEXITCODE -ne 0 -or -not $workspaceWsl) {
+    throw "Unable to resolve repository path through wslpath: $repo"
+}
+
+$helper = "$workspaceWsl/deploy/run_guardian.sh"
+$command = @(
+    (ConvertTo-BashArgument $helper),
+    "dashboard",
+    "--distro",
+    (ConvertTo-BashArgument $Distro),
+    "--workspace",
+    (ConvertTo-BashArgument $workspaceWsl)
+) -join " "
+
+$runArguments = @()
+if ($WslDistro) {
+    $runArguments += @("-d", $WslDistro)
+}
+$runArguments += @("--", "bash", "-lc", $command)
 
 Start-Process `
     -FilePath "wsl.exe" `
-    -ArgumentList @("-d", "Ubuntu-22.04", "--", "bash", "-lc", $command) `
-    -WindowStyle Hidden
+    -ArgumentList $runArguments `
+    -WindowStyle Hidden | Out-Null
 
-Write-Output "Guardian Dashboard starting at http://127.0.0.1:8088"
+Write-Output "Guardian Dashboard starting at http://127.0.0.1:8080"

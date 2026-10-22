@@ -1,18 +1,64 @@
-# ROS 2 Resilience Guardian
+# ROS 2 Resilience Guardian：证据与上下文绑定安全恢复
 
-面向 Webots/ROS 2 机器人的任务感知零信任安全韧性守护器。项目基于 RobResilience 的实验思想，加入攻击事件验证、攻击生命周期、动态风险评估、缓解重规划和独立安全状态机。
+2026-10-22 源码快照：见[版本说明、获取与构建步骤](docs/releases/2026-10-22-snapshot.md)。固定版本可通过 `snapshot-2026-10-22` 标签获取；语料库大型二进制文件使用 Git LFS。
+
+面向 ROS 2 机器人的证据与上下文绑定安全恢复机制。项目研究机器人停车后，如何依据新鲜可信观测、执行反馈、相关控制图、策略版本和证据账本，授权第一条恢复命令，并阻止过期、重放或上下文错配的许可生效。RobResilience 兼容风险逻辑保留为基础，AMR 是首个软件闭环验证场景。
+
+## 当前研究主线与最小闭环
+
+`可信事件/健康观测 → 停车与匹配 ACK → 证据账本/控制图/策略绑定 → 稳定探测 → 短期一次性许可 → 第一条恢复命令 → /cmd_vel 运动反馈`
+
+默认 `configs/guardian.yaml` 已为 AMR 启用 `evidence_bound_recovery`。告警 TTL 不再自动解除攻击，reset 只清理场景；恢复必须重新取得晚于告警的新鲜健康证据。普通节点默认关闭此研究模式，以保留原有调用兼容性；接入其他设备时需要单独实现可信观测适配器。
+
+复现真实 ROS 2 软件消息闭环（需要先按下方构建并配置反馈密钥；实验脚本在隔离 localhost 域使用临时密钥）：
+
+```bash
+source /opt/ros/humble/setup.bash
+source install/humble/setup.bash
+python3 experiments/run_bound_recovery_experiments.py
+```
+
+输出为 `experiments/results/bound_recovery_validation.json`，包含五个验收场景、观测时延、恢复状态转换和账本导出。开源工具复用、机制边界和运行说明见 [安全恢复闭环](docs/evidence_bound_recovery.md)。本轮验证的是 AMR 工程仿真与真实 DDS 消息，不代表实机制动、完整 IDS 或生产安全认证。
+
+第二轮增加独立观测节点，从标准里程计和激光扫描交叉核验执行器报告。复用 ROS 2 官方 `launch_testing` 在三个独立进程中验证证据缺失、过期、重放、矛盾、近障碍与端点/进程重启；独立模式显式启用，缺少观测时保持停车。
+
+```bash
+launch_test experiments/independent_observation_launch_test.py
+```
+
+报告为 `experiments/results/independent_observation_validation.json`，运行与信任边界见 [多进程独立观测](docs/independent_observation.md)。独立计算尚不代表独立物理传感器。
+
+第三轮借鉴 BTreeFuzz 的任务状态反馈，复用 Hypothesis 实现离线恢复语义测试、许可时序变异、安全断言、corpus 保存与重放；同一断言检查真实 ROS 审计轨迹。安装与命令见 [恢复反馈测试](docs/recovery_feedback_fuzzing.md)，论文依据见 [BTreeFuzz 分析](docs/btreefuzz_recovery_testing.md)。当前小预算实验尚未证明反馈引导优于无引导。
+
+第四轮完成四类受控缺陷资格验证、十种子每组1000次对照和恢复机制消融。30,000次完整机制执行未触发安全断言，121个保存反例重放一致；现有反馈目标只在4/10种子上获得更多转移覆盖，尚未证明搜索收益。报告、诊断边界和复现见 [重复实验与消融](docs/recovery_evaluation.md)。
+
+第五轮新增许可有效期、精确消费绑定和修复转移目标，保持相同输入策略作30,000次三组对照。过期缺陷检出为无引导9/10、旧反馈4/10、许可边界反馈8/10；新目标比旧目标改善，但未优于无引导且总覆盖下降。119个反例和30组corpus重放一致，默认模式保留。详见 [许可边界反馈](docs/permit_boundary_feedback.md)。
+
+第六轮冻结目标族消融并使用新种子10..19，完成50,000次五组对照。TTL缺陷检出为无引导5/10、旧反馈4/10、完整边界7/10、TTL族6/10、上下文/修复族4/10；这批TTL指标改善，但总覆盖下降且与第五轮比较方向不同，未确立稳定优势。实验发现并修正离线活性断言把采样空窗计为连续健康的误报，原批次和源码快照保留；恢复决策不变。修正后184个反例及50组corpus重放一致，全量597项测试通过。见 [目标消融与新种子验证](docs/feedback_target_ablation.md)。
+
+第七轮完成冻结 Oracle 的新受控缺陷验证：20个新种子、三组各5秒，共31,749次生成，完整机制0断言违规；132反例/60组corpus重放一致。停车ACK与下一epoch缺陷各组均20/20检出，恢复停滞为无引导6/20、旧反馈1/20、边界反馈2/20，尚未证明引导效率优势。入口支持等壁钟预算、超时发现排除、源码快照与拒绝覆盖；最终630项测试通过。协议、实际结果和复现见 [新缺陷与时间预算验证](docs/recovery_holdout_validation.md)。它仍是自有模型的受控缺陷评估，不是外部盲测或真实漏洞发现。
+
+第八轮新增只从完整健康轨迹提取的持续健康窗口与恢复推进目标。seeds40..59四模式等壁钟对照共80组；`never_resume`检出为unguided 5/20、boundary 3/20、liveness 16/20、boundary_liveness 7/20。纯liveness在本批已知缺陷的新种子验证中提升了恢复停滞检出，许可边界组合则明显退化；不改变默认，也不声称未见缺陷泛化。完整机制0违规，193反例和80语料重放一致，最终回归见第八轮[协议、结果与限制](docs/recovery_liveness_feedback.md)。
+
+第九轮先冻结第八轮目标/driver/控制模型，再由未读取反馈实现的独立审查选定包络拒绝和非零停车上限两族。新种子60..79、40组等时间对照中，unguided/liveness对两族均20/20检出，82反例/40语料重放一致；liveness没有新的检出率优势，转移覆盖与吞吐更低。同轮保留真实三进程DDS审计：19场景通过、271帧零违规，可用有界JSONL CLI及预期SHA重读，来源明确为自有软件AMR。全量696项测试通过；结果、来源核验边界和复现见 [冻结目标的新缺陷与DDS审计](docs/recovery_transfer_validation.md)。
+
+参考本地ARTEX源码实现四角色编排：goals研判、planner规划、worker注册测试、reviewer独立复核。支持显式脚本模式和OpenAI兼容模型接口；“安全测试分析”页面填写URL、API Key与模型后可运行、取消和下载。模型在六项注册场景内选测，程序执行并重算Oracle，源码静态风险、提交轨迹违规与自有模型结果分别保留。复用LangGraph/pyseccomp，运行与适用边界见 [多角色闭环说明](docs/artex_ros2_agent_review.md)；本地协议验收不证明真实模型检出收益。
 
 完整的系统交接、操作记录和后续提交规范见 [HANDOFF.md](HANDOFF.md)。
+
+前端“安全测试分析”已同步恢复轨迹检测和第六轮五组对照，首页“防护实验室”提供“恢复轨迹检测”入口。支持JSON/JSONL审计轨迹与六个内置样例，直接复用安全断言，展示违规帧和绑定证据；历史实验结果与当前检测分别展示。使用与快照更新见 [前端检测页](docs/recovery_detection_page.md)。
 
 ## 现在能运行什么
 
 - 纯 Python 核心引擎：不依赖 ROS 图形界面，可测试攻击验证、风险计算、3b 多波攻击重规划和安全状态机。
 - 跨层安全核心：对 ROS 2 数据路径做图风险传播、来源/时序策略检查、多源证据融合、风险自适应速度包络和恢复门控。
-- ROS 2 Jazzy 包：`guardian_interfaces` 消息包和 `guardian_core` 节点包。
+- ROS 2 Humble（Ubuntu 22.04）和 Jazzy（Ubuntu 24.04）包：`guardian_interfaces`
+  消息包和 `guardian_core` 节点包。
 - 本地 Web 安全驾驶舱：只读映射风险、攻击组件、缓解方案和安全状态。
 - 笔记本 ROS 2 闭环工程仿真：`amr_simulator` 发布 `/cmd_vel`、里程计、抓取器和攻击事件，并消费 Guardian 的安全反馈。
 - 驾驶舱内置 Jev 连接测试：通过本地后端代理验证 TypeSafe API，并显示有界的语义判断结果。
-- `guardian_node` 订阅 `guardian/attack_events`，输出 `guardian/risk_state`、`guardian/mitigation_command` 和 `guardian/safety_status`。
+- `guardian_node` 订阅 `guardian/attack_events` 和执行器确认 `guardian/mitigation_ack`，
+  输出 `guardian/risk_state`、`guardian/mitigation_command` 和 `guardian/safety_status`。
 - `experiments/run_innovation_experiments.py` 现在包含 6 组确定性实验，新增跨层融合和 Jev 语义顾问的离线验收。
 - 离线实验：`python3 experiments/run_guardian_scenario.py --scenario 3b`。
 - 可接入现有 Webots PR2：把攻击事件送入 Guardian，再由 `safety_supervisor` 控制速度、隔离或停车。
@@ -25,54 +71,69 @@
 4. 任务完成、恢复失败、超时和安全停车使用不同的结果状态。
 5. 核心安全判断与任务控制器解耦。
 
-## WSL2 + ROS 2 Jazzy
+## WSL2 + ROS 2 Humble/Jazzy
+
+推荐使用部署辅助脚本，它会按发行版隔离 `build/<distro>`、`install/<distro>`
+和 `log/<distro>`，并自动加载 `configs/guardian.yaml`：
 
 ```bash
-cd /mnt/c/Users/user/Documents/Codex/2026-09-10/ban/ros2-resilience-guardian
-source /opt/ros/jazzy/setup.bash
-cd ros2_ws
-colcon build --symlink-install
-source install/setup.bash
+cd /mnt/c/Users/thy/Documents/Codex/ros2-resilience-guardian
+bash deploy/run_guardian.sh build --distro humble   # Ubuntu 22.04
+# bash deploy/run_guardian.sh build --distro jazzy  # Ubuntu 24.04
 ```
 
 运行核心离线实验：
 
 ```bash
-cd /mnt/c/Users/user/Documents/Codex/2026-09-10/ban/ros2-resilience-guardian
+bash deploy/run_guardian.sh test --distro humble
 python3 experiments/run_guardian_scenario.py --scenario 3b
 ```
 
 运行测试：
 
 ```bash
-source /opt/ros/jazzy/setup.bash
-source ros2_ws/install/setup.bash
-python3 -m pytest -q tests
+bash deploy/run_guardian.sh test --distro humble
 ```
 
 启动 ROS 2 守护节点：
 
 ```bash
-ros2 run guardian_core guardian_node
+bash deploy/run_guardian.sh core --distro humble
 ```
 
 启动安全驾驶舱（需要先启动 `guardian_node`）：
 
 ```bash
-ros2 run guardian_core guardian_dashboard
-# 浏览器打开 http://127.0.0.1:8088（本地服务配置）
+bash deploy/run_guardian.sh dashboard --distro humble
+# 浏览器打开 http://127.0.0.1:8080
 ```
 
 也可以一次启动守护节点和前端桥接：
 
 ```bash
-ros2 launch guardian_core guardian.launch.py
+bash deploy/run_guardian.sh all --distro humble
 ```
 
-本机当前配置将 dashboard 运行在 `127.0.0.1:8088`；`8080` 已被其他本地进程占用。
-首次打开页面需要登录，用户名和密码均为 `admin`。登录会话只保存在 dashboard
-内存中，服务重启后失效，不写入 `.env`、GitHub 或日志。驾驶舱通过 `GET /api/state` 提供当前状态，订阅 `/guardian/risk_state`、
-`/guardian/mitigation_command` 和 `/guardian/safety_status`。默认只监听
+本机默认配置将 dashboard 运行在 `127.0.0.1:8080`；如需避开端口占用，
+先加载 `/opt/ros/humble/setup.bash` 和 `install/humble/setup.bash`，再运行
+`ros2 run guardian_core guardian_dashboard --ros-args -p port:=8088`。
+部署辅助脚本不透传额外 ROS 参数。Guardian 默认从 `configs/guardian.yaml`
+读取参数，启动时可以通过 ROS 参数覆盖非敏感配置；运行时仅 `task_phase`
+可修改，其余 Guardian 配置需要重启后生效。事件签名密钥仅从
+`GUARDIAN_EVENT_SECRET` 环境变量读取，不再声明为 ROS 参数。
+执行命令、状态和 ACK 默认要求 `GUARDIAN_FEEDBACK_SECRET`，该密钥也只从环境变量
+读取；未配置时 Guardian 保守进入 `SAFE_STOP`。可参考
+`deploy/guardian.env.example`，不要把真实密钥写入仓库。
+`security_profile_json` 是 ROS 2 通用安全 profile 入口，定义 `profile_id`、
+执行适配器 `adapter_id`、可信事件源以及资源的 `tau`、`epsilon` 和是否可隔离；
+默认值是 AMR profile，接入机械臂、传感器、飞控或工业控制器时只需替换 profile
+和执行适配器，不需要复制 Guardian 决策代码。
+多攻击策略合并、延迟执行和配置错误停车规则见 [运行安全约束](docs/deployment.md#runtime-safety-contract)。
+首次打开页面需要登录。生产环境必须设置 `GUARDIAN_DASHBOARD_USER` 和
+`GUARDIAN_DASHBOARD_PASSWORD`；`admin/admin` 仅能通过显式
+`GUARDIAN_DASHBOARD_ALLOW_DEFAULT_CREDENTIALS=1` 开启，不应用于生产。登录失败
+会限速，Dashboard 默认只允许绑定 `127.0.0.1`。驾驶舱通过 `GET /api/state` 提供当前状态，订阅 `/guardian/risk_state`、
+`/guardian/mitigation_command`、`/guardian/mitigation_ack` 和 `/guardian/safety_status`。默认只监听
 `127.0.0.1`，不会把控制接口暴露到局域网；后续接入 Webots 时应继续由
 `safety_status` 输出边界驱动实际控制器。
 
@@ -93,14 +154,15 @@ ros2 run guardian_core guardian_dashboard --ros-args -p port:=8088
 
 1. 点击“启动托盘任务”，确认任务阶段从 `IDLE` 进入 `DOCK_TO_PALLET`，请求速度约
    `0.20 m/s`，`/cmd_vel` 的实际速度跟随安全上限。
-2. 点击“注入超速指令”。仿真节点会请求 `0.62 m/s` 并发布一个
-   `amr_simulator` 来源的 `UNSAFE_COMMAND`；Guardian 校验、登记和评估后进入
-   `CONTAINING`，仿真的实际速度降为 `0`，而请求速度仍显示 `0.62 m/s`。
+2. 点击“注入超速指令”。仿真节点会请求 `0.62 m/s` 并发布带认证的
+   `amr_simulator` 来源 `UNSAFE_COMMAND`；默认恢复闭环在登记后保持
+   `SAFE_STOP`，仿真的实际速度降为 `0`，而请求速度仍显示 `0.62 m/s`。
 3. 点击“注入序列重放”，两条事件共用 `sequence=7001`，时间线会显示第一条接受、
    第二条 `REPLAY` 拒绝；点击“注入抓取器故障”会把抓取力置为 `0 N`，用于观察
    `/amr_07/gripper_state` 与右臂风险的关联。
 4. 点击“重置场景”清除仿真任务和攻击模式，确认任务回到 `IDLE`、位置清零；Guardian
-   会按 `max_event_age_sec`（默认 5 秒）让已登记攻击自然过期后回到 `NORMAL`。页面
+   取得新的匹配停车 ACK 与晚于告警的认证健康观测后，重新经过 `RECOVERING` 和
+   一次性恢复许可。再启动任务即可观察恢复后的运动。告警过期本身不会放行。页面
    轮询的 `/api/state` 同时显示任务阶段、位置、请求/实际速度、速度上限、托盘状态、
    攻击模式和缓解动作。
 
@@ -111,12 +173,37 @@ ros2 run guardian_core guardian_dashboard --ros-args -p port:=8088
 | 控制台 → 仿真 | `/amr_07/sim_control` (`std_msgs/String`) | `start`、`stop`、`reset`、三类攻击控制 |
 | 仿真 → Guardian | `guardian/attack_events` (`AttackEvent`) | 速度异常、重放和抓取器语义事件 |
 | Guardian → 仿真 | `guardian/safety_status` / `guardian/mitigation_command` | 速度上限、任务许可和隔离动作 |
+| 仿真 → Guardian | `guardian/recovery_telemetry` (`RecoveryTelemetry`) | 认证健康观测、观测序列、当前命令身份和恢复探测 |
+| 仿真 → Guardian | `guardian/mitigation_ack` (`MitigationAck`) | 适配器身份、epoch、传输号、反馈序列和执行状态确认 |
 | 仿真 → 控制器 | `/cmd_vel` (`geometry_msgs/Twist`) | 安全限幅后的实际速度 |
 | 仿真 → 驾驶舱 | `guardian/sim_state` (`std_msgs/String`) | 有界数字孪生遥测 |
 
 Jev 不在这条实时控制链路中。它只对经过 Guardian 确定性校验的摘要做语义分类和
 人工复核建议；即使 Jev Key 缺失或 provider 超时，`CONTAINING`、限速和停车仍由
 本地 Guardian 状态机完成。
+
+### ROS 2 通用安全 profile
+
+Guardian 的实时输入是设备无关的 `AttackEvent`：`component` 可以表示关节控制器、
+传感器、导航器、通信桥、末端执行器、飞控模块或其他 ROS 2 资源。示例 profile：
+
+```json
+{
+  "profile_id": "manipulator-runtime",
+  "adapter_id": "ros2-control-adapter",
+  "trusted_sources": ["controller_monitor"],
+  "resources": {
+    "joint_1_controller": {"tau": 2, "epsilon": 0, "mitigatable": true},
+    "wrench_sensor": {"tau": 0, "epsilon": 1, "mitigatable": false}
+  }
+}
+```
+
+`command_epoch` 表示缓解动作语义变化，`transmission_id` 表示每次发送，
+`feedback_sequence` 表示执行适配器确认的新鲜度。Guardian 只接受身份、epoch、
+传输号、计划、动作、组件和序列均匹配的确认；watchdog 使用单调时钟，不依赖
+`/clock`。SROS2/DDS 权限、硬件急停和独立 watchdog 仍是生产部署必需项，仿真
+适配器 ACK 只代表软件状态。
 
 ### 代码沙箱仿真与运行证据
 
@@ -180,23 +267,13 @@ Guardian 安全状态、速度限制或机器人命令。
 400/413；上游拒绝或返回非法内容返回 502；超时返回 504。真实 API Key
 不应提交到版本库，也不应放入 `.env`。
 
-如果 Windows 访问不到 WSL dashboard，先保持一个 WSL 实例运行，再启动系统级 ROS 2 服务：
+Windows/WSL 启动器和双发行版构建入口见 [docs/deployment.md](docs/deployment.md)。
+它不会自动安装或修改系统级服务；如需常驻仿真，可按文档复制用户级
+`deploy/guardian@.service` 模板并自行审核工作区路径和发行版。
 
 ```powershell
-Start-Process wsl.exe -ArgumentList @('-d','Ubuntu-24.04','--','sleep','infinity') -WindowStyle Hidden
-wsl.exe -d Ubuntu-24.04 -u root -- systemctl start guardian-core.service guardian-dashboard.service guardian-simulator.service
+.\deploy\start_guardian_dashboard.ps1 -Distro humble
 ```
-
-服务状态和停止命令：
-
-```bash
-systemctl status guardian-core.service guardian-dashboard.service guardian-simulator.service
-systemctl stop guardian-core.service guardian-dashboard.service guardian-simulator.service
-```
-
-如果是首次按 systemd 部署仿真节点，把仓库中的
-`deploy/guardian-simulator.service` 复制到 `/etc/systemd/system/`，再执行
-`systemctl daemon-reload && systemctl enable --now guardian-simulator.service`。
 
 详细设计见 [docs/design.md](docs/design.md)，实验和指标见 [docs/experiments.md](docs/experiments.md)。
 
@@ -214,7 +291,7 @@ python3 experiments/run_innovation_experiments.py
 
 Jev 事件会话层进一步聚合连续告警、对风险和语义变化重新查询、用滞回窗口稳定人工复核状态，并把有期限的 Jev 软证据绑定到确定性父证据；同一会话的决策和账本写回串行化，不同事件仍可并行，账本的哈希链写入只在短临界区内串行，账本异常分支也受会话容量上限约束。父证据必须当前有效、`verified` 为原生布尔 `True`、策略匹配且完整父链可验证；非布尔祖先标记、过期、被替代或祖先失效都会在 provider 前阻断，provider 返回后还会按完成时刻再次校验，失败 provider 也不会绕过这道检查。迟到成功结果会消耗软证据剩余 TTL，不能建立已经过期的租约。缓存结果切换父证据只保留原软证据截止时间，到期缓存不能复活账本证据，只有新的 provider 成功结果才能建立新租约。会话 ID 和签名复用 Jev 适配器的有界上下文表示，避免超长输入放大会话层资源消耗；非布尔或未验证来源会强制进入本地 `CONTAINING`，不会复用旧 Jev 结果。实验命令为 `python3 experiments/run_jev_session_experiments.py`，设计见 [docs/jev_session_design.md](docs/jev_session_design.md)。
 
-跨层融合扩展的实验设计见 [docs/fusion_experiment_plan.md](docs/fusion_experiment_plan.md)，实现边界和后续 ROS 2 接入步骤见 [docs/fusion_implementation_plan.md](docs/fusion_implementation_plan.md)。当前跨层模块已完成纯 Python 离线验证，但还没有直接接管真实底盘、Webots 或 ROS 2 live graph introspection。
+跨层融合扩展的历史实验设计见 [docs/fusion_experiment_plan.md](docs/fusion_experiment_plan.md)。2026-10-12 的最小恢复闭环已接入相关控制话题的 ROS 2 live graph、证据账本、预测距离约束与恢复协议，具体边界以 [安全恢复闭环](docs/evidence_bound_recovery.md) 为准；尚未接管真实底盘或 Webots。
 
 ### 前端防护测试台
 
@@ -290,6 +367,7 @@ python3 experiments/run_warehouse_amr_case.py
 - **防护实验室**：导入或上传 `guardian-replay/v1` 样例，查看五阶段逐步结果。
 - **工程仿真**：启动仓储 AMR 数字孪生，观察攻击注入和 Guardian 安全反馈如何影响实际速度。
 - **工业代码安全检查**：导入 ROS 2 Python 控制节点，检查执行器边界、急停门控、动态执行、凭据暴露和阻塞调用；代码只读分析，不会执行上传内容。规则和操作见 [docs/industrial_code_security.md](docs/industrial_code_security.md)。
+- **ROS 安全图**：以离线有界图展示 ROS 2 文件、节点、publisher、subscriber、控制主题和危险路径，标记 `EXTRACTED`、`INFERRED`、`UNSUPPORTED` 证据；不会执行源码或直接控制机器人。详细规则见 [docs/ros_security_graph.md](docs/ros_security_graph.md)。
 - 工业代码检查还提供 Gazebo Sim 风格的 AMR 源码：`experiments/gazebo_ros2_amr_controller_unsafe.py`。它使用 `/model/amr_07/cmd_vel` 这类 `ros_gz` 桥接主题，是故意包含风险的检查夹具，不能直接启动。
 - **Jev 语义分析**：手动执行有界旁路请求，保存/更新或删除本机 Key；Jev 不进入控制闭环。
 - **安全测试分析**：运行 `/api/research/suite` 的离线测试套件，展示高效判断路径、调用减少、会话复用、超时回退、父证据阻断和 ROS 2 安全案例。

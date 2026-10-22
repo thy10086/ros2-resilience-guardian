@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
+import json
 import math
 import secrets
 from dataclasses import dataclass
@@ -104,6 +106,7 @@ class RecoveryProtocol:
         self._last_observation: RecoveryObservation | None = None
         self._used_proofs: set[str] = set()
         self._issuer = secrets.token_hex(16)
+        self._signing_secret = secrets.token_bytes(32)
 
     def observe(self, observation: RecoveryObservation) -> RecoveryDecision:
         if self._last_observation and observation.now <= self._last_observation.now:
@@ -124,8 +127,12 @@ class RecoveryProtocol:
         return RecoveryDecision(self._state, False, "recovery evidence is being observed")
 
     def commit(self, observation: RecoveryObservation) -> RecoveryProof:
-        decision = self.observe(observation)
-        if decision.state != "RECOVERY_CANDIDATE":
+        self.observe(observation)
+        return self.issue_observed(observation)
+
+    def issue_observed(self, observation: RecoveryObservation) -> RecoveryProof:
+        """Issue from the latest already-observed candidate without resampling time."""
+        if self._state != "RECOVERY_CANDIDATE" or observation != self._last_observation:
             raise ValueError("recovery is not a candidate")
         if self._first_safe_at is None or observation.now - self._first_safe_at < self.config.dwell_sec:
             raise ValueError("recovery dwell time has not elapsed")
@@ -155,10 +162,12 @@ class RecoveryProtocol:
             return self._reject_proof(proof, "recovery protocol is not at candidate state")
         if proof.issuer != self._issuer:
             return self._reject_proof(proof, "recovery proof belongs to another protocol")
-        if proof.signature != self._sign_values(
+        expected_signature = self._sign_values(
             proof.graph_fingerprint, proof.policy_fingerprint, proof.ledger_anchor,
             proof.command_epoch, proof.risk, proof.issued_at, proof.expires_at, proof.proof_id,
-        ):
+        )
+        if (not isinstance(proof.signature, str) or not proof.signature.isascii()
+                or not hmac.compare_digest(proof.signature, expected_signature)):
             return self._reject_proof(proof, "recovery proof signature is invalid")
         latest = self._last_observation
         proof_context = (
@@ -212,8 +221,11 @@ class RecoveryProtocol:
         self, graph: str, policy: str, ledger: str, epoch: int, risk: float, issued_at: float, expires_at: float,
         proof_id: str,
     ) -> str:
-        payload = "|".join(map(str, (self._issuer, graph, policy, ledger, epoch, risk, issued_at, expires_at, proof_id)))
-        return hashlib.sha256(payload.encode()).hexdigest()
+        payload = json.dumps(
+            [self._issuer, graph, policy, ledger, epoch, risk, issued_at, expires_at, proof_id],
+            separators=(",", ":"), allow_nan=False,
+        ).encode()
+        return hmac.new(self._signing_secret, payload, hashlib.sha256).hexdigest()
 
 
 __all__ = [

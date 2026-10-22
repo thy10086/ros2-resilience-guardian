@@ -109,6 +109,20 @@ def test_planner_safe_stops_when_critical_component_is_not_mitigatable():
     assert decision.mission_allowed is False
 
 
+def test_planner_safe_stops_for_unknown_ros2_resource():
+    config = base_config()
+    engine = RiskEngine(config)
+    planner = MitigationPlanner(config, engine)
+    registry = AttackRegistry()
+    registry.upsert(event(1, component="unregistered_controller", attack_type="TELEMETRY_ANOMALY"), 10.0)
+    assessment = engine.evaluate(registry.active_records(), 10.0)
+
+    plan = planner.plan(registry.active_records(), assessment, 10.0)
+
+    assert plan.action == ActionType.SAFE_STOP
+    assert "unknown" in plan.reason
+
+
 def test_supervisor_contains_before_recovery():
     config = base_config()
     engine = RiskEngine(config)
@@ -121,3 +135,25 @@ def test_supervisor_contains_before_recovery():
     decision = SafetySupervisor().decide(assessment, plan)
     assert decision.state == SafetyState.CONTAINING
     assert decision.mission_allowed is False
+
+
+def test_planner_stops_when_candidate_budget_is_exhausted():
+    resources = {f"joint_{index}": 1 for index in range(20)}
+    config = base_config(
+        tau=resources,
+        mitigatable_devices=frozenset(resources),
+        max_planner_candidates=32,
+        theta_base=2.0,
+        theta_crit=2.0,
+    )
+    engine = RiskEngine(config)
+    planner = MitigationPlanner(config, engine)
+    registry = AttackRegistry()
+    for index, component in enumerate(resources):
+        registry.upsert(event(index + 1, component=component), 10.0)
+    assessment = engine.evaluate(registry.active_records(), 10.0)
+
+    plan = planner.plan(registry.active_records(), assessment, 10.0)
+
+    assert plan.action == ActionType.SAFE_STOP
+    assert "budget" in plan.reason

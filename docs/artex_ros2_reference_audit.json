@@ -1,0 +1,184 @@
+{
+  "schema": "guardian-artex-reference-audit/v1",
+  "reviewed_at": "2026-10-19",
+  "status": "first_stage_fixture_verified",
+  "reference": {
+    "local_root": "D:/ARTEX",
+    "declared_origin": "https://github.com/mhtsec/ARTEX.git",
+    "commit": "a9d11cb852eadad00669e4f6a05ee59cbbd14860",
+    "license": "AGPL-3.0",
+    "selected_sources_match_head": true,
+    "runtime_settings_inspected": false,
+    "executed": false,
+    "credentials_read": false,
+    "existing_unrelated_modified_paths": [
+      "skills/api-recon/SKILL.md",
+      "skills/playwright-cli/SKILL.md"
+    ]
+  },
+  "auxiliary_reference": {
+    "origin": "https://github.com/BaaRai/ARTEX.git",
+    "commit": "7ef07417549a6cfc126731ad704644f92f968760",
+    "use": "auxiliary only; prompt differences are not attributed to the local reference"
+  },
+  "files": [
+    {
+      "path": "LICENSE",
+      "sha256": "e0eedba615d5cd1b986afb6c5b3a4b1ae33713e7e9dc74d19daec5e3221f9d2e",
+      "git_blob": "be3f7b28e564e7dd05eaf59d64adba1a4065ac0e"
+    },
+    {
+      "path": "go.mod",
+      "sha256": "9892cc8a3f7be3b26be657cbcf95979b32098bea40ea30c2c2f63228fd1b220e",
+      "git_blob": "d60e889cd82410917dc0f02b0da5765b2df0ceeb"
+    },
+    {
+      "path": "agent/goals.go",
+      "sha256": "965d466a95fd2cf61c2e2305d75f7fae08f97d317d66ad2a3cd963a6675f46e4",
+      "git_blob": "9bf9e17c34e80aa93caf900593b8f818257bbb92"
+    },
+    {
+      "path": "agent/mainagent.go",
+      "sha256": "efd63c0e42a2047dafd3eba655c8b734bb14d02cb916b6cbfc6fb9f754553220",
+      "git_blob": "a6dff963ea2de11a4f6c6d4f5647b7ce35253c91"
+    },
+    {
+      "path": "agent/planner.go",
+      "sha256": "dd1f41372360dc113f0b3f792e32be61386af33496c2227dfde1afcdec27e42c",
+      "git_blob": "3a13830d9009be3c9a5191afeaca9e8bf3ef7f38"
+    },
+    {
+      "path": "agent/worker.go",
+      "sha256": "1a98cc813321bd00b1341c400076a4286ea54656a58afc5e564ffd3931b058e2",
+      "git_blob": "4a9912b720aab975810a576f7b69d8bce2226d66"
+    },
+    {
+      "path": "agent/retester.go",
+      "sha256": "418a11be342295d17442a774dbd26ec662fd13ff17e3719563d991ec0be10dfb",
+      "git_blob": "35882c73d9fd988726a68bc19bd616f33b402e6c"
+    },
+    {
+      "path": "agent/constraints.go",
+      "sha256": "6797b3d55d20bce3adb40a98e825aab73987da2addde92b812e871440c22e327",
+      "git_blob": "66093d433c54868e8c074f396d1da44aa0e689d6"
+    },
+    {
+      "path": "agent/prompt.go",
+      "sha256": "2f80f5e7f506a91023d1a7b0f2ec67272210947da99ca910013b2fe70f0d8d51",
+      "git_blob": "00bb229b6270f7ca4c34f45f9041eea83901ddf8"
+    },
+    {
+      "path": "agent/promptcatalog.go",
+      "sha256": "3f6e519d5521167d543bac37aa579dbfc561a643e279330e285710054b54abf3",
+      "git_blob": "1f0bd1b75873e4a5539b284d484d9557677a4d4a"
+    },
+    {
+      "path": "agent/assembly.go",
+      "sha256": "12405da5c4f046d5bc5464630965fe1faf408b76cd7cea5ec679300cedfb5d34",
+      "git_blob": "d28f207f3151b9dd59cbeae453642b6ee5ac0a27"
+    },
+    {
+      "path": "agent/toolcatalog.go",
+      "sha256": "44b538931dc624a540a561608cc5093d751ae0cb44c822b423e613db6611c6fa",
+      "git_blob": "77b7cb2e67471d001086efa68dcf8f354285ecba"
+    },
+    {
+      "path": "agent/tools.go",
+      "sha256": "9e4e673aeed6246eb83e4643b1983c6d31b3ae574dec877ddc79eef1ca643dcf",
+      "git_blob": "139a03af2a4a461c326ff4f62d081edc91cb0ba7"
+    },
+    {
+      "path": "agent/tools_insert.go",
+      "sha256": "7d66e8825b4015d4489714230b701d783147aef4cb21cdacdb47e3304807ab34",
+      "git_blob": "dde9eaf65e70ad7392782d0169a870604e3d7efc"
+    },
+    {
+      "path": "agent/taskclock.go",
+      "sha256": "c4c4669cb065e1b0c61f1e056c5dfb872b0ddeefc6611865db02e117844bd1ba",
+      "git_blob": "d6b7d046c829f21160d911f63e15a9865a86a628"
+    },
+    {
+      "path": "agent/wrapup.go",
+      "sha256": "28b95cbbf514323db64f57b7ce8dc7e9be4f95d9e3ed2f61e3f3920e31fa9f4d",
+      "git_blob": "6df524e5f5f7f277d8b733cec56043783e17b793"
+    },
+    {
+      "path": "guard/guard.go",
+      "sha256": "8cc1aacf344fb60fc66faea98c2a8b8ed8673293abc4e5877d0750b1810f569c",
+      "git_blob": "2e7eaa14e750e5c03799abbdfa9e0631efae2ea9"
+    },
+    {
+      "path": "intercept/intercept.go",
+      "sha256": "5364640b82fca0f9291e414c8f188d40212c24656ec88f650e8c5920c7000d65",
+      "git_blob": "55d140dab6ba590692c4441454e60b362418274d"
+    },
+    {
+      "path": "intercept/review_context.go",
+      "sha256": "11e6e4e50bffb1b9260eeb980e84bc4be36135abc29f846a6b2932d90d1b0e39",
+      "git_blob": "feeb3219437285e7d8a8632b93a4660ac72f3019"
+    },
+    {
+      "path": "db/exploration.go",
+      "sha256": "a18f6cdab402783adef7381f61604e4568552ca3dc817b47d8d4f3fa51531416",
+      "git_blob": "4b6aef37f603070cfcac2094481e64096b6c5e13"
+    },
+    {
+      "path": "db/finding_retests.go",
+      "sha256": "bc584d8a1d7c9fff48573186fa26a91cf326835dd949203f25409af8e07a0208",
+      "git_blob": "d6e43ae71e26245a976c59dd9954afcf480630f9"
+    },
+    {
+      "path": "db/finding_traffic.go",
+      "sha256": "51967070e797b5ee14828b2d5a2983aff43f3cc466ddec0a8059fb6a2cce841f",
+      "git_blob": "bfa485d19a5fc4136d96e6eee01a459ee7874e18"
+    },
+    {
+      "path": "db/schema.sql",
+      "sha256": "228c45f8efa089cba65a28dfb6415c19ebdd019ac002b3288e797d642e4b5403",
+      "git_blob": "a945b7642f456d4371536b1263a9b259222bd831"
+    },
+    {
+      "path": "server/engine.go",
+      "sha256": "e5575fa767df3abbb4f02e7f672fb433bf57aaad30f3e4c52d152ab8dc59d586",
+      "git_blob": "13aca3882ebed5607d835e0d326947aaa4171038"
+    },
+    {
+      "path": "server/engine_timeout.go",
+      "sha256": "b40f4dd0ae9707a1d3cc46bb3ef905d8e4afbc856e9ddf871fea0856605e8ec1",
+      "git_blob": "8d572934a2689d800de9b8486594a4d4dd3c4cd3"
+    },
+    {
+      "path": "norma/harness/query.go",
+      "sha256": "2490e02881e94914d2213e07d9bb67d9b1cf097b456e026233b715e9df54300f",
+      "git_blob": "22a0199f29910967c5fed30a0a7d3e7ee26adb6d"
+    },
+    {
+      "path": "norma/harness/tools.go",
+      "sha256": "653f2611a6c77f080698101d505f00cc155634a5da9f69344b0c540650e7a541",
+      "git_blob": "954f92af50fab7574dd3c8425e4feb6c1ca1fd45"
+    },
+    {
+      "path": "norma/permission/permission.go",
+      "sha256": "5a7a03829c2924be4a16d2d67feb78748700bee72751ec44428abc8aa17233d7",
+      "git_blob": "1c36d9a095c82800ef6c553eac85b651b9afcbad"
+    },
+    {
+      "path": "norma/agentcore/agentcore.go",
+      "sha256": "a99cb2718e3a2f92d30d29ba30778465c7c8dbc8864c7f9dadbb17c70433c2fa",
+      "git_blob": "7a863acb875bdd0ce675eaafa94071efd79bc6c3"
+    }
+  ],
+  "reuse": {
+    "implementation_copied": false,
+    "upstream_prompts_copied": false,
+    "approach": "Analyze architecture and author ROS-specific contracts and prompts",
+    "candidate_orchestrator": "langgraph==1.2.16",
+    "candidate_license": "MIT",
+    "candidate_installed": true
+  },
+  "limitations": [
+    "Static inspection of selected sources, not a runtime or complete security audit.",
+    "Runtime prompt overrides, tool settings and provider configuration were not inspected.",
+    "SHA256 fixes local file bytes; it does not establish upstream authenticity."
+  ]
+}

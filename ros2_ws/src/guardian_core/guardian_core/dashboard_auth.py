@@ -32,6 +32,9 @@ class DashboardAuth:
         self._password = password
         self.ttl_sec = ttl
         self._sessions: dict[str, float] = {}
+        self._login_failures: dict[str, tuple[float, int]] = {}
+        self.login_window_sec = 60.0
+        self.max_login_failures = 5
         self.key_store = key_store if key_store is not None else JevKeyStore()
         self._lock = RLock()
 
@@ -43,10 +46,18 @@ class DashboardAuth:
         except (TypeError, ValueError):
             ttl = DEFAULT_TTL_SEC
         username = os.getenv("GUARDIAN_DASHBOARD_USER", DEFAULT_USERNAME)
+        password = os.getenv("GUARDIAN_DASHBOARD_PASSWORD")
+        if not password:
+            if os.getenv("GUARDIAN_DASHBOARD_ALLOW_DEFAULT_CREDENTIALS") != "1":
+                raise ValueError(
+                    "GUARDIAN_DASHBOARD_PASSWORD must be configured; "
+                    "the demo default password is disabled"
+                )
+            password = DEFAULT_PASSWORD
         return cls(
             username=username,
             key_store=JevKeyStore.for_account(username),
-            password=os.getenv("GUARDIAN_DASHBOARD_PASSWORD", DEFAULT_PASSWORD),
+            password=password,
             ttl_sec=ttl,
         )
 
@@ -59,17 +70,48 @@ class DashboardAuth:
             if expires_at <= now:
                 self._sessions.pop(digest, None)
 
-    def login(self, username: str, password: str, *, now: float | None = None) -> str | None:
+    def is_login_rate_limited(self, client_id: str | None, *, now: float | None = None) -> bool:
+        key = client_id or "local"
+        current = time.monotonic() if now is None else float(now)
+        if not math.isfinite(current):
+            return True
+        with self._lock:
+            entry = self._login_failures.get(key)
+            if entry is None:
+                return False
+            started, failures = entry
+            if current - started >= self.login_window_sec:
+                self._login_failures.pop(key, None)
+                return False
+            return failures >= self.max_login_failures
+
+    def login(
+        self,
+        username: str,
+        password: str,
+        *,
+        client_id: str | None = None,
+        now: float | None = None,
+    ) -> str | None:
         if not isinstance(username, str) or not isinstance(password, str):
             return None
         current = time.monotonic() if now is None else float(now)
         if not math.isfinite(current):
             return None
+        client_key = client_id or "local"
+        if self.is_login_rate_limited(client_key, now=current):
+            return None
         if not hmac.compare_digest(username, self.username) or not hmac.compare_digest(password, self._password):
+            with self._lock:
+                started, failures = self._login_failures.get(client_key, (current, 0))
+                if current - started >= self.login_window_sec:
+                    started, failures = current, 0
+                self._login_failures[client_key] = (started, failures + 1)
             return None
         token = secrets.token_urlsafe(32)
         with self._lock:
             self._prune_locked(current)
+            self._login_failures.pop(client_key, None)
             self._sessions[self._digest(token)] = current + self.ttl_sec
         return token
 

@@ -1,15 +1,18 @@
 [Unit]
-Description=ROS 2 Resilience Guardian AMR simulator
-After=network.target guardian-core.service
+Description=ROS 2 Resilience Guardian AMR simulator (compatibility unit)
+After=network.target
 
 [Service]
 Type=simple
-User=rob
-Environment=HOME=/home/rob
-WorkingDirectory=/mnt/c/Users/user/Documents/Codex/2026-09-10/ban/ros2-resilience-guardian
-ExecStart=/usr/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && source /mnt/c/Users/user/Documents/Codex/2026-09-10/ban/ros2-resilience-guardian/ros2_ws/install/setup.bash && exec ros2 run guardian_core amr_simulator'
-Restart=always
+Environment="GUARDIAN_WORKSPACE=%h/ros2-resilience-guardian"
+Environment="GUARDIAN_DISTRO=auto"
+EnvironmentFile=-%h/.config/ros2-resilience-guardian/guardian.env
+Environment="ROS_SECURITY_ENABLE=true"
+Environment="ROS_SECURITY_STRATEGY=Enforce"
+Environment="ROS_SECURITY_KEYSTORE=%h/.ros/ros2-resilience-guardian/keystore"
+ExecStart=/usr/bin/env bash -lc 'exec bash "$GUARDIAN_WORKSPACE/deploy/run_guardian.sh" simulator --workspace "$GUARDIAN_WORKSPACE" --distro "$GUARDIAN_DISTRO"'
+Restart=on-failure
 RestartSec=5
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

@@ -18,6 +18,15 @@ experiments/results/
 *.db3
 /output/
 /.playwright-cli/
+/.hypothesis/
+/.superpowers/
+/chat-history/
+# Local credential overrides; .env remains the tracked, non-secret defaults file.
+.env.local
+.env.*.local
+*.pem
+*.p12
+*.pfx
 dashboard-runtime.stdout.log
 dashboard-runtime.stderr.log
 ros2_ws/src/guardian_core/build/

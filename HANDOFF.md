@@ -2,6 +2,273 @@
 
 > 本文件是项目的持续交接记录。每次代码、实验、部署或仓库配置发生变化时，必须在同一个提交中更新本文件的“变更日志”和必要的运行说明，然后再提交到 `main`。
 
+### 2026-10-22 — GitHub源码快照交付
+
+- 用户明确要求将当前项目打包上传到其GitHub。已核对账号thy10086拥有 `thy10086/ros2-resilience-guardian` 推送权限，远程main与本地原基线均为9eb6467；按项目约定切回main整理本轮及前序累计源码、测试、部署说明和前端改动。
+- 发布目标为原仓库main及固定标签 `snapshot-2026-10-22`，使用普通快进推送，不重写远程历史。源码包通过Git归档生成，位于忽略的 `output/releases/`，不把ZIP作为源码文件重复提交。获取、研究环境依赖及已知DDS/安装布局限制见 `docs/releases/2026-10-22-snapshot.md`。
+- 候选文件检查未发现高置信度凭据模式；仓库.env仅保留无凭据的默认配置。聊天记录、构建目录、虚拟环境、运行日志及浏览器状态不进入源码归档；两个超过50MiB的语料文件已由Git LFS管理。新增本地凭据覆盖/缓存/聊天记录的忽略规则，以及shell脚本LF约束。
+- 当前树完整验证 **874 passed /336.07s，0失败/0错误/0跳过**；Humble **2 packages finished /21.1s**。三个前端JS语法与暂存区空白检查通过；未调用真实模型或连接物理机器人。日志/JUnit在 `output/verification/20261022-publication-pytest.*`，构建为 `20261022-publication-build.log`，文件检查为 `20261022-publication-inventory.json`。
+- 原始实验大产物仍在本机忽略目录，不随源码包分发；353份LFS文件保持既有管理，源码ZIP可能只含LFS指针，完整语料应克隆后执行git lfs pull。现有8080演示服务继续保留运行。
+
+### 2026-10-22 — 前端功能分组与输入复用
+
+- 用户要求优化重叠功能与操作逻辑。原九个工作区按“安全检测 / 恢复验证 / 仿真验证 / 运行监控 / 模型服务”分组，保留旧panel地址与原检测接口；单工具分类隐藏重复次级导航，手机五分类可同时显示。
+- 恢复验证分为轨迹检测（默认 `#research`）、多智能体研判（`#research/agents`）、实验记录（`#research/evaluation`），每次只展示对应工具；历史消融快照和Jev离线自检放入实验记录，避免被当作当前检测结果。URL刷新、hash变更及非法子视图回退均验证。
+- 新增显式数据带入：单文件源码→安全图/agent，安全图文件→agent，当前轨迹→agent。显示输入来源，带入只在浏览器更新数据，不调用模型、不复制Key，忙碌任务拒绝输入替换；模型测试仍针对固定自有模型，上传源码仍仅静态分析。更换研判输入后清除旧结果与下载入口。
+- 浏览器延迟真实HTTP响应复现了旧源码/图报告覆盖新输入的问题；修复后旧结果均不显示。输入/操作generation同时约束静态报告、Jev语义响应和错误/按钮更新，样例目录迟到不再清空已有源码/文件。正常重新检查也隐藏前次报告，避免等待时误读。
+- 最终相关回归 **115 passed /39.80s**（frontend_workspace、dashboard_recovery、dashboard_agents、dashboard_code_security、dashboard_ros_graph），日志/JUnit为 `output/verification/20261022-workflow-pytest.*`。三个JS语法与本次文件空白检查通过。
+- Playwright实际Dashboard验证正常/过期轨迹、真实本地安全图、Jev离线自检7/7、数据带入、输入变化清理旧报告、任务保护、视图/路由与390px布局，无新增JS异常。agent提交/取消使用显式浏览器拦截fixture检查前端请求，未运行真实模型；迟到Jev响应同样拦截且未保存测试Key。没有连接物理机器人或修改后端安全门控。
+- 浏览器复核脚本及日志在 `output/playwright/verify-workflow-1022.js`、`verify-stale-input-1022.js`、`verify-input-loading-1022.js` 与对应workflow/stale-input/input-loading日志；截图为 `workflow-desktop-1022.png`、`workflow-mobile-1022.png`。当前8080服务直接读取源码前端，刷新即可加载；保留后台运行，未提交或推送。
+
+### 2026-10-22 — 恢复页面访问（18:12）
+
+- 用户反馈页面无法访问。检查复现Windows连接8080被拒绝、旧Windows启动进程已不存在、WSL无运行分发版；旧日志只有启动信息，不能据此判断WSL此前为何停止。
+- 复用现有本地组合仿真脚本重新启动，没有修改生产代码或连接物理机器人。当前Windows launcher PID为44352，Linux Python PID为12；此前47592/650已失效。日志改用 `output/runtime/20261022-restart.log` 与 `.err.log`，新记录 `output/runtime/session-20261022-restart.json`。
+- Windows访问 `/api/health` 返回200；Playwright实际登录、确认安全测试分析页与多智能体表单可见，间隔700ms的 `/api/state` 已更新。保留后台运行，没有设置开机自启。当前实例如需停止，应先核对PID再执行 `wsl.exe -d Ubuntu-22.04 -- kill -INT 12`。
+
+### 2026-10-22 — 启动本机软件演示，保留后台运行
+
+- 用户要求“将项目拉起来运行”。WSL Ubuntu-22.04没有systemd；通过隐藏Windows WSL launcher启动，地址 `http://127.0.0.1:8080/#research`，仅本机演示登录 `admin/admin`。控制签名Key每次启动在进程内随机生成并共享，未保存或显示；未读取已有凭据。
+- 本机默认多进程启动未通过本轮闭环检查（反馈被拒或丢失）；UDP诊断对照也未通过，不能把本次记为多进程DDS验收成功。真实时钟的隔离双节点probe可正常运动，最终改用rclpy SingleThreadedExecutor组合运行原Guardian、AMR与Dashboard三个节点，保留配置、签名与恢复门控，没有修改生产代码或放宽安全条件。这是本地演示启动方式，不是生产进程隔离方案。
+- 安装副本路径使agent运行环境定位返回503；本次启动显式将受信的当前workspace源码加入PYTHONPATH，已用非法URL请求确认进入配置校验400而非运行环境503，该检查不发出外部模型请求。生产安装布局的通用定位及本机多进程DDS问题仍待后续单独处理，当前运行实例使用已验证的源码与组合路径。
+- 最终进程：Windows WSL launcher PID47592、Linux Python PID650，ROS_DOMAIN_ID=42、ROS_LOCALHOST_ONLY=1。后台服务保持运行，仿真已停止并重置供用户操作。Playwright实际登录、检查动态状态、启动仿真观察速度0.2、停止后速度0、验证多角色表单可见及agent环境就绪；跨topic Dashboard快照是异步状态，不代替原始轨迹安全验收。未调用真实模型或物理机器人。
+- 启动与进程记录在 `output/runtime/start_local_20261022.sh`、`run_local_composed_20261022.py`、`session-20261022.json`，日志为 `20261022-local-ready.log` 和 `.err.log`。停止当前实例可执行 `wsl.exe -d Ubuntu-22.04 -- kill -INT 650`；PID仅适用于本次实例，重启后应核对session记录。没有设置开机自启、提交、推送或修改原部署单元。
+
+### 2026-10-20 — R1–R5 修复、真实接口与检测页验收完成
+
+- 用户授权修复上轮问题，并确认提示词参考本地 ARTEX。当前代码已支持四角色真实接口，但本轮只连接本机 HTTP 协议 fixture，未调用真实外部模型；不能宣称真实研判质量或多 agent 检出收益已获证明。
+- R1：AMR command/status 双流0.5秒单调租期，超时撤销并停车；既有 timestamp 强制纳入 HMAC并扣除到达前源年龄，publisher/adapter/observer同步更新。steady timer及冻结ROS高水位阻止暂停前旧合法高传输在小步恢复时重新授权。正常恢复及100ppm两小时漂移仍可用。旧签名不兼容，部署应共同更新并重启相关节点；没有硬件watchdog或跨重启持久防重放保证。
+- R2：单源证据保留采集寿命，使用时复核；暂停链冻结、严格超过冻结ROS高水位的新采集才可重锚，旧缓存不延寿。修复生命周期最小offset导致新采集永久老化的可用性问题。
+- R3/R4：导入帧要求完整schema，缺 observed_speed/许可等字段直接拒绝；NORMAL同时核对实际 next_command_epoch与授权，999篡改回归可检出。
+- R5：上传源码独立目标、STATIC_REVIEW发现与static_detection保留；模型测试正常不会覆盖静态critical/high、未支持文件或抽取缺口。总体STATIC_REVIEW_REQUIRED、CLI退出1，静态复现标签保持INCONCLUSIVE，不冒充运行违规。
+- 新增OpenAI兼容provider与固定HTTP传输子进程。URL/Key仅经有界stdin进入传输进程，coordinator及测试worker继续无网/无凭据；15秒HTTP总截止可终止持续滴流并回收进程。接口模式总180秒，最多16次角色调用/12次测试执行/六项唯一目录，必加正常对照；失败不退fixture。修复转义Key回显泄漏、启动失败FD泄漏，reviewer获得计划/产物/有效性/见证/Oracle/复放摘要。提示词为独立适配的v2，未复制ARTEX整段实现。
+- 检测页“安全测试分析 → 四角色协作测试分析”提供URL、Key、模型列表/手动模型、sample或files/frames JSON、创建/查询/取消/下载。Key不持久化；单活动任务、会话精确归属、8历史/32MiB总量/4MiB单报告。start与logout在服务锁内协调，两个竞态barrier确认旧会话不能在登出后启动付费任务。
+- 最终产物审计发现浏览器JSON.stringify会把1.0改成1，破坏报告摘要复算；已TDD修复为同会话GET /api/agents/report直接服务端序列化、浏览器保存原文本。新增401/404/409与float保真回归；旧的非v2下载文件仅保留作问题复现，不作为验收产物。
+- 最终Humble两包构建通过；完整回归 **874 passed /311.08s，0失败/0错误/0跳过**。compileall、两个JS语法与tracked/new task文件空白检查通过。最后两类边界独立复核71passed，下载限定复核2passed；完整回归覆盖全部新增用例。
+- Playwright实际本机Dashboard完成模型读取、选测运行、静态BLOCKED保留、取消、错误无回退、下载、退出清空及未登录401；390宽页面无横向溢出。四份最终浏览器下载 `output/playwright/*1020-v2.json` 的4次真实注册执行由独立脚本重算Oracle/目录见证/trace与artifact摘要及source/context/plan绑定，全匹配且无测试Key。截图在 `output/playwright/agent-desktop-1020.png`、`agent-mobile-1020.png`。
+- 最终receipt为 `output/verification/live-verification-20261020.json`，完整日志/JUnit为同目录 `20261020-report-final-pytest.*`；核验脚本 `verify_live_artifacts_20261020.py`。使用与限制见 `docs/artex_ros2_agent_review.md`。下一步是用户在页面配置真实服务后实测，并做规则/单agent/多agent等预算对照；当前worker只确认固定意图，不是自由探索渗透代理。
+- 保留当前 `codex/evidence-bound-recovery` 及所有原有dirty改动，未提交、推送或部署；已关闭本轮preview服务与自建浏览器。没有读取真实凭据或启动物理机器人。
+
+### 2026-10-19 — 代码逻辑与创新性审查（未改生产代码）
+
+- 用户要求审查逻辑合理性与创新方向；三名独立审查分别核对恢复、agent编排、Oracle/实验，主agent重新复现五项关键问题。报告 `docs/code_logic_review_2026-10-19.md`，探针/产物在 `output/code-logic-review-20261019/`。
+- 待修P1：AMR执行模型没有命令/状态租约，最后一组合法授权后5秒无新输入仍以.2运动。待修P2：单源反馈用接收时刻续期，源年龄.79秒在max_age=.5、短驻留合法配置下仍恢复；独立模式不受该具体问题影响。
+- 待修P2：导入缺少observed_speed时被默认0，可消除unsafe_candidate/unsafe_resume；NORMAL Oracle未查实际next_command_epoch，改为999仍零违规；files静态critical1/high4/BLOCKED被总NO_VIOLATIONS覆盖、CLI退出0。生产代码与原测试均未修改，这些发现尚未修复。
+- 本轮主agent定向99 passed/23.02s，同时独立异常探针仍能重现问题，表明原覆盖存在空缺；未重复声明前轮770项为本轮新测试。没有启动ROS节点、读取凭据或调用真实模型。
+- 创新建议聚焦执行端可撤销的上下文/证据授权、证据完整性感知及反事实测试、按可证问题自适应选测。已核对SOTER、ROSMonitoring、BTreeFuzz及开源TLC主源；不把通用监控/状态图/多agent框架本身当独创。下一轮优先修R1–R5，再做真实模型与外部目标等预算验证。
+
+### 2026-10-19 — ARTEX 多 agent 第一笔离线闭环
+
+- 用户要求参考 ARTEX 的 agent 分工、限制与提示词，将网页安全研判/规划/测试方式迁移到 ROS 2。已找到用户完整本地仓库 `D:/ARTEX`（mhtsec/ARTEX，HEAD `a9d11cb852eadad00669e4f6a05ee59cbbd14860`），主参考切换为该版本；公网派生版本仅作辅助，不混淆提示词差异。未运行 ARTEX、读取凭据或修改该仓库。
+- 两个只读审查 agent 核对参考设计与现有集成接口。设计采用 goals/planner/worker/reviewer 角色、资产与探索记录分离、CAS 领取、证据/计划/产物摘要绑定；以固定测试目录、共享预算、可终止子进程和现有 SafetyOracle 强制边界，不照搬通用 Bash/ModeBypass、可关闭范围约束或失败放行。Agent 不进入恢复授权或 ROS 控制链。
+- 用户审阅具体设计后明确批准第一阶段。新增设计与执行计划、独立撰写的四角色提示词和29份ARTEX源码来源清单。复用LangGraph1.2.16/pyseccomp0.1.2，依赖安装于独立 `output/agent-review-venv`，不加入Guardian实时环境。没有复制ARTEX/Norma源码或原提示词。
+- 独立设计审查提出两项P2，已补齐：正常对照和各测试的真实触发见证由程序断言，防止短场景一直停车却空转通过；复核按服务器finding ID逐违规匹配，避免单意图部分复现被整体盖章。另明确TRACE_RECHECK不等于重新触发、主管硬截止与provider取消限制。
+- 新增 `experiments/agent_review/` 契约、目录、角色提示词、LangGraph编排、固定worker和主管；CLI为 `experiments/run_agent_review.py --sample/--input ... --output <不存在文件>`。六项恢复场景真实执行，父层重算Oracle与目录断言；可选witness list保持旧execute_scenario返回接口兼容。fixture角色脚本应答与真实执行分开，尚未接真实模型或前端页面。
+- 由于WSL拒绝unshare，采用libseccomp拒绝网络/worker fork/exec/离组，实际socket EPERM、干净环境、临时cwd和rlimit均验收；父主管30秒总截止、单测试2秒、最多3并发、6唯一测试/12含复放执行/16角色调用，有限输出和整组终止。仅执行固定审定代码，不是敌对源码执行容器。
+- 独立代码审查P2已红绿修复并复核：可选研究依赖缺失时对应测试跳过，不破坏原环境；提交轨迹的确定性违规单独登记TRACE_RECHECK/逐finding，不能被模型零违规覆盖。合成65帧停滞负例CLI退出1且保留原Oracle违规，复核不冒充新触发。
+- 新测试74项通过，最终全量770 passed/151.31s；compileall与diff检查通过。研究venv补装既有Hypothesis6.168.5以完整回归，禁用anyio与系统pytest不兼容的插件自动加载。原venv执行/runner子集18 passed/14 skipped，明确缺研究依赖的跳过不代替完整验收。设计阶段底座28项回归曾因消息overlay遗漏/旧overlay收集失败，改用现有install/humble后通过，未为此改生产代码。
+- 正式本地产物在 `experiments/results/agent_review_validation/`：自有模型样例、自有DDS原271帧导入与合成停滞输入/结果、依赖版本与输入来源说明。重用第九轮原始审计SHA `02d3c08c2dd8ab7a5aadc676a3ae0c10406dff317549f8f03e729209f8343278`，没有新跑DDS或提升来源认证。运行与限制见 `docs/artex_ros2_agent_review.md`。
+- 保留所有先前未提交改动；未提交、推送、部署、读取真实凭据或调用真实模型。下一阶段是真实结构化RoleProvider与检测页作业入口，随后再进行等预算单/多agent对照；当前fixture演示不支持多agent检出优势结论。
+
+### 2026-10-13 — 第九轮：独立新缺陷与真实DDS审计留存
+
+- 按用户继续授权推进，用户选择先用现有ROS 2闭环。新增有界 `inspect_recovery_audit.py`复用现有dashboard检测器，接受JSON/混合JSONL、原字节SHA和来源声明；2MiB/2000帧，拒绝坏行/重复键/NaN/错误SHA及输出覆盖，不排序时钟，不把输入中的认证声明当作证据。
+- 新增 `recovery_ros_artifacts.py`及现有launch test可选环境 `GUARDIAN_RECOVERY_ARTIFACT_DIR`；子进程全停后先保留原审计，再核对12份源与快照、3个安装入口及9个启动前解析的模块SHA；源漂移、轮转、不完整或违规拒绝成功结果。来源解析不是逐次import跟踪，也未冻结所有ROS/Python依赖。
+- 真实DDS采集一次性退出0，19场景通过，停止后271帧/265876字节，0违规/0采样空窗；固定SHA为02d3c08c2dd8ab7a5aadc676a3ae0c10406dff317549f8f03e729209f8343278，独立CLI重读一致。启动至运动3.0828s、攻击至零速0.2000s、观察进程重启至运动3.6001s；传感器仍为软件AMR模型，不能以该次成功认定DDS间歇启动已修复或实机制动已验证。
+- 新反馈/策略/Oracle在缺陷选型前冻结，独立审查未读反馈实现或结果，选出 `no_motion_envelope`与`nonzero_safe_stop_limit`。新 `recovery_transfer_mutations.py`严格单AST站点，只生成离线类。runner新增受限transfer集，保留原默认三族/旧反例重放；独立审查P2是预登记漏约束真实driver，经红绿复现修复为比对已锁定前批报告的11份保留源，原登记不改写。
+- seeds60..79、unguided/liveness各20次5秒，40组全部wall_time停止，29134次生成、完整0违规；两族两组均20/20，82反例和40corpora重放一致。独立审查逐份复算40报告/配对、重放82反例和7966保存输入，并核对13源码/快照、登记及第八轮11保留源全部一致。累计软预算尾部1.391s/最大68.9ms，预算外发现0。liveness生成/转移中位529/313，unguided 951/534；首次检出配对差仅亚毫秒，未证明跨缺陷全面收益，不改默认。
+- 新增22项回归，最终696 passed/58.04s，experiments/guardian_core compileall通过。正式结果分别在 `experiments/results/recovery_transfer_validation/`和`recovery_ros_trace_validation/`，预登记/独立选型在`recovery_transfer_preregistration/`；文档 `docs/recovery_transfer_validation.md`及计划同步。保留所有前序未提交改动，没有提交、推送、系统服务部署或连接机器人。
+
+### 2026-10-13 — 第八轮：持续健康窗口与恢复推进反馈
+
+- 新增实验侧 `RecoveryLivenessFeedback`，仅从完整控制轨迹计算最长连续健康窗口和恢复阶段；加入Hypothesis `liveness`、`boundary_liveness` 模式、同等指标采集、见证语料与重放校验。正常恢复运动保持连续；探索代理以1e-9秒容差吸收0.25秒采样边界浮点误差，配置随报告/语料冻结，`SafetyOracle` 与生产恢复判定不变。
+- 审查原0.25秒边界的真实轨迹反例，修复前`0.2500000000000002`可能截断窗口；修复后`healthy(.25), healthy(.5), gap(.25), wait(1)`及整体时钟平移100秒均得到1.95秒。恢复了此前整理测试时覆盖掉的epoch、重复/冲突帧、unresolved、强制停车等回归覆盖。
+- 新种子40..59，unguided/boundary/liveness/boundary_liveness四模式各20次、每组5秒，共80组；所有组wall_time停止，41,935次生成，累计预算尾部3.450秒、最大86.8毫秒，预算外检出0。三族资格通过，完整机制违规0；193份反例与80个corpus重放一致，12份源码及快照SHA一致。
+- `never_resume`检出分别5/20、3/20、16/20、7/20。liveness相对unguided同种子配对为12胜/1负/7平、截尾首检时间差中位数-1.601秒；但boundary_liveness相对liveness为1胜/10负/9平，显示组合目标竞争预算。Wilson区间和其它两族结果详见 `docs/recovery_liveness_feedback.md`。该批次是参与过目标设计的已知缺陷新种子验证，不是未见缺陷泛化或生产发现，因此不改变默认模式。
+- 验证：反馈/模式定向44 passed；完整测试674 passed/53.77s；experiments与guardian_core compileall、git diff --check、实验报告/源码快照独立核对通过。保持未提交现状；没有连接机器人、部署或推送。
+- 计划与复现见 `docs/superpowers/plans/2026-10-13-recovery-liveness-feedback.md`；数据和协议在 `experiments/results/recovery_liveness_validation/`，日志在 `output/recovery-liveness-validation.log`。后续重点是外部ROS 2审计轨迹、独立缺陷族和进一步分析组合目标的搜索竞争；不要将本批结果重标为盲测。
+
+### 2026-10-13 — 第七轮：新受控缺陷与等壁钟预算验证
+
+- 继续用户授权的改进方向，新增 experiments/recovery_holdout_mutations.py 与 run_recovery_holdout.py；复用已安装Hypothesis6.168.5、原18动作/10时长/32动作策略、覆盖/边界提取和SafetyOracle。新增忽略停车ACK、错误下一epoch、有效许可后持续停车三族单站点AST变异，严格匹配失败即终止，只在离线独立类运行。通过场景 gate_factory 注入，原四族、ROS类与运行恢复决策不改；三族资格检出且完整控制0违规。
+- run_campaign新增可选wall_time_sec，要求无固定预热/缩减；以unittest.SkipTest专用子类经Hypothesis原生停止路径结束，不把预算到期当失败重跑。计时包括生成/目标/完整核心/缺陷检测/首次反例保存，最终报告与语料写入、资格与重放排除。软预算完成在途输入，公开尾部超时；预算外检出单列且不计检出率，提前触及执行上限使比较无效。新增时间截尾/种子配对/Wilson描述性区间。
+- 正式seeds20..39、unguided/guided/boundary各5秒/执行上限10000，60组全部wall_time结束，CLI退出0；31,749次生成（15,852/5,919/9,978），完整0断言违规。ACK/epoch各组均20/20；恢复停滞6/20、1/20、2/20。转移中位480.5/239/268.5，截尾停滞首次时间中位均5秒，配对中位均0；不据仅检出组时间声称guided更快，不支持反馈引导全面优于无引导。结果为新注入检查验证，输入模型仍已知，不称未知真实漏洞、外部基准或盲验证。
+- 报告在 experiments/results/recovery_holdout_validation/；独立审查逐份核对60报告、11份源码/SHA/对应快照，复算统计和配对；129首次发现+3资格共132反例、60corpora内9342保存输入全部独立重放一致。总搜索302.315秒，尾部累计2.315秒/最大87.1毫秒，0预算外发现。源码冻结在资格之前，每组前与收尾检查，Oracle与BoundaryFeedback也核对为与第六轮SHA相同；拒绝覆盖输出目录，前端第六轮历史资源保留。
+- 红绿回归新增23项，最终全量630passed/49.81s，experiments/guardian_core compileall与diff检查通过。首次全量因遗漏source install/humble/setup.bash而在消息包导入阶段失败，加载已有工作区环境后通过；没有因此改生产代码。本轮未改ROS包运行代码，不重复无关构建/浏览器验收，未连接机器人、部署、提交或推送，保留既有未提交改动。
+- 实施计划 docs/superpowers/plans/2026-10-13-recovery-holdout-validation.md、结果/运行说明 docs/recovery_holdout_validation.md；README/PROJECT_GUIDE同步。下一轮优先持续可恢复窗口目标与新的独立种子协议，再接真实ROS/外部恢复轨迹；DDS间歇启动超时、物理独立性和实机制动仍未解决。新目标必须另行冻结验证，不能在本轮数据上调参后仍称独立验证。
+
+### 2026-10-12 — 前端恢复检测同步
+
+- 按用户要求同步到现有“安全测试分析”页，首页“防护实验室”新增“恢复轨迹检测”入口；恢复检测/第六轮五组结果为主区，原Jev旁路测试折叠保留。
+- 新增dashboard_recovery.py作为RecoveryFrame/SafetyOracle/SemanticCoverage的只读适配器，登录保护POST /api/recovery/inspect严格只接收frames，2000帧/2MiB限制，不调用Jev、不加载变异代码、不签发许可或发布ROS命令。显示违规帧及公开上下文绑定、实际Oracle参数和采样空窗；无违规只表示提交轨迹未触发断言，不作来源认证或物理安全保证。
+- 新增experiments/export_recovery_dashboard.py，复用既有场景和资格轨迹，核对通过的完整预算/种子配对/重放/重新聚合统计及源码SHA/Oracle参数后导出frontend/recovery-evaluation.json与recovery-samples.json。五组实际TTL5/4/7/6/4、184反例/50语料及raw修正边界如实保留；六样例含2完整控制/4受控缺陷。运行时不依赖实验目录或Hypothesis，资源随已有frontend_files规则安装。
+- frontend/recovery.js接入JSON帧数组/含frames报告/混合ROS JSONL恢复行导入，检测期间锁定输入，失败隐藏旧结果。独立审查的3项P2已通过红绿修复：延迟样例响应重启输入导致旧结果错归属、非正候选许可寿命被接受、错误样例数组污染状态阻止自有文件导入。前两类前端问题均在真实Playwright上先失败后通过，后端新增2项HTTP400回归。
+- 最新全量607passed/46.69s（新增10项）、experiments与guardian_core compileall通过；Humble两包最终构建成功。首轮全量606pass/1fail为本地测试请求走环境代理返回502，新增helper显式直连本地fixture后整套通过。真实浏览器六样例/JSONL/坏文件/503错误/Jev7/7/延迟响应及错误样例回退验收通过；桌面1440和手机390布局已检查，截图在output/playwright/。无未处理JS异常，验收注入的503、重启后的登录401与旧favicon404不计作功能通过证据。
+- 页面说明见docs/recovery_detection_page.md，README/PROJECT_GUIDE同步。已有Dashboard进程重启后才能载入新Python接口，浏览器刷新读取新资源；本轮仅临时只读预览验收，未安装/变更系统服务，保留先前全部改动与分支，未提交或推送。
+
+### 2026-10-12 — 第六轮：目标族消融与新种子验证
+
+- 完成用户授权的后续两项：沿用Hypothesis6.168.5，新增ttl/context_repair目标掩码，只选择第五轮原有标签；四特征/maxima仍全部采集。既有guided默认、输入策略、18动作/10时长/32长度、生产恢复决策及四变异均不改。实际target调用由测试捕获，报告新增active_target_labels、seed_role及配对消融统计。
+- seeds10..19、五组各1000次，原始50,000次批次完整结束且exit1：boundary seeds12/16触发recovery_stalled，两个corpus重放也触发相同违规；不是输入无法复现。原始报告/日志、184反例/50corpora、8份来源匹配源码快照及诊断轨迹均保留在 `experiments/results/feedback_target_ablation/`。
+- 根因是六次.6秒控制更新暂停导致.5秒许可被正确拒绝，而旧Oracle把采样空窗计入连续健康。经红绿回归及独立复审，SafetyOracle新增max_frame_gap_sec=.25，超界仅重启活性窗口；liveness_sec=3不变，SAFE_STOP本身不重置计时。授权/过期/上下文/一次性及重放继续跨空窗检查，连续真实停滞仍被检出。该参数是离线/审计活性推断前提，不是控制安全保证；报告增加实际Oracle参数和来源SHA。
+- 在 `experiments/results/feedback_target_ablation_corrected/` 完整重跑相同50组，exit0，完整机制及资格控制0违规，四族资格通过。TTL检出unguided/guided/boundary/ttl/context_repair为5/4/7/6/4（各10种子），其它三族全部10/10。转移中位547.5/566.5/482.5/505/479，壁钟中位5.27/12.36/6.58/7.32/6.41秒；boundary vs unguided TTL截尾配对差-71.5、转移差-67.5且10负，ttl vs unguided分别-112.5/-34。仅支持本批次TTL指标改善，不称全面优胜；第五轮比较方向相反，保留种子敏感性结论。
+- 184反例（176首发现＋4资格原始＋4缩减）与50corpora自动重放一致。独立审查逐份核对50报告、预算/模式/轮换、source SHA、全部统计和资格manifest。raw/corrected50组覆盖/四maxima/首次检出索引及违规码全部相同，仅误报和时间记录不同；不混合为100组独立样本。Oracle修正在看到raw结果后进行，不称全程盲验证或未见缺陷泛化。
+- 最终验证：全量 `597 passed`，新增6目标消融＋4活性连续性测试；Humble两包构建、experiments/guardian_core compileall和diff检查通过，PNG/SVG已目视检查。完整说明 `docs/feedback_target_ablation.md`，README/PROJECT_GUIDE/第五轮后续引用同步更新。下一阶段独立扩大预算与等壁钟对照，再验证未参与目标设计的缺陷族；DDS启动不确定性仍未解决。保留既有分支和改动，未提交/推送/部署。
+
+### 2026-10-12 — 第五轮：许可边界反馈对照
+
+- 完成用户授权的下一步：新增实验专用 `experiments/permit_boundary_feedback.py`，从完整控制轨迹计算TTL分类/临界接近度、精确消费上下文变化和故障修复后签发/恢复关系，调用现有Hypothesis四个带标签target。重复心跳按集合去重，目标不读mutant、Oracle结果或预置动作；生产ROS决策/绑定/认证均未改。
+- 扩展两个现有runner支持显式boundary模式与选定模式旋转对照，旧默认保留。三组共用原18动作/10时长策略，没有固定预热。报告新增边界特征/maxima、预算截尾与配对索引统计、Python/Hypothesis版本和实验源码SHA256；收尾自动核对所有反例及corpus，差异导致非零退出。
+- seeds0..9、每组1000次，unguided/guided/boundary共30,000次生成执行，完整机制0违规。TTL检出9/10、4/10、8/10，其余三族全部10/10。语义转移中位550.5/559/464.5，壁钟中位5.74/14.38/9.50秒。boundary vs unguided转移配对10负、中位-78；TTL截尾首索引配对差中位+48.5，不支持新目标优于无引导。相对旧目标TTL配对差-85、检出多4种子，仅作本批次描述性改善，不作显著性或未知漏洞声明。
+- 119个反例（111首个发现＋4资格原始＋4缩减）和30组corpus重放完全一致；四变异资格检测通过，完整控制0违规；沿用消融无新发现。独立审查核对30报告、完整执行预算、所有来源SHA和截尾统计，并抽查TTL过期反例，无剩余重要阻塞项。
+- 预检审查发现TTL宽容比较合并相邻浮点，新增math.nextafter红绿测试并修为严格到期比较。部分预检批次保留在 `experiments/results/permit_boundary_feedback/` 并明确排除，正式结果只使用 `experiments/results/permit_boundary_feedback_strict/`。没有根据实验收益修改目标。
+- 全量回归暴露既有ROS探针/执行器两个独立订阅到达顺序假设：执行器已恢复、探针仍见旧停车命令。测试改为等待与新proof精确绑定的命令并断言requires_safe_stop=false/action=NONE；未修改生产行为。最终全量 `587 passed`、experiments compileall通过，新增18项，定向ROS8项通过。
+- 文档 `docs/permit_boundary_feedback.md`、README/PROJECT_GUIDE/第四轮引用已更新；独立PNG/SVG图在正式结果目录。下一轮优先目标独立消融、未用种子验证和单独扩预算；DDS间歇启动超时根因仍未确认。保留全部先前改动与当前 `codex/evidence-bound-recovery`，未提交/推送/部署。
+
+### 2026-10-12 — 第四轮：重复评估、受控缺陷与机制消融
+
+- 完成已授权四步计划：ROS 启动诊断、四类实际代码变异的资格验证、十种子批量对照及机制消融。复用 Hypothesis、Python AST、ROS launch_testing 和 rclpy 原生幂等清理；变异仅在离线独立命名空间运行，未接入 ROS 生产节点。
+- 新增入口 `experiments/run_recovery_evaluation.py`，诊断/变异/绘图脚本及配套测试；新增许可重放动作。实验协议和完整结果见 `docs/recovery_evaluation.md`；产物保存在忽略 Git 的 `experiments/results/recovery_evaluation/`。
+- seeds0..9，每组1000次，固定/无引导/引导共30,000次完整机制执行，0安全断言违规。引导转移覆盖配对结果4胜6负，中位差-2；TTL受控缺陷检出无引导9/10、引导4/10，当前目标未显示稳定收益。固定17输入循环参考不能当作独立随机搜索。
+- 四个受控变异均被对应挑战检出，完整控制均无违规；21条验收输入×5配置消融共105次。完整机制违规输入0，取消TTL/上下文/一次性约束/独立观测分别为2/4/2/7。它们是人为注入的测试缺陷，不是发现四个生产漏洞。121个原始、缩减和首个发现反例全部重放一致；此次缩减仍为3动作，未声称最短。
+- 已确认并修复三个节点SIGINT二次shutdown及已关闭context的消息转换退出问题；活context异常仍抛出。默认DDS并行启动超时再次复现：域值一致、远程主题已发现但数据未到达，底层根因仍未确认。UDP-only XML仅为诊断对照，未改生产默认，也不能据此确认共享内存故障。
+- 最终验证：全量 `569 passed`，compileall、Humble两包构建通过；默认与UDP串行真实三进程验收各19项通过，含观测器重启及全部进程正常退出。默认轨迹264帧/21状态/26转移，UDP292帧/20状态/24转移，均0违规。启动报告为 `startup_default_validation.json` 和 `startup_udp_validation.json`。独立审查发现的恢复计时和违规帧分类问题已通过红绿测试修正，无剩余重要阻塞项。
+- 下一阶段优先评估许可边界反馈目标，并继续采集默认DDS超时证据。虚拟时间恢复延迟不代表实机结果；未开展物理仿真/硬件验证。本轮保留此前改动，仍在 `codex/evidence-bound-recovery`；未提交、推送或部署服务。
+
+### 2026-10-12 — 第三轮：BTreeFuzz 借鉴与恢复语义反馈测试
+
+- 按用户授权完成离线测试最小闭环：复用 Hypothesis 6.168.5 的生成/target/find，复用 ROS launch_testing；新增恢复审计帧、归一化状态/转移反馈、安全断言、虚拟时间场景、interesting corpus 保存和重放。Hypothesis 仅在 `output/recovery-fuzz-venv`，没有加入 ROS 运行依赖。
+- Guardian 配置 audit_path 时记录恢复输入、许可公开绑定、实际发布 epoch；原 18 项三进程验收增加统一语义轨迹断言。未替换恢复决策、精确指纹校验或双源观测链。
+- 文件入口：`guardian_core/recovery_feedback.py`、`experiments/recovery_scenarios.py`、`experiments/run_recovery_feedback_fuzzing.py`；运行说明 `docs/recovery_feedback_fuzzing.md`，设计和计划位于 `docs/superpowers/`。
+- 单种子测量 seed42/64生成＋16种子：guided 56状态/84转移/36保留输入；unguided 65/104/39；两组0违规。guided corpus 重放36例，覆盖完全一致。当前未证明反馈引导收益，不宣称论文算法复现或真实物理安全。
+- 独立审查修正 oracle 对撤销许可、消费输入 epoch 的漏检，并新增 gap 动作真正覆盖 TTL 过期；回归覆盖 ACK 缺失、同帧签发消费和缩减可重放性。无剩余审查阻塞项。
+- 验证：全量 `548 passed`、Humble 两包构建、compileall通过；真实三进程19项通过，串行一次269帧/21状态/26转移/0违规。并行全量测试时一次 DDS 启动零话题超时，串行复验通过，根因未确认，实验建议串行运行。
+- 当前仍在 `codex/evidence-bound-recovery`，保留既有未提交改动；未提交、推送或部署服务。输出报告在忽略 Git 的 `experiments/results/`。
+
+### 2026-10-12 — 第二轮：多进程与独立观测
+
+- 已继续完成第二轮：Guardian、AMR 适配器、recovery_observer 三个独立进程；复用 ROS 2 官方 launch_testing/launch_testing_ros、标准 Odometry/LaserScan 与 rclpy 传感器 QoS，没有自建进程管理框架。
+- 新增 IndependentObservation 消息和独立签名密钥。独立模式显式启用、缺少密钥/观测时保持停车，不回退单源恢复。适配器进程不接收观测签名密钥。
+- 独立节点计算前向速度/净距，拒绝方向不覆盖、非有限、无效、陈旧/重放与异步原始样本。软件扫描净距由障碍位置与 AMR 位置计算；物理传感器尚未接入。
+- Guardian 对执行器与独立观测作同采集周期关联，两个缓存各最多8项，保留原始有效期；同拍速度矛盾立即阻断，不回退旧健康配对。新 epoch 清缓存，完整配对采集/接收时间均晚于新事件才能解除仿真来源。
+- 观测启动会话与新的唯一发现 GID 绑定序号水位，拒绝退休会话重放；历史容量64耗尽锁存停车。原始扫描/里程计和独立报告端点纳入图上下文。Humble 普通回调不提供报文发布者元数据，GID仅作图/会话分界，不声称逐报文来源认证。
+- 独立审查修复前向扫描误用于倒车/侧移及重启后旧序号水位等待；真实重复运行暴露跨拍比较误停车，已改为采集时刻配对并补红绿测试。观测器只在 ROS 上下文已关闭时将 SIGINT 转换中的 RuntimeError 视作退出；活上下文异常仍报错。实验保存全部进程退出历史，避免 respawn 覆盖早期失败。
+- 验证：Humble 两包构建成功；全量 `529 passed`，比第一轮新增42项。真实三进程实验18个检查通过，包括攻击与reset、六类传感器故障/修复、额外发布者、原始端点重建及真实观测器重启；退出检查通过。报告为 `experiments/results/independent_observation_validation.json`，确切单次时延以该报告为准。
+- 机制与命令见 `docs/independent_observation.md`；规格/计划为 `docs/superpowers/*/2026-10-12-independent-observation*.md`。用户提出 BTreeFuzz 方法借鉴：已核实官方摘要，写入 `docs/btreefuzz_recovery_testing.md`，推荐状态转移反馈引导故障序列与安全 oracle；未确认全文/作者仓库，不宣称复现具体相似性算法，也未实现新 fuzzer。
+- 边界：计算进程/逻辑/签名密钥独立，raw 数据仍来自同一软件模型；原始 DDS 需要生产权限保护，不能证明独立物理安全。通用 IDS 解除、重复基线/消融与物理仿真仍为后续工作。本轮保留此前改动，未提交/推送/部署服务。
+
+### 2026-10-12 — 证据与上下文绑定安全恢复：AMR 最小软件闭环
+
+- 主题调整为“面向 ROS 2 机器人的证据与上下文绑定安全恢复机制”；保留 Guardian 包名及既有工具。README、项目导航、包描述与页面主题同步更新，设计、开源复用记录和操作说明见 `docs/evidence_bound_recovery.md`。
+- 开源优先：直接调用 rclpy 图发现，标准库 HMAC 与 compare_digest，复用现有证据账本、预测包络、恢复协议和 ROS/pytest 测试设施。Nav2 Collision Monitor 和 launch_testing 已查阅，保留为下一阶段基线/多进程测试工具，没有复制实现。
+- 新增 `RecoveryTelemetry` 类型化认证观测、`bound_recovery.py` 协调器和 `recovery_graph.py` live control endpoint 指纹。默认配置启用 AMR 恢复模式；裸节点参数默认关闭兼容旧入口。启用模式要求反馈密钥和 AMR profile，并强制事件验签。
+- 最小闭环：停车命令/签名 ACK → 新鲜健康观测 → 相关图/策略/账本/下一 epoch 绑定 → 稳定窗口 → 一次性短期许可 → 下周期重新验证 → 恢复计划和实际 `/cmd_vel` 输出。
+- 告警 TTL 不再自动解除事件；只有晚于告警采集并收到的 AMR 健康证据可解除该来源事件。已验证告警及解除进入账本，正常 heartbeat 不追加记录；新 epoch 清空旧观测，账本容量耗尽锁存停车。配置/反馈 watchdog 故障仍不能由恢复流程解除。
+- 恢复签名改为独立随机密钥 HMAC，避免公开字段 SHA-256 伪造。独立只读审查发现并修复旧健康观测清除新告警、跨 epoch 复用观测和容量耗尽后退回旧上下文三项问题。
+- 验证：Ubuntu-22.04 / ROS 2 Humble 两包构建通过；全量 `487 passed`（新增 22 项恢复核心、认证图发现与真实消息验收）；compileall、Node 语法与 git diff --check 通过。Playwright 登录/超速停车/reset 后恢复链路通过；临时验收实例使用隔离 ROS 域和临时凭据，不调用 Jev。
+- 独立真实 ROS 消息实验五场景通过：正常恢复、攻击持续超过 TTL、健康探测恢复、live 图变化及签发/使用间图变化。一次运行测得注入到观测零速度约 0.200 秒、reset 到恢复运动约 1.380 秒；报告位于 `experiments/results/bound_recovery_validation.json`，属于单次软件测量。
+- 限制：观测为 AMR 模型自报告，固定净距 5 米；许可在 Guardian 内消费，执行器验证现有命令签名/身份，未实现分布式账本/证书验证。未验证实机、Gazebo/Webots、Jazzy或生产安全；其他来源事件需后续显式解除协议。
+- 工作在 `codex/evidence-bound-recovery` 分支，保留此前未提交改动；本轮未提交、推送或安装系统服务。
+
+### 2026-09-29 — ROS Security Graph v1 离线审计层
+
+- 目的：将 Graphify 的代码关系可视化思路收敛为项目内置的 `ros-security-graph/v1`
+  只读分析层，用文件、函数、ROS 资源、控制主题和危险路径解释 ROS 2 代码安全性。
+- 实现：新增 `ros_graph_security.py`、有界多文件输入校验、Python AST 与有限配置
+  引用提取、八条 `GRAPH-*` 规则、最多 64 条危险路径和 `UNSUPPORTED` 证据；
+  Dashboard 新增受登录保护的 `/api/ros-graph/samples` 与
+  `/api/ros-graph/inspect`，前端新增“ROS 安全图”工作区。
+- 安全边界：源代码永远作为字符串分析，不导入、不执行、不启动进程、不发布 ROS 2
+  消息，也不进入 Guardian 100 ms 安全循环。`SAFE_STOP` 等动作只是审计建议，
+  不会直接修改实时状态、速度限制、恢复状态或执行器命令。
+- 生产限制：静态图不能替代 SROS2/DDS 权限、硬件急停、独立 watchdog、ACK/
+  执行器反馈、HIL 或实机验收；不支持的 C/C++ 文件不会被判为安全。
+- 验证：Graph Security、Dashboard、前端定向测试 `33 passed`；Humble 两包构建
+  成功；全量 `pytest` 为 `465 passed`；Python `compileall`、Windows Node
+  `node --check` 和 `git diff --check` 通过。验证使用 Ubuntu 22.04 + ROS 2
+  Humble，未在真实执行器、Jazzy 实机或 HIL 环境验证。
+
+### 2026-09-29 — 审计修复收尾与最终回归
+
+- 修复仿真场景 `reset` 与安全协议状态耦合的问题：重置只清理任务、位置、
+  攻击和遥测，不重置 command epoch、transmission、反馈序列或顺序故障锁存；
+  重置后必须收到新的匹配命令和 `SafetyStatus` 才能运动，普通 reset 不能解除
+  `SAFE_STOP` 或排序故障。
+- 修复三个 ROS 2 入口在正常上下文关闭时打印 `ExternalShutdownException`
+  traceback 的问题；`guardian_node`、`amr_simulator` 和 `guardian_dashboard`
+  现在将该信号作为正常停机处理，并继续执行已有清理逻辑。
+- 新增 5 个回归用例，覆盖 reset 后旧授权拒绝、故障锁存保持和三个节点的
+  ROS 外部关闭路径。
+- 验证：Ubuntu 22.04 + ROS 2 Humble 两包构建成功；全量测试 `451 passed`；
+  Python `compileall`、前端 `node --check`、`git diff --check` 通过。
+  当前未在真实执行器、Jazzy 实机或 HIL 环境验证，仿真 ACK 仍不等价于物理制动确认。
+- 运行注意：本机 `Ubuntu-24.04` WSL 不存在，使用 `Ubuntu-22.04` 验证 Humble；
+  Fast DDS 域 ID 应保持不高于 `232`；默认 Dashboard 端口为 `8080`，若被占用需
+  显式使用其他端口启动 Dashboard。当前工作区仍未提交、未推送、未安装系统服务。
+
+### 2026-09-29 — ROS 2 通用安全 profile 与跨节点顺序验证
+
+- 方向从 AMR 专用安全扩展为 ROS 2 通用安全控制与运行时验证。新增
+  `security_profile_json`，由 `profile_id`、`adapter_id`、可信事件源和资源
+  `tau/epsilon/mitigatable` 定义任意 ROS 2 资源；AMR 仅保留为默认 profile。
+- `MitigationCommand` 增加 `transmission_id` 和 `adapter_id`；`MitigationAck`
+  增加 `transmission_id`、`feedback_sequence` 和 `adapter_id`；`RiskState`、
+  `SafetyStatus` 暴露 `profile_id`，`SafetyStatus` 同时携带 command epoch 与
+  transmission identity。
+- Guardian 每次发送都产生新传输号，拒绝旧传输、错误适配器、重复/倒退反馈序列；
+  watchdog 改用 `time.monotonic()`，ROS `/clock` 暂停或回拨不会阻止停车。
+- AMR 适配器拒绝旧、跳跃和同 epoch 冲突命令；旧 SafetyStatus 不能恢复运动，
+  安全状态必须与当前命令 epoch/传输号匹配。顺序冲突只允许进入本地 `SAFE_STOP`。
+- 资源资格检查位于所有策略和低风险捷径之前：未在 profile 声明的资源，以及声明但
+  `mitigatable=false` 的资源，均直接停车。默认 AMR profile 恢复 `left_gripper tau=2`
+  和风险驱动的 `UNSAFE_COMMAND` 隔离语义，专用 profile 才能显式覆盖为限速/降级。
+- 新增设计规格、执行计划、profile 和跨节点回归测试。当前仍未声明生产安全：
+  仿真 ACK 不是物理执行器确认，生产还需 SROS2/DDS 权限、硬件急停、独立 watchdog、
+  真实速度/关节反馈和 HIL/实机验收。
+- 最终验证：ROS 2 Humble 两包构建成功；全量测试 `433 passed`；Python
+  `compileall`、前端 `node --check`、`git diff --check` 通过；根目录 `.env`
+  仍被 Git 跟踪。当前工作区未提交、未推送、未安装系统服务。
+
+### 2026-09-29 — 执行反馈确认与安全 watchdog
+
+- `MitigationCommand` 新增单调 `command_epoch`，新增 `MitigationAck` 消息；Guardian 要求执行适配器持续回显匹配的计划、动作和组件。
+- 执行确认缺失、错配或连续超过 `feedback_timeout_sec` 时，Guardian 进入并锁存 `SAFE_STOP`；停车确认要求适配器报告 `safe_stop_confirmed=true`。
+- `amr_simulator` 已实现软件级确认回路和 watchdog 集成测试。该确认只代表仿真状态，不代表真实执行器物理反馈；生产适配器还需要认证通信、硬件急停和独立 watchdog。
+- 本轮后续新增“确认后心跳中断仍停车”的回归测试，最终验证结果见本条目更新。
+- 未提交、未推送、未安装系统服务。
+
+### 2026-09-28 — 第二轮策略安全与运行时验证（当前）
+
+- 多攻击策略改为逐攻击匹配，再合并最严格动作、最低限速及全部任务许可；阶段专用规则不再覆盖另一攻击的停车要求。默认停车、限速、降级策略不再被低风险分支跳过。
+- 显式隔离检查全部受攻击组件是否可隔离，并重新计算剩余风险；无法完成隔离时转为停车。禁止配置 `NONE` 及未实现执行适配的控制器切换、任务重规划动作。
+- 时序：停车优先于延迟；等待激活期间实际发布 `SAFE_STOP`，不提前下发隔离组件。安全监督器不再把“无缓解且安全条件不满足”判为正常，也不会把零速上限提高。
+- 执行确认：`MitigationCommand` 新增单调 `command_epoch`，适配器必须持续通过 `MitigationAck` 回显 epoch、计划、动作和组件；缺失、超时或不匹配会触发 watchdog 并锁存 `SAFE_STOP`，直到进程重启。仿真器已实现确认消息，但不代表真实执行器物理确认。
+- 配置：非法策略 JSON 即使无攻击也持续停车；除 `task_phase` 外的 Guardian 启动参数设为只读，拒绝无效热更新。事件密钥只允许 `GUARDIAN_EVENT_SECRET`，移除普通 ROS 参数入口。
+- 独立审查追加修复：空字符串不再替换成默认配置，重复 JSON 键和归一化后重复的 `default`/`*` 阶段名直接拒绝，避免停车策略因键顺序被覆盖。
+- 事件：重规划缓存改为结构化身份元组；非 ASCII 签名、包含 `|` 的事件身份直接拒绝，不污染防重放序列。
+- 新增纯逻辑回归与真实 ROS 消息集成测试，覆盖延迟执行、错误配置停车、参数更新和跨来源事件替换。测试在隔离 localhost ROS 域内运行，不连接真实机器人。
+- 新增 `MitigationAck.msg` 及执行反馈超时测试，覆盖正常确认、epoch 不匹配、无反馈锁存停车和仿真适配器确认。
+- 验证：Humble 全量测试 `414 passed`，包括执行反馈 watchdog 在内的真实 ROS 消息/参数服务集成测试；两个 ROS 包重建成功，Python 编译检查及 `git diff --check` 通过。策略回归首次运行 `27 failed, 5 passed`，验签回归首次运行 `13 failed, 27 passed`，修复后全部通过。
+- 未覆盖边界：任务阶段尚需任务控制器主动同步；仿真复位初值偏宽松、故障序列固定且只上报一次，这些仍待后续修复。真实执行器的 `MitigationAck` 适配、Jazzy 实机及生产部署验收尚未完成，不能据本轮测试声明生产安全。
+- 未提交或推送，未安装服务；保留此前未提交改动和受跟踪 `.env`。具体运行契约见 `docs/deployment.md`。
+
+### 2026-09-28 — 双发行版配置、遏制策略和部署入口（第一轮）
+
+- 配置：`configs/guardian.yaml` 改为标准 ROS 2 参数文件，由 launch 默认加载；可用
+  `config_file:=...` 覆盖。策略按攻击类型和 `task_phase` 选择，可配置限速、隔离、
+  降级运行或安全停车；签名密钥入口已在第二轮收紧为仅 `GUARDIAN_EVENT_SECRET`。
+- 实时链路：`activate_at` 现在由 `SafetySupervisor` 执行，计划激活前任务保持锁定；
+  `amr_simulator` 会实际观察隔离组件，隔离轮组时输出零速度，隔离非驱动组件时可按
+  策略继续低速运行。
+- 事件安全：事件身份、有限时间、uint64 序列、配置和 `(source,event_id)` 复用边界已加固；
+  持续风险按组件最早发现时间计算。
+- 部署：新增 `deploy/run_guardian.sh`、双发行版 CI、Windows/WSL 启动器和
+  `docs/deployment.md`；移除旧工作区绝对路径。服务模板不自动安装或修改系统服务。
+- 验证：Ubuntu 22.04 + ROS 2 Humble 全量测试 `348 passed`，`guardian_interfaces` 和
+  `guardian_core` 构建通过，部署辅助测试 `7 passed`。另覆盖跨来源同 ID 重规划、
+  低风险显式策略、阶段变化重规划和 ROS shutdown 清理。本轮未在 Ubuntu 24.04 + Jazzy
+  实机环境运行，CI 矩阵提供对应构建路径。
+
 ### 2026-09-27 — 数据集批量审计、上传诊断与 GitHub 发布约束（当前）
 
 - 数据集审计：新增自由上传的多文件、文件夹和 ZIP 批量审计；上传内容只做静态检查，不执行源码、训练、仿真或网络请求。单批上限为 512 MiB、单文件 256 MiB、最多 10,000 个文件；临时上传目录在审计结束后清理。
@@ -113,7 +380,8 @@
 
 ### 2.2 ROS 2 集成
 
-- `guardian_interfaces` 提供 `AttackEvent`、`RiskState`、`MitigationCommand` 和 `SafetyStatus` 消息。
+- `guardian_interfaces` 提供 `AttackEvent`、`RiskState`、`MitigationCommand`、
+  `MitigationAck` 和 `SafetyStatus` 消息。
 - `guardian_node` 订阅 `/guardian/attack_events`，发布风险、缓解和安全状态话题。
 - `guardian_dashboard` 订阅三个状态话题，维护线程安全缓存并提供本地 HTTP API。
 - `guardian_dashboard` 提供本地登录和 `/api/jev/test` 代理；默认本地实验账号用户名和密码均为 `admin`，会话只保存在内存中。

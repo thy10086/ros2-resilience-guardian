@@ -13,7 +13,8 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", [f"resource/{package_name}"]),
         (f"share/{package_name}", ["package.xml"]),
-        (f"share/{package_name}/launch", ["launch/guardian.launch.py"]),
+        (f"share/{package_name}/launch", [str(path) for path in Path("launch").glob("*.launch.py")]),
+        (f"share/{package_name}/config", ["../../../configs/guardian.yaml"]),
         (f"share/{package_name}/frontend", frontend_files),
     ],
     install_requires=["setuptools"],
@@ -23,6 +24,7 @@ setup(
             "guardian_node = guardian_core.guardian_node:main",
             "guardian_dashboard = guardian_core.dashboard:main",
             "amr_simulator = guardian_core.amr_simulator:main",
+            "recovery_observer = guardian_core.recovery_observer:main",
         ],
     },
 )

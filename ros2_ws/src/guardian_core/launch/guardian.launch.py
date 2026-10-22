@@ -1,21 +1,23 @@
+from pathlib import Path
+
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
+from ament_index_python.packages import get_package_share_directory
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
+    installed_config = Path(get_package_share_directory("guardian_core")) / "config" / "guardian.yaml"
+    config_file = LaunchConfiguration("config_file")
     return LaunchDescription([
+        DeclareLaunchArgument("config_file", default_value=str(installed_config)),
         Node(
             package="guardian_core",
             executable="guardian_node",
             name="guardian_node",
             output="screen",
-            parameters=[{
-                "task": "navigate_to_goal",
-                "goal": "box2",
-                "max_event_age_sec": 5.0,
-                "mitigation_delay_sec": 1.0,
-                "default_speed_limit": 0.35,
-            }],
+            parameters=[config_file],
         ),
         Node(
             package="guardian_core",

@@ -1,0 +1,3 @@
+# Optional offline research environment; not a ROS runtime dependency.
+langgraph==1.2.16
+pyseccomp==0.1.2; sys_platform == 'linux'

@@ -1,7 +1,23 @@
-# Guardian runtime defaults
+# Guardian runtime defaults.
 # This file is intentionally tracked. It contains no credentials.
-task: navigate_to_goal
-goal: box2
-max_event_age_sec: 5.0
-mitigation_delay_sec: 1.0
-default_speed_limit: 0.35
+guardian_node:
+  ros__parameters:
+    task: navigate_to_goal
+    goal: box2
+    task_phase: DOCK_TO_PALLET
+    max_event_age_sec: 5.0
+    mitigation_delay_sec: 1.0
+    feedback_timeout_sec: 0.5
+    startup_feedback_grace_sec: 3.0
+    max_active_events: 1024
+    max_planner_candidates: 128
+    default_speed_limit: 0.35
+    safe_stop_speed: 0.0
+    require_signature: false
+    require_feedback_signature: true
+    evidence_bound_recovery: true
+    recovery_dwell_sec: 1.0
+    recovery_stable_window_sec: 0.5
+    recovery_telemetry_max_age_sec: 0.5
+    security_profile_json: '{"profile_id":"amr-default","adapter_id":"default-actuator","trusted_sources":["scenario_injector","amr_simulator"],"resources":{"left_wheels":{"tau":2,"epsilon":0,"mitigatable":true},"right_wheels":{"tau":2,"epsilon":0,"mitigatable":true},"left_arm":{"tau":1,"epsilon":0,"mitigatable":true},"right_arm":{"tau":1,"epsilon":0,"mitigatable":true},"left_gripper":{"tau":2,"epsilon":0,"mitigatable":true},"right_gripper":{"tau":1,"epsilon":0,"mitigatable":true},"distance_sensor":{"tau":0,"epsilon":0,"mitigatable":false}}}'
+    containment_policy_json: '{"default":{"action":"ISOLATE_COMPONENT","speed_limit":0.15,"mission_allowed":false},"REPLAY":{"default":{"action":"SAFE_STOP","speed_limit":0.0,"mission_allowed":false}},"SEMANTIC_MISBEHAVIOR":{"default":{"action":"ISOLATE_COMPONENT","speed_limit":0.15,"mission_allowed":false}}}'

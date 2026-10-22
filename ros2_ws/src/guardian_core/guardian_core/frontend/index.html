@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ROS 2 Resilience Guardian</title>
+  <title>ROS 2 Guardian · 证据与上下文绑定安全恢复</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -20,23 +20,44 @@
 
   <main id="app-shell" class="shell" hidden>
     <header class="topbar">
-      <div><p class="eyebrow">ROS 2 SECURITY OPERATIONS</p><h1>Resilience Guardian</h1><p class="subtitle">面向室内移动机器人的任务感知安全防护工作区</p></div>
+      <div><p class="eyebrow">ROS 2 SAFE RECOVERY</p><h1>Resilience Guardian</h1><p class="subtitle">面向 ROS 2 机器人的证据与上下文绑定安全恢复</p></div>
       <div class="topbar-actions"><div id="connection" class="connection pending">连接中</div><button id="logout" class="button secondary" type="button">退出登录</button></div>
     </header>
 
     <nav class="workspace-nav" aria-label="工作区页面">
-      <button class="workspace-tab active" data-panel="protection" type="button">防护实验室</button>
-      <button class="workspace-tab" data-panel="simulation" type="button">工程仿真</button>
-      <button class="workspace-tab" data-panel="jev" type="button">Jev 语义分析</button>
-      <button class="workspace-tab" data-panel="realtime" type="button">实时防护</button>
-      <button class="workspace-tab" data-panel="code-security" type="button">工业代码安全检查</button>
-      <button class="workspace-tab" data-panel="dataset-security" type="button">数据集安全审计</button>
-      <button class="workspace-tab" data-panel="sandbox" type="button">代码沙箱仿真</button>
-      <button class="workspace-tab" data-panel="research" type="button">安全测试分析</button>
+      <div class="workspace-groups" aria-label="任务分类">
+        <button class="workspace-group" data-workspace-group="inspect" type="button">安全检测</button>
+        <button class="workspace-group" data-workspace-group="recovery" type="button">恢复验证</button>
+        <button class="workspace-group active" data-workspace-group="simulate" type="button">仿真验证</button>
+        <button class="workspace-group" data-workspace-group="monitor" type="button">运行监控</button>
+        <button class="workspace-group" data-workspace-group="services" type="button">模型服务</button>
+      </div>
+      <div class="workspace-subnav" data-workspace-subnav="inspect" hidden>
+        <button class="workspace-tab" data-panel="code-security" type="button">单文件检查</button>
+        <button class="workspace-tab" data-panel="ros-graph" type="button">多文件安全图</button>
+        <button class="workspace-tab" data-panel="dataset-security" type="button">数据集审计</button>
+      </div>
+      <div class="workspace-subnav" data-workspace-subnav="recovery" hidden>
+        <button class="workspace-tab" data-panel="research" type="button">安全测试分析</button>
+        <span class="workspace-hint">轨迹检测、模型研判与实验记录</span>
+      </div>
+      <div class="workspace-subnav" data-workspace-subnav="simulate">
+        <button class="workspace-tab active" data-panel="protection" type="button">事件回放</button>
+        <button class="workspace-tab" data-panel="simulation" type="button">ROS 2 闭环仿真</button>
+        <button class="workspace-tab" data-panel="sandbox" type="button">代码沙箱仿真</button>
+      </div>
+      <div class="workspace-subnav" data-workspace-subnav="monitor" hidden>
+        <button class="workspace-tab" data-panel="realtime" type="button">实时防护</button>
+        <span class="workspace-hint">查看状态、执行确认与事件时间线</span>
+      </div>
+      <div class="workspace-subnav" data-workspace-subnav="services" hidden>
+        <button class="workspace-tab" data-panel="jev" type="button">Jev 服务配置</button>
+        <span class="workspace-hint">多智能体接口在“恢复验证 → 多智能体研判”单独配置</span>
+      </div>
     </nav>
 
     <section id="panel-protection" class="workspace-panel active" data-panel-section="protection">
-      <div class="panel-heading"><div><p class="eyebrow">01 / PROTECTION REPLAY</p><h2>防护实验室</h2><p class="muted">导入样例，逐步观察事件校验、风险评估、缓解规划和安全监督。</p></div><span class="pill protection-pill">只读实验</span></div>
+      <div class="panel-heading"><div><p class="eyebrow">01 / PROTECTION REPLAY</p><h2>防护实验室</h2><p class="muted">导入样例，逐步观察事件校验、风险评估、缓解规划和安全监督。</p></div><button id="protection-open-recovery" class="button secondary" type="button">恢复轨迹检测</button></div>
       <article class="card protection-card"><div class="protection-flow" aria-label="防护判断流程"><span>① 事件校验</span><b>→</b><span>② 攻击登记</span><b>→</b><span>③ 风险评估</span><b>→</b><span>④ 缓解规划</span><b>→</b><span>⑤ 安全监督</span></div>
         <section id="protection-recent-result" class="protection-recent-result" hidden aria-labelledby="protection-recent-title">
           <div class="section-title"><div><p class="eyebrow">LAST CHECK</p><h3 id="protection-recent-title">最近一次检查结果</h3></div><span id="protection-recent-state" class="pill protection-pill">—</span></div>
@@ -161,12 +182,13 @@
       <section class="content-grid">
         <article class="card"><div class="section-title"><h2>攻击面与关键组件</h2><span id="risk-state" class="pill">STARTING</span></div><div class="chips" id="active-components"><span class="empty">暂无活动组件</span></div><div class="sub-label">关键组件</div><div class="chips critical" id="critical-components"><span class="empty">暂无关键组件</span></div><p id="risk-reason" class="muted">等待风险评估</p></article>
         <article class="card"><div class="section-title"><h2>当前缓解方案</h2><span id="plan-id" class="mono">—</span></div><div class="action" id="mitigation-action">NONE</div><div class="sub-label">作用组件</div><div class="chips" id="mitigation-components"><span class="empty">暂无</span></div><p id="mitigation-reason" class="muted">尚未生成缓解方案</p></article>
+        <article class="card"><div class="section-title"><h2>执行适配器确认</h2><span id="ack-state" class="pill">等待确认</span></div><div class="metric-row"><span>适配器 / 身份 <b id="ack-identity">—</b></span><span>反馈序列 <b id="ack-sequence">0</b></span></div><p id="ack-reason" class="muted">尚未收到执行适配器确认</p></article>
       </section>
       <section class="card timeline-card"><div class="section-title"><h2>安全事件时间线</h2><span id="last-updated" class="muted">尚无更新</span></div><div id="timeline" class="timeline"><div class="empty">等待 ROS 2 消息</div></div></section>
     </section>
 
     <section id="panel-simulation" class="workspace-panel" data-panel-section="simulation" hidden>
-      <div class="panel-heading"><div><p class="eyebrow">02 / CLOSED-LOOP DIGITAL TWIN</p><h2>ROS 2 工程仿真</h2><p class="muted">控制笔记本上的仓储 AMR 数字孪生，观察控制指令、攻击注入、Guardian 反馈和实际运动的闭环结果。</p></div><span class="pill simulation-pill">真实 ROS 2 话题</span></div>
+      <div class="panel-heading"><div><p class="eyebrow">02 / EVIDENCE-BOUND RECOVERY LOOP</p><h2>ROS 2 工程仿真</h2><p class="muted">观察 AMR 攻击停车、健康探测、证据与上下文核验、恢复许可和实际运动的闭环。重置后仍需重新核验才能恢复。</p></div><span class="pill simulation-pill">真实 ROS 2 话题</span></div>
       <article class="card simulation-card">
         <div class="simulation-banner"><div><p class="eyebrow">WAREHOUSE AMR / PALLET TRANSFER</p><h3>AMR-07：A-12 → P-07</h3><p class="muted">场景将请求速度、实际速度、托盘抓取状态和 Guardian 安全状态绑定到同一个仿真节点。</p></div><span id="simulation-connection" class="pill simulation-offline">等待仿真节点</span></div>
         <div class="simulation-controls" role="group" aria-label="仿真控制">
@@ -210,6 +232,7 @@
           <span class="muted">Jev 只接收静态检查摘要，不接收完整源码。</span>
         </div>
         <label class="field code-security-source-field" for="code-security-source"><span>待检查 ROS 2 控制代码</span><textarea id="code-security-source" rows="16" spellcheck="false" placeholder="导入内置样例或上传一个 ROS 2 Python 控制节点…"></textarea></label>
+        <div class="workflow-next"><span>继续使用当前源码</span><button id="code-security-to-graph" class="button secondary compact" type="button" disabled>带入安全图</button><button id="code-security-to-agents" class="button secondary compact" type="button" disabled>带入多智能体研判</button><small>仅带入输入，点击对应运行按钮后才分析。</small></div>
         <p id="code-security-feedback" class="muted" role="status" aria-live="polite">系统只读取源代码文本，不会执行、导入或启动上传的代码。</p>
         <div id="code-security-result" hidden>
           <section class="code-security-decision" aria-labelledby="code-security-decision-title">
@@ -264,6 +287,80 @@
           <p id="code-security-jev-reason" class="protection-reason">—</p>
           <p id="code-security-jev-boundary" class="muted code-security-boundary">Jev 只提供语义置信度，不改变本地静态检查结论或 Guardian 映射。</p>
         </section>
+      </article>
+    </section>
+
+    <section id="panel-ros-graph" class="workspace-panel" data-panel-section="ros-graph" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">06 / ROS SECURITY GRAPH</p><h2>ROS 安全图</h2><p class="muted">把 ROS 2 源码、节点、主题和控制路径整理成可审计的静态证据图。</p></div><span class="pill">只读分析</span></div>
+      <article class="card ros-graph-card">
+        <div class="ros-graph-controls">
+          <label class="field" for="ros-graph-sample-select"><span>内置图分析样例</span><select id="ros-graph-sample-select"><option value="">正在读取样例…</option></select></label>
+          <button id="ros-graph-load" class="button secondary" type="button">导入内置样例</button>
+          <input id="ros-graph-files" class="file-input-visible" type="file" multiple accept=".py,.pyi,.yaml,.yml,.xml,.sdf,.urdf,.json,.toml,.c,.cc,.cpp,.cxx,.h,.hh,.hpp,text/x-python,application/xml,application/json,text/plain">
+          <span id="ros-graph-file-name" class="file-input-name" role="status">未选择文件</span>
+          <button id="ros-graph-inspect" class="button primary" type="button" disabled>检查 ROS 安全图</button>
+        </div>
+        <div class="ros-graph-input-summary">
+          <div><span class="sub-label">待分析文件</span><strong id="ros-graph-files-summary">尚未选择文件</strong></div>
+          <ul id="ros-graph-file-list" class="ros-graph-file-list" aria-live="polite"><li class="empty">选择文件后将在这里显示相对路径和大小。</li></ul>
+          <div class="workflow-next"><button id="ros-graph-to-agents" class="button secondary compact" type="button" disabled>将当前文件带入多智能体研判</button><small>源码保持静态分析；新测试针对自有虚拟模型。</small></div>
+        </div>
+        <p id="ros-graph-feedback" class="muted" role="status" aria-live="polite">请选择内置样例或原生多文件输入；分析器只读取文本，不执行源码。</p>
+        <div class="ros-graph-boundary"><strong>安全边界</strong><span>静态分析，不执行源码，不直接控制机器人。图上的危险路径需要结合 SROS2/DDS 权限、急停、watchdog、执行器反馈和 HIL/实机验证继续复核。</span></div>
+        <div id="ros-graph-result" hidden>
+          <section class="ros-graph-decision" aria-labelledby="ros-graph-decision-title">
+            <div class="ros-graph-decision-main">
+              <div><p class="eyebrow">先看结论</p><h3 id="ros-graph-decision-title">安全图结论：<strong id="ros-graph-decision">—</strong></h3><p id="ros-graph-next-step" class="ros-graph-next-step">—</p></div>
+              <span id="ros-graph-verdict" class="pill protection-pill">—</span>
+            </div>
+            <div class="ros-graph-summary">
+              <span>文件 <strong id="ros-graph-files-count">0</strong></span>
+              <span>节点 <strong id="ros-graph-nodes-count">0</strong></span>
+              <span>边 <strong id="ros-graph-edges-count">0</strong></span>
+              <span>发现 <strong id="ros-graph-findings-count">0</strong></span>
+              <span>危险路径 <strong id="ros-graph-paths-count">0</strong></span>
+            </div>
+            <div class="ros-graph-context">
+              <div><span>分析配置</span><strong id="ros-graph-profile">—</strong></div>
+              <div><span>最高防护动作</span><strong id="ros-graph-action">—</strong></div>
+              <div><span>来源证据</span><strong id="ros-graph-provenance">—</strong></div>
+              <div><span>执行状态</span><strong id="ros-graph-execution">—</strong></div>
+            </div>
+            <p id="ros-graph-conclusion" class="protection-summary-decision">—</p>
+          </section>
+
+          <section class="ros-graph-assurance" aria-labelledby="ros-graph-assurance-title">
+            <div class="section-title"><div><p class="eyebrow">STATIC ASSURANCE</p><h3 id="ros-graph-assurance-title">图分析证据边界</h3></div><span class="pill">静态分析</span></div>
+            <div class="ros-graph-assurance-grid">
+              <div><span>检查模式</span><strong id="ros-graph-assurance-mode">—</strong></div>
+              <div><span>覆盖度</span><strong id="ros-graph-assurance-coverage">—</strong></div>
+              <div><span>真实运行已验证</span><strong id="ros-graph-assurance-runtime">—</strong></div>
+              <div><span>源码已执行</span><strong id="ros-graph-assurance-executed">—</strong></div>
+            </div>
+            <p id="ros-graph-assurance-limitations" class="muted ros-graph-boundary-text">—</p>
+          </section>
+
+          <section class="ros-graph-visual" aria-labelledby="ros-graph-visual-title">
+            <div class="section-title"><div><p class="eyebrow">STRUCTURE / CONTROL PATH</p><h3 id="ros-graph-visual-title">代码结构与 ROS 资源关系</h3></div><span class="muted">颜色仅表示静态证据等级</span></div>
+            <div class="ros-graph-svg-wrap">
+              <svg id="ros-graph-svg" class="ros-graph-svg" width="960" height="480" viewBox="0 0 960 480" role="img" aria-labelledby="ros-graph-svg-title ros-graph-svg-desc">
+                <title id="ros-graph-svg-title">ROS 安全图等待检查</title>
+                <desc id="ros-graph-svg-desc">执行一次静态检查后显示文件、代码节点、ROS 主题和安全路径。</desc>
+                <text x="32" y="48" class="ros-graph-svg-empty">检查后显示 ROS 2 代码关系图</text>
+              </svg>
+            </div>
+          </section>
+
+          <section class="ros-graph-findings-section" aria-labelledby="ros-graph-findings-title">
+            <div class="section-title"><div><p class="eyebrow">FINDINGS</p><h3 id="ros-graph-findings-title">安全发现</h3></div><span class="muted">规则、证据和 Guardian 建议</span></div>
+            <div class="ros-graph-table-wrap"><table class="ros-graph-table"><thead><tr><th>严重程度</th><th>规则 / 文件</th><th>位置</th><th>证据</th><th>建议</th><th>防护动作</th></tr></thead><tbody id="ros-graph-findings"><tr><td colspan="6" class="empty">检查后显示安全发现。</td></tr></tbody></table></div>
+          </section>
+
+          <section class="ros-graph-paths-section" aria-labelledby="ros-graph-paths-title">
+            <div class="section-title"><div><p class="eyebrow">DANGEROUS PATHS</p><h3 id="ros-graph-paths-title">危险控制路径</h3></div><span class="muted">从代码文件到 ROS 资源的可追溯路径</span></div>
+            <ol id="ros-graph-paths" class="ros-graph-paths"><li class="empty">检查后显示危险路径。</li></ol>
+          </section>
+        </div>
       </article>
     </section>
 
@@ -409,14 +506,90 @@
     </section>
 
     <section id="panel-research" class="workspace-panel" data-panel-section="research" hidden>
-      <div class="panel-heading"><div><p class="eyebrow">07 / SAFETY TESTING</p><h2>安全测试分析</h2><p class="muted">用生产代码运行本地测试，查看 Jev 辅助判断与事件会话层的调度结果。</p></div><button id="research-run" class="button primary" type="button">运行测试套件</button></div>
+      <div class="panel-heading"><div><p class="eyebrow">EVIDENCE-BOUND RECOVERY TESTING</p><h2>安全测试分析</h2><p class="muted">先检查已有轨迹；需要模型规划时进入多智能体研判；历史实验单独查阅。</p></div><span id="research-view-badge" class="pill">无需模型接口</span></div>
+      <div class="research-view-nav" aria-label="恢复验证方式">
+        <button class="button secondary active" data-research-view="trace" type="button" aria-pressed="true" aria-controls="recovery-trace-view">轨迹检测</button>
+        <button class="button secondary" data-research-view="agents" type="button" aria-pressed="false" aria-controls="recovery-agents-view">多智能体研判</button>
+        <button class="button secondary" data-research-view="evaluation" type="button" aria-pressed="false" aria-controls="recovery-evaluation-view">实验记录</button>
+      </div>
+      <p id="research-view-help" class="workspace-view-help">加载样例或导入 JSON / JSONL，直接检查已有轨迹，无需 API Key。</p>
+      <article id="recovery-agents-view" class="card agents-card" data-research-section="agents" aria-labelledby="agents-title" hidden>
+        <div class="section-title"><div><p class="eyebrow">ARTEX / LIVE MODEL REVIEW</p><h3 id="agents-title">四角色协作测试分析</h3><p class="muted">目标分析 → 测试规划 → 固定工具执行 → 独立复核。填写接口后直接运行。</p></div><span id="agents-status" class="pill" role="status">尚未运行</span></div>
+        <form id="agents-form" novalidate>
+          <div class="agents-config">
+            <label class="field" for="agents-url"><span>OpenAI 兼容 API URL</span><input id="agents-url" type="url" required maxlength="2048" autocomplete="off" spellcheck="false" placeholder="https://…/v1"></label>
+            <label class="field" for="agents-key"><span>API Key（仅用于当前操作）</span><input id="agents-key" type="password" required maxlength="1024" autocomplete="off" spellcheck="false" placeholder="输入 API Key"></label>
+            <label class="field" for="agents-model"><span>模型名（可手动填写）</span><input id="agents-model" list="agents-models" required maxlength="128" autocomplete="off" spellcheck="false" placeholder="读取模型列表或填写模型名"><datalist id="agents-models"></datalist></label>
+            <button id="agents-read-models" class="button secondary" type="button">读取模型列表</button>
+          </div>
+          <div class="recovery-controls agents-input-controls">
+            <label class="field" for="agents-input-kind"><span>分析输入</span><select id="agents-input-kind"><option value="sample">自有 Guardian 虚拟恢复模型</option><option value="upload">带入或上传的源码 / 轨迹 JSON</option></select></label>
+            <label class="field" for="agents-file"><span>严格 JSON · 最多 2 MiB</span><input id="agents-file" class="file-input-visible" type="file" accept=".json,application/json" disabled></label>
+            <button id="agents-run" class="button primary" type="submit">连接并运行分析</button>
+            <button id="agents-cancel" class="button secondary" type="button" disabled>取消任务</button>
+            <button id="agents-download" class="button secondary" type="button" disabled>下载报告 JSON</button>
+          </div>
+        </form>
+        <p id="agents-input-summary" class="workflow-input-summary" role="status">当前输入：自有 Guardian 虚拟恢复模型</p>
+        <p id="agents-feedback" class="muted" role="status" aria-live="polite">Key 不保存到磁盘或浏览器存储；协议接通不代表实际模型质量。</p>
+        <p class="agents-boundary muted">模型只能在六项注册测试中规划；执行器与安全断言固定。上传源码仅做静态分析，上传轨迹仅复核原始数据；新执行只针对自有虚拟模型，不控制机器人。</p>
+        <details class="recovery-details"><summary>上传格式与调用预算</summary><p>JSON 顶层仅允许 {"files":[{"filename":"node.py","source":"源码文本"}]} 或 {"frames":[完整审计帧]}。不接受执行路径、命令、额外角色或工具。最多 16 次模型调用、12 次注册测试执行、180 秒；接口错误不重试、不切换为离线脚本。</p></details>
+        <section id="agents-result" hidden aria-live="polite">
+          <div class="research-grid recovery-metrics"><div><span>接口模式 / 执行状态</span><strong id="agents-mode">—</strong></div><div><span>汇总结论</span><strong id="agents-overall">—</strong></div><div><span>自有模型测试结论</span><strong id="agents-model-verdict">—</strong></div><div><span>上传源码静态结论</span><strong id="agents-static-verdict">—</strong></div></div>
+          <p id="agents-reason" class="recovery-conclusion">—</p>
+          <div class="research-table-wrap"><table class="research-table recovery-table"><caption>各分析目标的结论边界</caption><thead><tr><th>目标</th><th>结论</th><th>验证方式</th></tr></thead><tbody id="agents-targets"></tbody></table></div>
+          <div class="agents-detail-grid">
+            <div class="research-table-wrap"><table class="research-table"><caption>角色调用记录</caption><thead><tr><th>序号</th><th>角色</th><th>模式 / 状态</th></tr></thead><tbody id="agents-roles"></tbody></table></div>
+            <div class="research-table-wrap"><table class="research-table"><caption>固定测试执行记录</caption><thead><tr><th>测试</th><th>执行有效性</th><th>断言结果</th></tr></thead><tbody id="agents-tests"></tbody></table></div>
+          </div>
+          <p id="agents-limitations" class="muted agents-boundary">—</p>
+        </section>
+      </article>
+      <article id="recovery-trace-view" class="card recovery-check-card" data-research-section="trace" aria-labelledby="recovery-check-title">
+        <div class="section-title"><div><p class="eyebrow">TRACE INSPECTION</p><h3 id="recovery-check-title">证据与上下文绑定恢复检测</h3><p class="muted">加载样例或导入审计轨迹，复用恢复安全断言逐帧检查。</p></div><span id="recovery-verdict" class="pill">等待轨迹</span></div>
+        <div class="recovery-flow"><span>停车确认</span><span>新鲜健康证据</span><span>图 / 策略 / 账本绑定</span><span>短期一次性许可</span><span>恢复命令</span></div>
+        <div class="recovery-controls">
+          <label class="field" for="recovery-sample-select"><span>恢复轨迹样例</span><select id="recovery-sample-select"><option value="">正在读取样例…</option></select></label>
+          <button id="recovery-load-sample" class="button secondary" type="button" disabled>加载样例</button>
+          <label class="field" for="recovery-trace-file"><span>导入审计轨迹（JSON / JSONL）</span><input id="recovery-trace-file" class="file-input-visible" type="file" accept=".json,.jsonl,application/json,text/plain"></label>
+          <button id="recovery-inspect" class="button primary" type="button" disabled>检测恢复轨迹</button>
+          <button id="recovery-to-agents" class="button secondary" type="button" disabled>带入多智能体研判</button>
+        </div>
+        <p id="recovery-input-status" class="muted" role="status" aria-live="polite">支持帧数组、含 frames 的报告和 ROS recovery_trace 审计行；最多 2000 帧、2 MiB。</p>
+        <section id="recovery-check-result" hidden aria-live="polite">
+          <div class="research-grid recovery-metrics"><div><span>检测帧数</span><strong id="recovery-frame-count">—</strong></div><div><span>安全断言违规</span><strong id="recovery-violation-count">—</strong></div><div><span>状态 / 转移覆盖</span><strong id="recovery-trace-coverage">—</strong></div><div><span>活性采样空窗</span><strong id="recovery-gap-count">—</strong></div></div>
+          <p id="recovery-check-summary" class="recovery-conclusion">—</p>
+          <div class="research-table-wrap"><table class="research-table recovery-table"><caption>恢复轨迹违规与上下文证据</caption><thead><tr><th>帧 / 时间</th><th>检测结果</th><th>恢复阶段</th><th>绑定证据</th></tr></thead><tbody id="recovery-findings"></tbody></table></div>
+          <p id="recovery-check-limitations" class="muted">—</p>
+        </section>
+        <details class="recovery-details"><summary>活性检测条件与日志格式</summary><p>连续健康停车超过 3 秒仍未恢复会触发停滞断言。相邻帧间隔超过 0.25 秒时重新计时；这段空窗不能证明连续健康。过期许可、上下文错配与重放检查仍然执行。</p><p>审计帧包含公开绑定信息，不包含签名密钥。导入日志只用于离线检查，不认证日志来源、不发布控制命令。</p></details>
+      </article>
+      <div id="recovery-evaluation-view" data-research-section="evaluation" hidden>
+      <article class="card recovery-evaluation-card" aria-labelledby="recovery-evaluation-title">
+        <div class="section-title"><div><p class="eyebrow">ROUND 06 / FEEDBACK ABLATION</p><h3 id="recovery-evaluation-title">反馈目标消融与新种子验证</h3></div><span class="pill">已完成的离线实验</span></div>
+        <p id="recovery-evaluation-status" class="muted" role="status">正在读取实验快照…</p>
+        <div id="recovery-evaluation-result" hidden>
+          <div class="research-grid recovery-metrics"><div><span>生成执行</span><strong id="recovery-evaluation-executions">—</strong></div><div><span>完整机制违规</span><strong id="recovery-evaluation-violations">—</strong></div><div><span>反例 / 语料重放</span><strong id="recovery-evaluation-replays">—</strong></div><div><span>每组预算 / 种子</span><strong id="recovery-evaluation-budget">—</strong></div></div>
+          <p id="recovery-evaluation-conclusion" class="recovery-conclusion">—</p>
+          <div class="research-table-wrap"><table class="research-table recovery-table"><caption>五组反馈方法检测结果</caption><thead><tr><th>反馈方法</th><th>TTL 缺陷检出</th><th>首个发现索引中位*</th><th>转移覆盖中位</th><th>壁钟中位（秒）</th></tr></thead><tbody id="recovery-comparison"></tbody></table></div>
+          <p class="muted">* 未检出按预算截尾。其余三类受控缺陷的检出率见技术详情；这些检出次数不代表独立生产漏洞。</p>
+          <details class="recovery-details"><summary>查看实际反馈目标与配对比较</summary><p>TTL 族保留两个目标，上下文 / 修复族保留另外两个；完整边界反馈使用四个目标。优化目标不读取安全断言或缺陷结果。</p><div class="research-table-wrap"><table class="research-table recovery-table"><thead><tr><th>方法</th><th>实际优化目标</th><th>上下文 / 重放 / 独立观测检出</th></tr></thead><tbody id="recovery-targets"></tbody></table></div><p id="recovery-paired-summary" class="muted">—</p></details>
+          <details class="recovery-details"><summary>原始批次、误报修正与复现信息</summary><p id="recovery-raw-note">—</p><p>采样空窗修正发生在查看原始结果之后；相同种子两次执行不作为独立样本合并。第五轮比较方向不同，当前仅支持本批次 TTL 指标改善，未证明未知缺陷泛化或物理安全。</p><p id="recovery-evaluation-source" class="mono">—</p></details>
+        </div>
+      </article>
+      <details class="card recovery-details"><summary>Jev 辅助判断与既有防护案例</summary>
+      <div class="section-title"><h3>旁路调度测试</h3><button id="research-run" class="button secondary" type="button">运行测试套件</button></div>
       <article class="card research-overview"><div class="research-grid"><div><span>安全路径</span><strong>确定性安全闭环 + Jev 辅助判断</strong></div><div><span>执行机制</span><strong>本地分流 · TTL/LRU · single-flight · 会话复用</strong></div><div><span>测试模式</span><strong id="research-mode">尚未运行</strong></div><div><span>在线调用</span><strong id="research-calls">—</strong></div></div><p id="research-feedback" class="muted" role="status">套件使用离线 stub，不会调用真实 API 或控制机器人。</p></article>
       <article class="card"><div class="section-title"><h2>Jev 辅助判断案例</h2><span class="pill">可重复</span></div><div class="research-table-wrap"><table class="research-table"><thead><tr><th>案例</th><th>路径</th><th>调用次数</th><th>结果</th><th>判断结论</th></tr></thead><tbody id="research-cases"><tr><td colspan="5" class="empty">点击“运行测试套件”</td></tr></tbody></table></div></article>
       <article class="card"><div class="section-title"><h2>ROS 2 防护案例映射</h2><span class="pill protection-pill">最终状态由 Guardian 决定</span></div><div class="research-table-wrap"><table class="research-table"><thead><tr><th>案例</th><th>安全状态</th><th>缓解动作</th><th>速度上限</th><th>结论</th></tr></thead><tbody id="research-protection"><tr><td colspan="5" class="empty">等待实验结果</td></tr></tbody></table></div></article>
       <article class="card innovation-card"><div class="section-title"><h2>安全策略说明</h2><span class="pill">测试说明</span></div><div class="innovation-columns"><div><h3>处理流程</h3><p>事件先经过来源、时序、重放和父证据校验；本地快速路径负责立即放行或强制；只有已验证且需要语义解释的事件才进入 Jev。Jev 输出被绑定为有期限的辅助证据，并与事件账本和会话状态关联。</p></div><div><h3>验证指标</h3><p>远程调用减少率、P50/P95 延迟、重复事件复用率、未验证事件外发数（目标为 0）、父证据失效后的阻断率、SAFE_STOP 保持率。在线模型准确率需另做带标注数据集测试。</p></div><div><h3>系统边界</h3><p>Guardian 负责 ROS 2 安全状态、速度上限、隔离动作和恢复门控；Jev 只提供语义解释与人工复核建议，不发布 /cmd_vel，也不能解除 SAFE_STOP。</p></div></div></article>
+      </details>
+      </div>
     </section>
     <footer>只读监控与安全测试面板 · 状态来源：/guardian/risk_state、/guardian/mitigation_command、/guardian/safety_status</footer>
   </main>
+  <script src="recovery.js"></script>
+  <script src="agents.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

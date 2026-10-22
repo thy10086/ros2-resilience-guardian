@@ -8,14 +8,15 @@ import os
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from threading import Thread
+from threading import BoundedSemaphore, Thread
 from typing import Iterable
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 
-from guardian_interfaces.msg import MitigationCommand, RiskState, SafetyStatus
+from guardian_interfaces.msg import MitigationAck, MitigationCommand, RiskState, SafetyStatus
 from std_msgs.msg import String
 
 from .dashboard_state import DashboardState
@@ -27,6 +28,7 @@ from .dashboard_code_security import (
     sample_catalog as code_security_sample_catalog,
 )
 from .dashboard_research import run_research_suite
+from .dashboard_recovery import MAX_TRACE_BYTES, inspect_recovery_trace
 from .dashboard_jev import (
     DEFAULT_TIMEOUT_SEC,
     DEFAULT_ENDPOINT,
@@ -37,6 +39,7 @@ from .dashboard_jev import (
     parse_request,
 )
 from .dashboard_auth import DashboardAuth
+from .dashboard_agents import AgentRequestError, AgentReviewJobs, MAX_REQUEST_BYTES as MAX_AGENT_REQUEST_BYTES, strict_request
 from .dashboard_credentials import CredentialStoreError
 from .dataset_security import DatasetSecurityError, scan_dataset
 from .dataset_upload import DatasetUploadError, stage_multipart_upload
@@ -47,10 +50,17 @@ from .sandbox_simulation import (
     sandbox_runtime_status,
     sample_catalog as sandbox_sample_catalog,
 )
+from .ros_graph_security import (
+    GraphSecurityError,
+    inspect_project,
+    sample_catalog as ros_graph_sample_catalog,
+)
 
 MAX_SIMULATION_REQUEST_BYTES = 4096
 MAX_CODE_SECURITY_REQUEST_BYTES = 72 * 1024
 MAX_SANDBOX_REQUEST_BYTES = 148 * 1024
+MAX_ROS_GRAPH_REQUEST_BYTES = 576 * 1024
+MAX_ROS_GRAPH_DRAIN_BYTES = 640 * 1024
 MAX_CODE_SECURITY_JEV_FINDINGS = 32
 MAX_JEV_EVALUATION_EVENTS = 16
 SIMULATION_ATTACK_TYPES = {"speed_abuse", "replay", "gripper_fault"}
@@ -106,6 +116,26 @@ class DashboardHandler(BaseHTTPRequestHandler):
             else:
                 self._json({"authenticated": False, "error": {"code": "auth_required", "message": "Login required"}}, status=401)
             return
+        if parsed.path in {"/api/agents/job", "/api/agents/report"}:
+            if not self._require_auth():
+                return
+            try:
+                query = parse_qs(parsed.query)
+                if set(query) != {"id"} or len(query["id"]) != 1:
+                    raise AgentRequestError("invalid_agent_request", "需要唯一任务 id")
+                job = self.dashboard_server.agent_jobs.get(query["id"][0], self._session_token())
+                if parsed.path == "/api/agents/report":
+                    if job["status"] in {"RUNNING", "CANCELLING"} or "report" not in job:
+                        raise AgentRequestError("agent_report_not_ready", "任务报告尚不可下载", 409)
+                    # Serialize in Python: browser re-serialization changes 1.0
+                    # to 1 and invalidates the trace/artifact canonical digests.
+                    self._json(job["report"], headers={"Content-Disposition":
+                        'attachment; filename="guardian-agent-review.json"'})
+                else:
+                    self._json(job)
+            except AgentRequestError as error:
+                self._json(error.payload(), status=error.status)
+            return
         if parsed.path == "/api/jev/key":
             if not self._require_auth():
                 return
@@ -126,6 +156,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return
             self._sandbox_samples()
             return
+        if parsed.path == "/api/ros-graph/samples":
+            if not self._require_auth():
+                return
+            self._ros_graph_samples()
+            return
         if parsed.path == "/api/research/suite":
             if not self._require_auth():
                 return
@@ -145,8 +180,19 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._login()
             return
         if parsed.path == "/api/logout":
-            self.dashboard_server.auth.logout(self._session_token())
+            token = self._session_token()
+            self.dashboard_server.agent_jobs.logout(token, lambda: self.dashboard_server.auth.logout(token))
             self._json({"authenticated": False}, headers={"Set-Cookie": self._clear_cookie()})
+            return
+        if parsed.path in {"/api/agents/models", "/api/agents/jobs", "/api/agents/cancel"}:
+            if not self._require_auth():
+                return
+            self._agents_request(parsed.path)
+            return
+        if parsed.path == "/api/recovery/inspect":
+            if not self._require_auth():
+                return
+            self._recovery_inspect()
             return
         if parsed.path == "/api/jev/key":
             if not self._require_auth():
@@ -189,6 +235,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return
             self._sandbox_run()
             return
+        if parsed.path == "/api/ros-graph/inspect":
+            if not self._require_auth():
+                return
+            self._ros_graph_inspect()
+            return
         if parsed.path == "/api/dataset-security/scan":
             if not self._require_auth():
                 return
@@ -201,12 +252,39 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
         self.send_error(404)
 
+    def _agents_request(self, path: str) -> None:
+        try:
+            try:
+                length = int(self.headers.get("Content-Length", "-1"))
+            except ValueError:
+                length = -1
+            if length < 0 or length > MAX_AGENT_REQUEST_BYTES:
+                self.close_connection = True
+                if length > 0:
+                    self.rfile.read(min(length, MAX_AGENT_REQUEST_BYTES + 65536))
+                raise AgentRequestError("invalid_agent_request", "请求不能超过 2 MiB")
+            payload = strict_request(self.rfile.read(length))
+            service = self.dashboard_server.agent_jobs
+            if path == "/api/agents/models":
+                result = service.models(payload)
+            elif path == "/api/agents/jobs":
+                token = self._session_token()
+                result = service.start(payload, token, lambda: self.dashboard_server.auth.validate(token))
+            else:
+                result = service.cancel(payload, self._session_token())
+            self._json(result, status=202 if path == "/api/agents/jobs" else 200)
+        except AgentRequestError as error:
+            self._json(error.payload(), status=error.status)
+
     def _json(self, payload: object, *, status: int = 200, headers: dict[str, str] | None = None) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; base-uri 'none'")
+        self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Content-Length", str(len(body)))
         for name, value in (headers or {}).items():
             self.send_header(name, value)
@@ -228,9 +306,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self._json({"authenticated": False, "error": {"code": "auth_required", "message": "Login required"}}, status=401)
         return False
 
-    @staticmethod
-    def _clear_cookie() -> str:
-        return "guardian_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict"
+    def _clear_cookie(self) -> str:
+        secure = "; Secure" if self.dashboard_server.secure_cookies else ""
+        return f"guardian_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict{secure}"
 
     def _login(self) -> None:
         content_length = self.headers.get("Content-Length")
@@ -247,11 +325,26 @@ class DashboardHandler(BaseHTTPRequestHandler):
             payload = None
         username = payload.get("username") if isinstance(payload, dict) else None
         password = payload.get("password") if isinstance(payload, dict) else None
-        token = self.dashboard_server.auth.login(username, password)
+        client_id = self.client_address[0] if self.client_address else "unknown"
+        token = self.dashboard_server.auth.login(username, password, client_id=client_id)
         if token is None:
+            if self.dashboard_server.auth.is_login_rate_limited(client_id):
+                self._json(
+                    {
+                        "authenticated": False,
+                        "error": {
+                            "code": "login_rate_limited",
+                            "message": "登录失败次数过多，请稍后重试",
+                        },
+                    },
+                    status=429,
+                    headers={"Retry-After": "60"},
+                )
+                return
             self._json({"authenticated": False, "error": {"code": "invalid_credentials", "message": "用户名或密码错误"}}, status=401)
             return
-        cookie = f"guardian_session={token}; Max-Age={int(self.dashboard_server.auth.ttl_sec)}; Path=/; HttpOnly; SameSite=Strict"
+        secure = "; Secure" if self.dashboard_server.secure_cookies else ""
+        cookie = f"guardian_session={token}; Max-Age={int(self.dashboard_server.auth.ttl_sec)}; Path=/; HttpOnly; SameSite=Strict{secure}"
         self._json({"authenticated": True, "username": self.dashboard_server.auth.username}, headers={"Set-Cookie": cookie})
 
     def _jev_test(self) -> None:
@@ -376,8 +469,152 @@ class DashboardHandler(BaseHTTPRequestHandler):
             "runtime": sandbox_runtime_status(),
         })
 
+    def _ros_graph_samples(self) -> None:
+        self._json({
+            "schema": "ros-security-graph/v1",
+            "samples": ros_graph_sample_catalog(),
+        })
+
+    def _drain_ros_graph_body(self, length: int) -> None:
+        remaining = min(length, MAX_ROS_GRAPH_DRAIN_BYTES)
+        while remaining > 0:
+            chunk = self.rfile.read(min(64 * 1024, remaining))
+            if not chunk:
+                return
+            remaining -= len(chunk)
+
+    def _ros_graph_inspect(self) -> None:
+        content_length = self.headers.get("Content-Length")
+        if content_length is None:
+            self._json(
+                {
+                    "status": "INVALID_REQUEST",
+                    "error": {
+                        "code": "invalid_ros_graph_request",
+                        "message": "请求体长度无效",
+                    },
+                },
+                status=400,
+            )
+            return
+        try:
+            length = int(content_length)
+        except (TypeError, ValueError):
+            length = -1
+        if length < 0:
+            self._json(
+                {
+                    "status": "INVALID_REQUEST",
+                    "error": {
+                        "code": "invalid_ros_graph_request",
+                        "message": "请求体长度无效",
+                    },
+                },
+                status=400,
+            )
+            return
+        if length > MAX_ROS_GRAPH_REQUEST_BYTES:
+            self._drain_ros_graph_body(length)
+            self._json(
+                {
+                    "status": "INVALID_REQUEST",
+                    "error": {
+                        "code": "ros_graph_request_too_large",
+                        "message": "ROS 安全图请求体过大",
+                    },
+                },
+                status=413,
+            )
+            return
+
+        raw = self.rfile.read(length)
+        if len(raw) != length:
+            self._json(
+                {
+                    "status": "INVALID_REQUEST",
+                    "error": {
+                        "code": "invalid_ros_graph_request",
+                        "message": "请求体不完整",
+                    },
+                },
+                status=400,
+            )
+            return
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._json(
+                {
+                    "status": "INVALID_REQUEST",
+                    "error": {
+                        "code": "invalid_ros_graph_request",
+                        "message": "请求体必须是有效 JSON",
+                    },
+                },
+                status=400,
+            )
+            return
+        if (
+            not isinstance(payload, dict)
+            or "files" not in payload
+            or set(payload) - {"files", "profile"}
+        ):
+            self._json(
+                {
+                    "status": "INVALID_REQUEST",
+                    "error": {
+                        "code": "invalid_ros_graph_request",
+                        "message": "仅支持 files 和可选 profile 字段",
+                    },
+                },
+                status=400,
+            )
+            return
+
+        try:
+            report = inspect_project(
+                payload["files"],
+                profile=payload.get("profile", "ros2_generic"),
+            )
+        except (GraphSecurityError, UnicodeError):
+            self._json(
+                {
+                    "status": "INVALID_REQUEST",
+                    "error": {
+                        "code": "invalid_ros_graph_request",
+                        "message": "ROS 安全图请求无效",
+                    },
+                },
+                status=400,
+            )
+            return
+        self._json({"status": "OK", "report": report})
+
     def _research_suite(self) -> None:
         self._json(run_research_suite())
+
+    def _recovery_inspect(self) -> None:
+        try:
+            length = int(self.headers.get("Content-Length", "-1"))
+        except ValueError:
+            length = -1
+        if length > MAX_TRACE_BYTES:
+            self.close_connection = True
+            self._json({"error": {"code": "recovery_trace_too_large", "message": "轨迹请求不能超过 2 MiB"}}, status=413)
+            return
+        try:
+            if length < 1:
+                raise ValueError("请求体长度无效")
+            raw = self.rfile.read(length)
+            if len(raw) != length:
+                raise ValueError("请求体不完整")
+            payload = json.loads(raw.decode("utf-8"))
+            report = inspect_recovery_trace(payload)
+        except (ValueError, UnicodeError, RecursionError):
+            self._json({"error": {"code": "invalid_recovery_trace",
+                "message": "轨迹格式无效：需提供 1–2000 帧有效 RecoveryFrame，不支持额外执行参数"}}, status=400)
+            return
+        self._json({"status": "OK", "report": report})
 
     def _experiment_replay(self) -> None:
         content_length = self.headers.get("Content-Length")
@@ -902,6 +1139,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", f"{content_type}; charset=utf-8" if content_type.startswith("text/") else content_type)
         self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; base-uri 'none'")
+        self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -922,13 +1163,60 @@ class DashboardHTTPServer(ThreadingHTTPServer):
         jev_service: JevDashboardService | None = None,
         auth: DashboardAuth | None = None,
         simulation_control=None,
+        allow_remote: bool = False,
+        max_workers: int = 16,
+        request_timeout_sec: float = 10.0,
     ) -> None:
+        host = address[0]
+        if not allow_remote and host not in {"127.0.0.1", "localhost", "::1"}:
+            raise ValueError("dashboard must bind to localhost unless remote access is explicitly enabled")
+        if type(max_workers) is not int or max_workers < 1:
+            raise ValueError("max_workers must be a positive integer")
+        if request_timeout_sec <= 0:
+            raise ValueError("request_timeout_sec must be positive")
         super().__init__(address, DashboardHandler)
         self.state = state
         self.frontend_dir = frontend_dir
         self.jev_service = jev_service or JevDashboardService()
         self.auth = auth or DashboardAuth.from_environment()
+        self.agent_jobs = AgentReviewJobs()
         self.simulation_control = simulation_control
+        self.allow_remote = allow_remote
+        self._request_slots = BoundedSemaphore(max_workers)
+        self.request_timeout_sec = float(request_timeout_sec)
+        self.secure_cookies = allow_remote
+
+    def server_close(self):
+        self.agent_jobs.close()
+        super().server_close()
+
+    def get_request(self):
+        request, client_address = super().get_request()
+        request.settimeout(self.request_timeout_sec)
+        return request, client_address
+
+    def process_request(self, request, client_address):
+        if not self._request_slots.acquire(blocking=False):
+            try:
+                request.sendall(
+                    b"HTTP/1.1 503 Service Unavailable\r\n"
+                    b"Connection: close\r\n"
+                    b"Content-Length: 0\r\n\r\n"
+                )
+            finally:
+                request.close()
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._request_slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._request_slots.release()
 
 
 class DashboardNode(Node):
@@ -938,6 +1226,7 @@ class DashboardNode(Node):
         self.declare_parameter("port", 8080)
         self.declare_parameter("timeline_limit", 100)
         self.declare_parameter("frontend_dir", "")
+        self.declare_parameter("allow_remote", False)
         self.declare_parameter("jev_endpoint", os.getenv("JEV_ENDPOINT", DEFAULT_ENDPOINT))
         self.declare_parameter("jev_model", os.getenv("JEV_MODEL", "jev-latest"))
         self.declare_parameter("jev_timeout_sec", os.getenv("JEV_TIMEOUT_SEC", str(DEFAULT_TIMEOUT_SEC)))
@@ -949,6 +1238,7 @@ class DashboardNode(Node):
             raise RuntimeError(f"Dashboard frontend directory does not exist: {frontend_dir}")
         host = str(self.get_parameter("host").value)
         port = int(self.get_parameter("port").value)
+        allow_remote = bool(self.get_parameter("allow_remote").value)
         try:
             jev_service = JevDashboardService(
                 endpoint=str(self.get_parameter("jev_endpoint").value),
@@ -958,13 +1248,21 @@ class DashboardNode(Node):
         except (TypeError, ValueError) as error:
             self.get_logger().warning(f"Invalid Jev dashboard configuration; using defaults: {error}")
             jev_service = JevDashboardService()
-        self.http_server = DashboardHTTPServer((host, port), self.state, frontend_dir, jev_service=jev_service, auth=DashboardAuth.from_environment())
+        self.http_server = DashboardHTTPServer(
+            (host, port),
+            self.state,
+            frontend_dir,
+            jev_service=jev_service,
+            auth=DashboardAuth.from_environment(),
+            allow_remote=allow_remote,
+        )
         self.http_thread = Thread(target=self.http_server.serve_forever, name="guardian-dashboard-http", daemon=True)
         self.http_thread.start()
 
         self.create_subscription(RiskState, "guardian/risk_state", self.state.update_risk, 20)
         self.create_subscription(MitigationCommand, "guardian/mitigation_command", self.state.update_mitigation, 20)
         self.create_subscription(SafetyStatus, "guardian/safety_status", self.state.update_safety, 20)
+        self.create_subscription(MitigationAck, "guardian/mitigation_ack", self.state.update_ack, 20)
         self.sim_control_pub = self.create_publisher(String, "/amr_07/sim_control", 20)
         self.create_subscription(String, "guardian/sim_state", self.state.update_simulation, 20)
         self.http_server.simulation_control = self.publish_simulation_control
@@ -977,6 +1275,8 @@ class DashboardNode(Node):
         self.http_server.shutdown()
         self.http_server.server_close()
         self.http_thread.join(timeout=2.0)
+        if not rclpy.ok():
+            return True
         return super().destroy_node()
 
 
@@ -985,7 +1285,7 @@ def main(args: Iterable[str] | None = None) -> None:
     node = DashboardNode()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         node.destroy_node()

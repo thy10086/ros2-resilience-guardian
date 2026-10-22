@@ -1,5 +1,7 @@
 # ROS 2 AMR 闭环工程仿真
 
+2026-10-12 起，默认配置使用证据与上下文绑定恢复闭环，完整操作和边界见 [安全恢复闭环](evidence_bound_recovery.md)。本文的普通防护回放仍保留原行为。
+
 本项目的仓储案例现在有两种互补的实验模式：
 
 - 防护实验室：把固定 `guardian-replay/v1` 文件送入同一套校验、登记、风险、缓解和安全监督逻辑，适合复盘每一个事件的判定。
@@ -42,10 +44,10 @@ x(t + Δt) = min(route_length, x(t) + actual_speed × Δt)
 | 操作 | ROS 2 事件 | 预期 Guardian 结果 | 可观测证据 |
 | --- | --- | --- | --- |
 | 启动托盘任务 | 无攻击事件 | `NORMAL`，任务允许 | `phase=DOCK_TO_PALLET`，实际速度约 `0.20` |
-| 注入超速 | `UNSAFE_COMMAND`, `sequence=7001` | `CONTAINING`，隔离/限速 | 请求 `0.62`，实际 `0`，速度上限下降 |
+| 注入超速 | `UNSAFE_COMMAND`, `sequence=7001` | 默认恢复闭环 `SAFE_STOP` | 请求 `0.62`，实际 `0`，告警过期仍停车 |
 | 注入重放 | 两条相同 `sequence=7001` | 第一条接受，第二条 `REPLAY` | 实时时间线和攻击模式 `replay` |
 | 注入抓取器故障 | `SEMANTIC_MISBEHAVIOR`, `right_arm` | 右臂进入风险集合 | 抓取力 `45 N → 0 N`，缓解组件包含右臂 |
-| 重置场景 | 清除仿真任务和故障模式 | 仿真立即回到 `IDLE`；Guardian 按事件 TTL 过期 | 位置清零、攻击模式为空，默认约 5 秒后 `NORMAL` |
+| 重置场景 | 清除仿真任务和故障模式 | `IDLE`，重新等待健康观测、停止 ACK 和恢复许可 | 位置清零；`RECOVERING → RESUMABLE → NORMAL`，再启动任务运动 |
 
 页面操作只允许四个动作和三种攻击类型，后端限制请求体为 4 KiB；仿真节点也会
 再次校验字段，未知动作不会进入 ROS 2 图。这样前端是实验控制台，而不是绕过

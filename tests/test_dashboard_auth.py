@@ -97,6 +97,22 @@ def test_dashboard_auth_accepts_admin_admin_and_expires_tokens():
     assert not auth.validate(token, now=15.0)
 
 
+def test_environment_auth_rejects_the_demo_default_password(monkeypatch):
+    monkeypatch.delenv("GUARDIAN_DASHBOARD_PASSWORD", raising=False)
+    monkeypatch.delenv("GUARDIAN_DASHBOARD_ALLOW_DEFAULT_CREDENTIALS", raising=False)
+    with pytest.raises(ValueError, match="password"):
+        DashboardAuth.from_environment()
+
+
+def test_dashboard_login_is_rate_limited_after_repeated_failures():
+    auth = DashboardAuth(username="admin", password="strong-password", ttl_sec=60.0)
+    for _ in range(5):
+        assert auth.login("admin", "wrong", client_id="127.0.0.1", now=10.0) is None
+    assert auth.is_login_rate_limited("127.0.0.1", now=10.0)
+    assert auth.login("admin", "strong-password", client_id="127.0.0.1", now=10.0) is None
+    assert auth.login("admin", "strong-password", client_id="127.0.0.1", now=71.0)
+
+
 def test_dashboard_jev_key_is_bound_to_session_and_expires_with_it():
     auth = DashboardAuth(username="admin", password="admin", ttl_sec=5.0)
     token = auth.login("admin", "admin", now=10.0)
@@ -122,6 +138,19 @@ def test_dashboard_requires_login_for_state_but_keeps_health_public(server):
     status, _, payload = request_json(f"{server}/api/state")
     assert status == 401
     assert payload["error"]["code"] == "auth_required"
+
+
+def test_dashboard_rejects_remote_binding_without_explicit_override():
+    with pytest.raises(ValueError, match="localhost"):
+        DashboardHTTPServer(("0.0.0.0", 0), DashboardState(), FRONTEND, auth=DashboardAuth())
+
+
+def test_dashboard_sets_security_headers_on_json_responses(server):
+    status, headers, _ = request_json(f"{server}/api/health")
+    assert status == 200
+    assert headers["X-Frame-Options"] == "DENY"
+    assert headers["Content-Security-Policy"].startswith("default-src")
+    assert headers["Referrer-Policy"] == "no-referrer"
 
 
 def test_dashboard_login_cookie_unlocks_state_and_logout_revokes_it(server):

@@ -1,0 +1,18 @@
+[Unit]
+Description=ROS 2 Resilience Guardian (%i)
+After=network.target
+
+[Service]
+Type=simple
+Environment="GUARDIAN_WORKSPACE=%h/ros2-resilience-guardian"
+Environment="GUARDIAN_DISTRO=auto"
+EnvironmentFile=-%h/.config/ros2-resilience-guardian/guardian.env
+Environment="ROS_SECURITY_ENABLE=true"
+Environment="ROS_SECURITY_STRATEGY=Enforce"
+Environment="ROS_SECURITY_KEYSTORE=%h/.ros/ros2-resilience-guardian/keystore"
+ExecStart=/usr/bin/env bash -lc 'exec bash "$GUARDIAN_WORKSPACE/deploy/run_guardian.sh" "%i" --workspace "$GUARDIAN_WORKSPACE" --distro "$GUARDIAN_DISTRO"'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

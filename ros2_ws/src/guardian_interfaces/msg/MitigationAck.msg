@@ -1,0 +1,14 @@
+float64 timestamp
+string profile_id
+uint64 command_epoch
+uint64 transmission_id
+uint64 feedback_sequence
+string adapter_id
+string plan_id
+string action
+string[] components
+bool accepted
+bool active
+bool safe_stop_confirmed
+string reason
+string signature

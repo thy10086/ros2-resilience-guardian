@@ -21,11 +21,11 @@ def test_protection_lab_is_the_default_first_workspace():
     nav = html[nav_start:nav_end]
     tab_panels = [
         panel
-        for panel in ("protection", "simulation", "jev", "realtime", "code-security", "dataset-security", "sandbox", "research")
+        for panel in ("protection", "simulation", "jev", "realtime", "code-security", "ros-graph", "dataset-security", "sandbox", "research")
         if f'data-panel="{panel}"' in nav
     ]
 
-    assert tab_panels == ["protection", "simulation", "jev", "realtime", "code-security", "dataset-security", "sandbox", "research"]
+    assert tab_panels == ["protection", "simulation", "jev", "realtime", "code-security", "ros-graph", "dataset-security", "sandbox", "research"]
     assert 'data-panel-section="protection"' in html
     assert 'id="panel-realtime"' in html
     assert "window.location.hash.slice(1) || 'protection'" in script
@@ -203,6 +203,17 @@ def test_realtime_risk_metrics_use_plain_language_labels():
     assert "风险阈值是否通过（γ）" in html
 
 
+def test_realtime_dashboard_exposes_execution_ack_identity():
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    script = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+    assert 'id="ack-state"' in html
+    assert 'id="ack-identity"' in html
+    assert 'id="ack-sequence"' in html
+    assert "const ack = data.ack || {}" in script
+    assert "ack.feedback_sequence" in script
+
+
 def test_sandbox_workspace_exposes_runtime_evidence_and_local_import():
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")
     script = (FRONTEND / "app.js").read_text(encoding="utf-8")
@@ -255,3 +266,24 @@ def test_dataset_security_distinguishes_dashboard_outage_from_upload_disconnect(
     assert "本地 Dashboard 未运行" in script
     assert "上传连接已中断" in script
     assert "上传完成，正在扫描" in script
+
+
+def test_ros_security_graph_workspace_exposes_static_graph_evidence():
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    script = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+    assert 'data-panel="ros-graph"' in html
+    assert 'id="panel-ros-graph"' in html
+    assert 'id="ros-graph-svg"' in html
+    assert 'id="ros-graph-findings"' in html
+    assert 'id="ros-graph-paths"' in html
+    assert "/api/ros-graph/samples" in script
+    assert "/api/ros-graph/inspect" in script
+    assert "loadRosGraphSamples" in script
+    assert "inspectRosGraph" in script
+    assert "renderRosGraph" in script
+    assert "renderRosGraphSvg" in script
+    assert "EXTRACTED" in script
+    assert "INFERRED" in script
+    assert "UNSUPPORTED" in script
+    assert "不执行源码" in html

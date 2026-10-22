@@ -1,6 +1,11 @@
 float64 timestamp
+string profile_id
+uint64 command_epoch
+uint64 transmission_id
+string adapter_id
 string state
 float32 speed_limit
 bool mission_allowed
 string reason
 string plan_id
+string signature
