@@ -5,6 +5,7 @@ from collections import OrderedDict
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -59,9 +60,31 @@ def strict_request(raw):
         raise AgentRequestError("invalid_agent_request", "请求须为不超过 2 MiB 的严格 JSON 对象") from None
 
 
+def _research_root():
+    """Locate administrator-owned sources in source and ROS install layouts.
+
+    Environment is service configuration, never an HTTP request field. An explicit
+    invalid setting fails closed instead of silently choosing another checkout.
+    """
+    configured = os.environ.get("GUARDIAN_RESEARCH_ROOT")
+    candidates = [Path(configured)] if configured else Path(__file__).resolve().parents
+    markers = ("PROJECT_GUIDE.md", "experiments/agent_review/orchestration.py",
+        "experiments/agent_review/contracts.py", "docs/artex_ros2_agent_prompts.md",
+        "ros2_ws/src/guardian_core/guardian_core/dashboard_agents.py",
+        "output/agent-review-venv/bin/python")
+    for candidate in candidates:
+        if configured and not candidate.is_absolute():
+            break
+        root = candidate.resolve()
+        if all((root / marker).is_file() for marker in markers):
+            return root
+    raise AgentRequestError("runtime_unavailable",
+        "未找到可信研究源码与固定 agent-review-venv；管理员可设置 GUARDIAN_RESEARCH_ROOT", 503)
+
+
 def _load_runtime():
     """Load only the fixed repository and isolated executable; no client paths."""
-    root = Path(__file__).resolve().parents[4]
+    root = _research_root()
     python = root / "output/agent-review-venv/bin/python"
     try:
         if (sys.platform != "linux" or not python.is_file()

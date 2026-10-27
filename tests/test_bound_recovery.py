@@ -109,3 +109,74 @@ def test_completed_proof_cannot_be_reissued_from_same_candidate():
     assert protocol.authorize_command(proof, observation(1.1)).allowed
     with pytest.raises(ValueError):
         protocol.issue_observed(observed)
+
+
+def running_gate():
+    gate = coordinator()
+    step(gate, 1.0)
+    step(gate, 1.25)
+    assert step(gate, 1.3).mission_allowed
+    return gate
+
+
+@pytest.mark.parametrize("age, allowed", [(0.0, True), (0.49, False)])
+def test_running_motion_uses_distance_remaining_since_capture(age, allowed):
+    from guardian_core.bound_recovery import RecoveryTelemetry
+    gate = running_gate()
+    telemetry = RecoveryTelemetry(10.0 - age, 0.35, 0.34, True, False, True, True)
+    decision = step(gate, 10.0, telemetry=telemetry, command_epoch=2, stopped_ack=False)
+    assert decision.mission_allowed is allowed
+    if not allowed:
+        assert decision.speed_limit == 0.0
+
+
+@pytest.mark.parametrize("speed, free_distance", [(0.0, 0.24), (0.35, 0.34)])
+def test_older_capture_cannot_increase_motion_permission_or_speed(speed, free_distance):
+    from guardian_core.bound_recovery import RecoveryTelemetry
+    decisions = []
+    for age in (0.0, 0.05, 0.1, 0.2, 0.49):
+        gate = running_gate()
+        # Even a stationary sample cannot exclude subsequent acceleration up
+        # to the configured 0.35 m/s operating bound.
+        telemetry = RecoveryTelemetry(10.0, speed, free_distance, True, False, True, True)
+        decisions.append(step(gate, 10.0 + age, telemetry=telemetry,
+            command_epoch=2, stopped_ack=False))
+    assert decisions[0].mission_allowed
+    assert not decisions[-1].mission_allowed
+    assert decisions[-1].speed_limit < decisions[0].speed_limit
+    for newer, older in zip(decisions, decisions[1:]):
+        assert older.mission_allowed <= newer.mission_allowed
+        assert older.speed_limit <= newer.speed_limit + 1e-12
+
+
+def test_capture_age_overlaps_fixed_sensor_latency_instead_of_adding_it_twice():
+    from guardian_core.bound_recovery import RecoveryTelemetry
+    gate = running_gate()
+    # After 0.2 s, 0.31 m remains. Current stopping distance with control
+    # latency is 0.2965625 m; counting sensor latency again would require
+    # 0.3315625 m and reject this safe control.
+    telemetry = RecoveryTelemetry(9.8, 0.35, 0.38, True, False, True, True)
+    decision = step(gate, 10.0, telemetry=telemetry, command_epoch=2, stopped_ack=False)
+    assert decision.mission_allowed
+    assert 0.35 <= decision.speed_limit + 1e-12
+
+
+def test_old_zero_speed_sample_does_not_assume_robot_remained_stationary():
+    from guardian_core.bound_recovery import RecoveryTelemetry
+    gate = running_gate()
+    # An old zero-speed sample cannot exclude subsequent acceleration. With
+    # the operating speed bound, only 0.265 m remains and stopping needs more.
+    telemetry = RecoveryTelemetry(9.9, 0.0, 0.30, True, False, True, True)
+    decision = step(gate, 10.0, telemetry=telemetry, command_epoch=2, stopped_ack=False)
+    assert not decision.mission_allowed
+
+
+def test_fresh_stopped_samples_with_nearby_clearance_still_complete_recovery():
+    from guardian_core.bound_recovery import RecoveryTelemetry
+    gate = coordinator()
+    decisions = []
+    for now in (1.0, 1.25, 1.3):
+        telemetry = RecoveryTelemetry(now - 0.1, 0.0, 0.40, True, False, True, True)
+        decisions.append(step(gate, now, telemetry=telemetry))
+    assert decisions[-2].phase == "RECOVERY_CANDIDATE"
+    assert decisions[-1].mission_allowed

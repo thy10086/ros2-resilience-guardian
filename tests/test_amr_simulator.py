@@ -124,6 +124,43 @@ def test_model_replay_and_gripper_fault_are_deterministic():
     assert json.loads(model.gripper_payload())["grip_force"] == 0.0
 
 
+def test_new_attacks_keep_increasing_source_sequence_across_scene_resets():
+    from guardian_core.models import AttackEvent
+    from guardian_core.verifier import EventVerifier
+    model = AmrSimulationModel()
+    verifier = EventVerifier({"amr_simulator"})
+    events = []
+    for index, attack in enumerate(("speed_abuse", "speed_abuse", "gripper_fault", "speed_abuse")):
+        model.handle_command({"action": "reset"})
+        model.handle_command({"action": "attack", "type": attack})
+        event = model.poll_attack_events(10.0 + index)[0]
+        result = verifier.verify(AttackEvent(**event), 10.0 + index)
+        assert result.accepted, result.reason
+        events.append(event)
+    assert all(new["sequence"] > old["sequence"] for old, new in zip(events, events[1:]))
+    assert len({event["event_id"] for event in events}) == 4
+
+
+def test_only_deliberate_replay_is_rejected_and_later_new_attack_is_accepted():
+    from guardian_core.models import AttackEvent, VerificationCode
+    from guardian_core.verifier import EventVerifier
+    model = AmrSimulationModel()
+    verifier = EventVerifier({"amr_simulator"})
+    model.handle_command({"action": "attack", "type": "gripper_fault"})
+    initial = model.poll_attack_events(1.0)[0]
+    assert verifier.verify(AttackEvent(**initial), 1.0).accepted
+    model.handle_command({"action": "reset"})
+    model.handle_command({"action": "attack", "type": "replay"})
+    first = model.poll_attack_events(2.0)[0]
+    replayed = model.poll_attack_events(2.1)[0]
+    assert verifier.verify(AttackEvent(**first), 2.0).accepted
+    assert verifier.verify(AttackEvent(**replayed), 2.1).code == VerificationCode.REPLAY
+    assert first["sequence"] == replayed["sequence"]
+    model.handle_command({"action": "attack", "type": "speed_abuse"})
+    subsequent = model.poll_attack_events(3.0)[0]
+    assert verifier.verify(AttackEvent(**subsequent), 3.0).accepted
+
+
 def test_model_reset_clears_faults_and_returns_to_idle():
     model = AmrSimulationModel()
     model.handle_command({"action": "start"})

@@ -29,7 +29,15 @@ bash deploy/run_guardian.sh dashboard --distro humble
 bash deploy/run_guardian.sh core --distro humble
 bash deploy/run_guardian.sh simulator --distro humble
 bash deploy/run_guardian.sh all --distro humble
+bash deploy/run_guardian.sh demo --distro humble
 ```
+
+`demo` composes the existing Guardian, AMR and Dashboard nodes in one executor
+on localhost/domain 42 with a fresh process-local signing key. It permits the
+local demo login when no administrator password is configured. This is a local
+software demonstration, not multiprocess DDS or hardware validation. The tracked
+launcher is `deploy/run_local_demo.py`. Research features require their fixed
+venv and trusted source root; see [the implementation record](priority_hardening_2026-10-27.md).
 
 Use `--workspace /absolute/path/to/ros2-resilience-guardian` when the helper
 is called from another directory. If `--workspace` is omitted, the helper

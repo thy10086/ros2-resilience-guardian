@@ -12,6 +12,11 @@ import os
 import re
 from dataclasses import dataclass
 
+from .static_ros_names import (
+    ALLOW_GUARDS, GUARD_NAMES, STOP_GUARDS, NameContext,
+    context_for_scope, is_control_topic, resolve_topic,
+)
+
 CODE_SECURITY_SCHEMA = "guardian-code-security/v1"
 PROFILE = "conveyor_robot_arm"
 MAX_SOURCE_BYTES = 64 * 1024
@@ -105,10 +110,6 @@ class _SourceVisitor(ast.NodeVisitor):
                 "ISOLATE_COMPONENT",
             )
 
-        if name.endswith("create_publisher") and node.args:
-            topic = _string_value(node.args[1] if len(node.args) > 1 else node.args[0])
-            if topic in CONTROL_TOPICS or (topic and GAZEBO_CONTROL_TOPIC_RE.fullmatch(topic)):
-                self.topics.add(topic)
         if name in {"time.sleep", "sleep"}:
             self._add(
                 node,
@@ -167,7 +168,9 @@ class _ControlPathAnalyzer(ast.NodeVisitor):
     def __init__(self, source_lines: list[str]) -> None:
         self.source_lines = source_lines
         self.topics: set[str] = set()
-        self.publishers: dict[str, str] = {}
+        self.publishers: dict[str, dict[str, object]] = {}
+        self.name_context = NameContext()
+        self.name_resolution_gaps: list[dict[str, object]] = []
         self.publish_calls: list[dict[str, object]] = []
         self.unresolved_calls = 0
         self.has_rclpy_init = False
@@ -190,8 +193,7 @@ class _ControlPathAnalyzer(ast.NodeVisitor):
             return any(evidence) if isinstance(test.op, ast.And) == truth else all(evidence)
         if isinstance(test, (ast.Name, ast.Attribute)):
             name = _target_name(test).lower()
-            return (truth and name in {"mission_allowed", "safety_ok", "permit", "motion_allowed"}
-                    or not truth and name in {"estop", "e_stop", "safe_stop", "emergency_stop"})
+            return (truth and name in ALLOW_GUARDS or not truth and name in STOP_GUARDS)
         return False
 
     @staticmethod
@@ -218,9 +220,16 @@ class _ControlPathAnalyzer(ast.NodeVisitor):
             "speed_limit", "max_speed", "velocity_limit",
         }
 
-    def _declarations(self, node: ast.AST) -> dict[str, str]:
+    def _declarations(self, node: ast.AST) -> dict[str, dict[str, object]]:
         publishers = {}
-        for item in ast.walk(node):
+        pending = [node]
+        while pending:
+            item = pending.pop()
+            pending.extend(reversed([
+                child for child in ast.iter_child_nodes(item)
+                if not isinstance(child, ast.ClassDef)
+                and not (isinstance(node, ast.Module) and isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)))
+            ]))
             if not isinstance(item, ast.Assign) or not isinstance(item.value, ast.Call):
                 continue
             call = item.value
@@ -229,24 +238,43 @@ class _ControlPathAnalyzer(ast.NodeVisitor):
             topic_node = call.args[1] if len(call.args) > 1 else next(
                 (kw.value for kw in call.keywords if kw.arg == "topic"), None)
             topic = _string_value(topic_node)
+            resolution = resolve_topic(topic, self.name_context) if topic else {
+                "topic": None, "original_topic": None, "resolved_topic": None,
+                "name_resolution": "UNRESOLVED",
+                "topic_expression": _call_name(topic_node) or "<dynamic topic>",
+            }
             for target in item.targets:
-                publishers[_call_name(target)] = topic or ""
-            if topic in CONTROL_TOPICS or (topic and GAZEBO_CONTROL_TOPIC_RE.fullmatch(topic)):
-                self.topics.add(topic)
+                publishers[_call_name(target)] = resolution
+            if topic and is_control_topic(topic):
+                self.topics.add(str(resolution["topic"]))
+            if (not topic or is_control_topic(topic)) and resolution["name_resolution"] == "UNRESOLVED":
+                gap = {**resolution, "line": call.lineno}
+                if gap not in self.name_resolution_gaps:
+                    self.name_resolution_gaps.append(gap)
         return publishers
+
+    def visit_Module(self, node: ast.Module) -> None:  # noqa: N802
+        self.publishers = self._declarations(node)
+        self._block(node.body, False, set())
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:  # noqa: N802
         previous = self.publishers
+        previous_context = self.name_context
+        self.name_context = context_for_scope(node, previous_context)
         self.publishers = self._declarations(node)
         for statement in node.body:
             self.visit(statement)
         self.publishers = previous
+        self.name_context = previous_context
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
         previous = self.publishers
+        previous_context = self.name_context
+        self.name_context = context_for_scope(node, previous_context)
         self.publishers = {**previous, **self._declarations(node)}
         self._block(node.body, False, set())
         self.publishers = previous
+        self.name_context = previous_context
 
     visit_AsyncFunctionDef = visit_FunctionDef
 
@@ -260,15 +288,15 @@ class _ControlPathAnalyzer(ast.NodeVisitor):
             self.has_rclpy_shutdown |= name == "rclpy.shutdown"
             if not isinstance(call.func, ast.Attribute) or call.func.attr != "publish":
                 continue
-            topic = self.publishers.get(_call_name(call.func.value), "")
-            if not topic:
+            resolution = self.publishers.get(_call_name(call.func.value), {})
+            if not resolution or resolution["original_topic"] is None:
                 self.unresolved_calls += 1
                 continue
-            if topic not in CONTROL_TOPICS and not GAZEBO_CONTROL_TOPIC_RE.fullmatch(topic):
+            if not is_control_topic(str(resolution["original_topic"])):
                 continue
             argument = _call_name(call.args[0]) if call.args else ""
             self.publish_calls.append({
-                "topic": topic, "line": call.lineno, "guarded": guarded,
+                **resolution, "line": call.lineno, "guarded": guarded,
                 "limited": bool(argument and argument + ".linear.x" in limited),
             })
 
@@ -299,7 +327,7 @@ class _ControlPathAnalyzer(ast.NodeVisitor):
                     for target_node in targets:
                         target = _call_name(target_node)
                         limited = {field for field in limited if not (field == target or field.startswith(target + "."))}
-                        if _target_name(target_node) in {"estop", "mission_allowed", "permit", "safety_ok"}:
+                        if any(_target_name(part).lower() in GUARD_NAMES for part in ast.walk(target_node)):
                             guarded = False
                         if target.endswith(".linear.x") and self._clamp(statement.value, target):
                             limited.add(target)
@@ -407,7 +435,15 @@ def _parse_findings(source: str) -> tuple[list[str], list[str], list[_Finding], 
     visitor = _SourceVisitor(lines)
     visitor.visit(tree)
     control = _ControlPathAnalyzer(lines)
+    control.name_context = context_for_scope(tree)
     control.visit(tree)
+    for gap in control.name_resolution_gaps:
+        visitor.findings.append(_finding(
+            "NAME-001", "medium", "ROS 主题名称存在静态解析缺口",
+            int(gap["line"]), str(gap.get("topic_expression") or gap["original_topic"]),
+            "提供明确主题名称及运行时 namespace、私有名和 launch/CLI remap 后复核端点。",
+            "REVIEW_REQUIRED",
+        ))
     topics = sorted(control.topics or visitor.topics)
     publish_calls = control.publish_calls
     if topics and not all(item["guarded"] for item in publish_calls):
@@ -420,7 +456,7 @@ def _parse_findings(source: str) -> tuple[list[str], list[str], list[_Finding], 
             "让 Guardian SafetyStatus 或等价安全许可成为每个执行器发布的前置条件。",
             "ISOLATE_COMPONENT",
         ))
-    drive_topics = {topic for topic in topics if topic.endswith("/cmd_vel")}
+    drive_topics = {topic for topic in topics if topic == "cmd_vel" or topic.endswith("/cmd_vel")}
     drive_calls = [item for item in publish_calls if item["topic"] in drive_topics]
     if drive_topics and (not drive_calls or not all(item["limited"] for item in drive_calls)):
         visitor.findings.append(_finding(
@@ -444,7 +480,7 @@ def _assurance_report(
     parsed = control is not None
     publish_calls = control.publish_calls if control else []
     guarded_calls = [item for item in publish_calls if item["guarded"]]
-    drive_calls = [item for item in publish_calls if str(item["topic"]).endswith("/cmd_vel")]
+    drive_calls = [item for item in publish_calls if str(item["original_topic"]).strip("/").split("/")[-1] == "cmd_vel"]
     limited_drive_calls = [item for item in drive_calls if item["limited"]]
     checks = [
         {
@@ -495,18 +531,23 @@ def _assurance_report(
             "只完成 Python AST 和有限文本规则检查，未启动 ROS 2/Gazebo。",
             "未验证 DDS/SROS2 身份、真实传感器输入、控制器时序和物理碰撞结果。",
             "通过检查不等于工业安全认证；上线前仍需仿真闭环、硬件在环和人工复核。",
+            "名称仅依据源码字面 namespace 展开；未提供 namespace 时假设根命名空间，外部 launch/CLI remap 未验证。",
         ],
         "finding_count": len(findings),
         "topics_checked": topics,
         "publish_paths": [
             {
                 "topic": item["topic"],
+                "original_topic": item["original_topic"],
+                "resolved_topic": item["resolved_topic"],
+                "name_resolution": item["name_resolution"],
                 "line": item["line"],
                 "guarded": item["guarded"],
                 "limited": item["limited"],
             }
             for item in publish_calls
         ],
+        "name_resolution_gaps": control.name_resolution_gaps if control else [],
         "executable_source_bytes": len(source.encode("utf-8")),
     }
 
@@ -521,6 +562,7 @@ def inspect_source(source: str, *, filename: str = "uploaded.py", profile: str =
         not checks.get("python_syntax", False)
         or not checks.get("actuator_topic_discovery", False)
         or not checks.get("publish_path_guarded", False)
+        or bool(assurance["name_resolution_gaps"])
         or ("/cmd_vel" in topics and not checks.get("velocity_boundary", False))
     )
     summary = {name: sum(item.severity == name for item in findings) for name in ("critical", "high", "medium", "low")}

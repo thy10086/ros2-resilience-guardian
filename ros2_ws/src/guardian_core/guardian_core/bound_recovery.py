@@ -15,6 +15,7 @@ from .recovery_protocol import RecoveryConfig, RecoveryObservation, RecoveryProt
 
 @dataclass(frozen=True)
 class RecoveryTelemetry:
+    # Capture time mapped onto the receiver's monotonic clock by the adapter.
     received_at: float
     speed: float
     free_distance: float
@@ -135,6 +136,7 @@ class EvidenceBoundRecovery:
             return self._stop("unresolved incident, missing context or unhealthy/stale observation")
         motion = self.envelope.evaluate(MotionSample(
             telemetry.speed, telemetry.free_distance, 0.0, sensor_fresh=telemetry.sensor_fresh,
+            observation_age_sec=now - telemetry.received_at,
         ))
         if not motion.mission_allowed:
             return self._stop(motion.reason)

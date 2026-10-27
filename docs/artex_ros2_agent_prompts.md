@@ -1,12 +1,12 @@
 # ROS 2 红队证据研判与测试 agent 提示词
 
-日期：2026-10-19。状态：**fixture 与真实接口共用的角色契约；真实模型质量需配置目标服务后实测**。
+日期：2026-10-27。状态：**fixture 与真实接口共用的角色契约；真实模型质量需配置目标服务后实测**。
 
 参考用户本地 ARTEX `a9d11cb852eadad00669e4f6a05ee59cbbd14860` 的 goals/planner/worker/retester 分工；以下文字针对 ROS 2 独立撰写，不复制 ARTEX 的渗透测试提示词。完整权限和验收见 [设计](superpowers/specs/2026-10-19-artex-ros2-agent-review-design.md)。
 
 ## 组装与版本
 
-当前版本 `guardian-agent-review-prompts/v2`，每次运行保存实际模板版本与 SHA256。system 消息由固定平台约束和固定角色职责组成。范围、预算、证据目录与经过校验的其他角色输出进入独立 JSON data 消息，不插入 system 模板。模型输出只作为提议；role/context/执行权由宿主程序决定。
+当前版本 `guardian-agent-review-prompts/v3`，每次运行保存实际模板版本与 SHA256。system 消息由固定平台约束和固定角色职责组成。范围、预算、证据目录与经过校验的其他角色输出进入独立 JSON data 消息，不插入 system 模板。模型输出只作为提议；role/context/执行权由宿主程序决定。
 
 正文可由维护者后续调整，但固定平台约束和工具权限不能被页面文本或 prompt 编辑覆盖。runtime 必须拒绝越权调用，即使调用的工具名未展示在 schema 中。fixture 使用相同数据契约，不能标为真实模型执行。
 
@@ -34,7 +34,7 @@
 >
 > 只提出能够用当前包引用表达的目标。没有证据或目录不支持时，列入缺口；不要为了使流程继续而编造前置条件。
 
-输出契约：`goals`（最多 6 项，每项 `summary/evidence_refs`）、`gaps`（最多 8 条）。summary 最多 512 字，每项最多 8 个引用；服务器校验后添加 goal ID。角色可申请读取当前证据项、查看目录，不能创建测试意图或直接运行测试。
+输出契约：`goals`（最多 6 项，每项 `summary/evidence_refs`）、`gaps`（最多 8 条）。summary 最多 512 字，每项最多 8 个引用；服务器校验后添加 goal ID。证据按风险和类型选择，`evidence_selection`明确本次可见ID；只能引用该集合。当前没有额外证据补读工具，不能推断未选证据内容，也不能创建测试意图或直接运行测试。
 
 ## `planner`：唯一测试意图提议者
 
@@ -70,7 +70,9 @@
 >
 > 即使你不同意 Oracle，也只能指出具体规则和证据提出人工复核建议，不能删除违规或改判安全。旧报告与证据不得覆盖。完成后说明哪些结论仍需要外部数据、仿真或真实机器人验收。
 
-输出契约：`reviews`（每项 `finding_id/intent_id/artifact_refs/assessment/counterevidence/missing`），finding 必须来自平台的当前包并归属该 intent；仅原始静态或上传轨迹发现可没有 intent，使用平台给定的空值。assessment 仅可为 `REPRODUCED/NOT_REPRODUCED/INCONCLUSIVE`；解释字段各最多 512 字。输出是建议，必须经程序核对真实执行状态、verification_kind、目录见证和逐项复放匹配；报告不提供模型决定的“已修复”字段。
+模型输出契约：`reviews`每项使用短字段 `i/a/c/m`。`i`为本批findings的零基索引；`a`为平台comparisons给定的逐项判定，只能为 `REPRODUCED/NOT_REPRODUCED/INCONCLUSIVE`；`c/m`为反证说明/缺失证据，合计不超过16字符。每批最多16条，回复规范UTF-8不超过2048字节。不能遗漏、重复、增加索引或修改判定。例：`{"reviews":[{"i":0,"a":"INCONCLUSIVE","c":"静态线索","m":"无运行证据"}]}`。
+
+宿主校验后按索引回填报告的完整 `finding_id/intent_id/artifact_refs/assessment/counterevidence/missing`；模型不能修改这些绑定。报告契约保持完整，部分批完成后保留checkpoint及待复核ID。所有批次计入原16次角色调用预算，不能靠分批绕过；不足时明确INCOMPLETE。旧完整回复仍接受相同身份/判定/大小校验，不代表允许无界回复。
 
 ## 提示词与运行时职责的分界
 

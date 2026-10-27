@@ -210,6 +210,24 @@ def test_core_sources_matching_install_and_passes_absolute_params_file(tmp_path)
     assert f"--params-file {_shell_path(workspace / 'configs' / 'guardian.yaml')}" in log
 
 
+def test_demo_sources_matching_overlay_and_uses_fixed_local_launcher(tmp_path):
+    ros_root, bin_dir, workspace, command_log = _fake_environment(tmp_path, "humble")
+    _install_workspace_setup(workspace, "humble")
+    (workspace / "deploy").mkdir()
+    (workspace / "deploy" / "run_local_demo.py").write_text("# trusted fixture\n")
+    env = os.environ.copy()
+    env.update(_fake_commands(bin_dir, command_log))
+    env["GUARDIAN_ROS_ROOT"] = _shell_path(ros_root)
+    _write_executable(bin_dir / "python3", "#!/usr/bin/env bash\n"
+        "printf 'demo|ROS=%s|WS=%s|%s\\n' \"${FAKE_ROS_SOURCED:-}\" \"${FAKE_WORKSPACE_SOURCED:-}\" \"$*\" >> \"$GUARDIAN_COMMAND_LOG\"\n")
+    result = _run(tmp_path, "demo", "--distro", "humble", "--workspace", _shell_path(workspace), env=env)
+    assert result.returncode == 0, result.stderr
+    log = command_log.read_text()
+    assert "demo|ROS=humble|WS=humble|" in log
+    assert _shell_path(workspace / "deploy" / "run_local_demo.py") in log
+    assert "--config" in log
+
+
 def test_all_uses_only_documented_config_file_launch_argument(tmp_path):
     ros_root, bin_dir, workspace, command_log = _fake_environment(tmp_path, "humble")
     _install_workspace_setup(workspace, "humble")

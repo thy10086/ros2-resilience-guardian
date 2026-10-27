@@ -9,6 +9,7 @@ import re
 from typing import Any
 
 from .dashboard_code_security import CodeSecurityError, inspect_source
+from .static_ros_names import GUARD_NAMES, NameContext, context_for_scope, is_control_topic, resolve_topic
 
 
 GRAPH_SCHEMA = "ros-security-graph/v1"
@@ -26,6 +27,9 @@ CONTROL_TOPICS = {
 }
 CONTROL_TOPIC_PATTERN = re.compile(r"^/model/[^/]+/cmd_vel$")
 TOPIC_TOKENS = tuple(CONTROL_TOPICS) + ("/clock",)
+LITERAL_RESOURCE_RE = re.compile(
+    r"(?<![A-Za-z0-9_/~])/[A-Za-z_][A-Za-z_0-9]*(?:/[A-Za-z_][A-Za-z_0-9]*)*(?![A-Za-z0-9_/])"
+)
 PERMISSION_MARKERS = (
     "permission",
     "permissions",
@@ -38,7 +42,6 @@ PERMISSION_MARKERS = (
 PYTHON_SUFFIXES = {".py", ".pyi"}
 CONFIG_SUFFIXES = {".yaml", ".yml", ".xml", ".sdf", ".urdf", ".json", ".toml"}
 UNSUPPORTED_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp"}
-GUARD_NAMES = {"estop", "e_stop", "safe_stop", "emergency_stop", "mission_allowed", "safety_ok", "permit"}
 LIMIT_NAMES = {"speed_limit", "max_speed", "velocity_limit", "max_velocity"}
 
 _RULE_MAP = {
@@ -98,7 +101,7 @@ def _valid_filename(value: object) -> str:
 def _topic_kind(topic: str) -> tuple[str, str]:
     if topic in CONTROL_TOPICS:
         return CONTROL_TOPICS[topic]
-    if CONTROL_TOPIC_PATTERN.fullmatch(topic):
+    if is_control_topic(topic):
         return "actuator", "high"
     return "topic", "medium"
 
@@ -162,6 +165,7 @@ class _PythonGraphVisitor(ast.NodeVisitor):
         self.publisher_topics: dict[str, str] = {}
         self.function_topics: dict[str, set[str]] = defaultdict(set)
         self.security_nodes: set[str] = set()
+        self.name_context = NameContext()
 
     def _add_node(self, item: dict[str, object]) -> None:
         self.nodes.setdefault(str(item["id"]), item)
@@ -191,14 +195,19 @@ class _PythonGraphVisitor(ast.NodeVisitor):
         return topic_id
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        previous_context = self.name_context
+        self.name_context = context_for_scope(node, previous_context)
         class_id = f"class:{self.filename}:{node.lineno}:{node.name}"
         self._add_node(_node(class_id, "class", node.name, filename=self.filename, line=node.lineno))
         self._add_edge(_edge(self._current(), class_id, "contains", filename=self.filename, line=node.lineno))
         self.parents.append(class_id)
         self.generic_visit(node)
         self.parents.pop()
+        self.name_context = previous_context
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        previous_context = self.name_context
+        self.name_context = context_for_scope(node, previous_context)
         function_id = f"function:{self.filename}:{node.lineno}:{node.name}"
         self._add_node(_node(function_id, "function", node.name, filename=self.filename, line=node.lineno))
         self._add_edge(_edge(self._current(), function_id, "contains", filename=self.filename, line=node.lineno))
@@ -216,6 +225,7 @@ class _PythonGraphVisitor(ast.NodeVisitor):
         self.parents.append(function_id)
         self.generic_visit(node)
         self.parents.pop()
+        self.name_context = previous_context
 
     visit_AsyncFunctionDef = visit_FunctionDef
 
@@ -225,6 +235,8 @@ class _PythonGraphVisitor(ast.NodeVisitor):
             if method == "create_publisher":
                 topic = _topic_from_call(node.value, method)
                 if topic:
+                    resolution = resolve_topic(topic, self.name_context)
+                    topic = str(resolution["topic"])
                     for target in node.targets:
                         name = _target_name(target)
                         if name:
@@ -239,6 +251,7 @@ class _PythonGraphVisitor(ast.NodeVisitor):
                         line=node.lineno, relevance="control_path",
                     ))
                     topic_id = self._register_topic(topic, node.lineno)
+                    self.nodes[topic_id].update(resolution)
                     self._add_edge(_edge(
                         publisher_id, topic_id, "publishes", filename=self.filename,
                         line=node.lineno, relevance="control_path",
@@ -246,6 +259,8 @@ class _PythonGraphVisitor(ast.NodeVisitor):
             elif method == "create_subscription":
                 topic = _topic_from_call(node.value, method)
                 if topic:
+                    resolution = resolve_topic(topic, self.name_context)
+                    topic = str(resolution["topic"])
                     subscriber_id = f"subscriber:{self.filename}:{node.lineno}:{topic}"
                     self._add_node(_node(
                         subscriber_id, "subscriber", topic, filename=self.filename,
@@ -256,6 +271,7 @@ class _PythonGraphVisitor(ast.NodeVisitor):
                         line=node.lineno, relevance="control_path",
                     ))
                     topic_id = self._register_topic(topic, node.lineno)
+                    self.nodes[topic_id].update(resolution)
                     self._add_edge(_edge(
                         subscriber_id, topic_id, "subscribes", filename=self.filename,
                         line=node.lineno, relevance="control_path",
@@ -329,8 +345,8 @@ def _scan_config(filename: str, source: str, nodes: dict[str, dict[str, object]]
                  edges: dict[str, dict[str, object]]) -> list[str]:
     file_id = f"file:{filename}"
     topic_ids: list[str] = []
-    for topic in TOPIC_TOKENS:
-        if topic not in source:
+    for topic in sorted(set(LITERAL_RESOURCE_RE.findall(source))):
+        if topic != "/clock" and not is_control_topic(topic):
             continue
         topic_id = f"topic:{topic}"
         kind, criticality = _topic_kind(topic)
@@ -495,6 +511,7 @@ def inspect_project(files: object, *, profile: str = "ros2_generic") -> dict[str
                 })
                 continue
             visitor = _PythonGraphVisitor(filename, source, nodes, edges)
+            visitor.name_context = context_for_scope(tree)
             visitor.visit(tree)
             try:
                 single_report = inspect_source(
@@ -581,6 +598,7 @@ def inspect_project(files: object, *, profile: str = "ros2_generic") -> dict[str
                 "Only bounded Python AST and literal ROS resource extraction is performed.",
                 "Unsupported source languages are never treated as safe.",
                 "No ROS 2 process, DDS graph, hardware, or physical actuator is started.",
+                "Literal source namespaces are expanded locally; absent namespaces assume root. External launch/CLI remaps and private/dynamic names are not resolved.",
             ],
         },
         "execution": "not_executed",

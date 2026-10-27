@@ -35,7 +35,7 @@ jobs:
           set -euo pipefail
           source "/opt/ros/${{ matrix.distro }}/setup.bash"
           sudo apt-get update
-          sudo apt-get install -y python3-pytest python3-yaml
+          sudo apt-get install -y python3-pytest python3-yaml python3-venv python3-pip libseccomp2
           rosdep update
           rosdep install \
             --from-paths ros2_ws/src \
@@ -58,3 +58,24 @@ jobs:
           source "/opt/ros/${{ matrix.distro }}/setup.bash"
           source "$GITHUB_WORKSPACE/install/${{ matrix.distro }}/setup.bash"
           python3 -m pytest tests
+
+      - name: Run isolated research tests without silent skips
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "/opt/ros/${{ matrix.distro }}/setup.bash"
+          source "$GITHUB_WORKSPACE/install/${{ matrix.distro }}/setup.bash"
+          python3 -m venv --system-site-packages output/agent-review-venv
+          output/agent-review-venv/bin/python -m pip install \
+            -r experiments/requirements-agent-review.txt \
+            -r experiments/requirements-fuzzing.txt
+          output/agent-review-venv/bin/python -c 'import langgraph, pyseccomp, hypothesis'
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 output/agent-review-venv/bin/python -m pytest -q tests \
+            --junitxml=output/research-tests.xml
+          output/agent-review-venv/bin/python - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('output/research-tests.xml').getroot()
+          skipped = sum(int(s.attrib.get('skipped', '0')) for s in root.iter('testsuite'))
+          if skipped:
+              raise SystemExit(f'Research verification skipped {skipped} tests')
+          PY

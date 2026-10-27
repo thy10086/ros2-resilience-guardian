@@ -1,5 +1,7 @@
 # ARTEX 风格的 ROS 2 多角色研判与测试闭环
 
+2026-10-27更新：提示词v3，证据按风险和类型选择，记录实际可见ID；reviewer每批最多16项，使用短索引回复，程序校验并回填完整finding/intent/artifact绑定。规范回复上限2048字节，批次仍计入16次角色调用，预算不足保留已完成复核和待复核ID。128项边界真实离线执行已完成，未支持语言的审查项继续保留。安装定位支持管理员GUARDIAN_RESEARCH_ROOT或受信源码标记查找；详情见[分梯度改动](priority_hardening_2026-10-27.md)。
+
 `goals → planner → 最多3个worker → reviewer` 由 LangGraph 编排，现支持明确分开的 **fixture 脚本模式**和 **OpenAI 兼容接口模式**。模型可以生成目标与选择测试，worker 仅确认其分配意图，真实执行与 SafetyOracle 重算由程序完成。检测页入口位于“安全测试分析 → 四角色协作测试分析”。本地 HTTP 验收证明协议与调度，不代表已经完成真实模型的质量评估。
 
 参考是用户本地 `D:/ARTEX` 的 `a9d11cb852eadad00669e4f6a05ee59cbbd14860`，不是根据网页演示模仿 UI。角色分工、探索血缘、单意图执行和独立复核思路来自源码阅读；ROS 契约、权限检查与提示词独立编写。参考清单见 [来源记录](artex_ros2_reference_audit.json)，[设计](superpowers/specs/2026-10-19-artex-ros2-agent-review-design.md)与[角色提示词](artex_ros2_agent_prompts.md)可单独审阅。

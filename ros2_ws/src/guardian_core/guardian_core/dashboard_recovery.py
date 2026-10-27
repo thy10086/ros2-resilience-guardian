@@ -38,6 +38,30 @@ def inspect_recovery_trace(payload):
     coverage.observe_trace(frames)
     gaps = [index for index in range(1, len(frames))
         if frames[index].now - frames[index - 1].now > oracle.max_frame_gap_sec]
+    authorization_violations = [v for v in violations if v.code != "recovery_stalled"]
+    properties = {
+        "recovery_authorization": {
+            "status": "VIOLATED" if authorization_violations else "SATISFIED",
+            "scope": "仅对提交帧的许可、epoch、上下文与停车条件检查",
+            "violation_codes": sorted({v.code for v in authorization_violations}),
+        },
+        "bounded_recovery": {
+            "status": "VIOLATED" if any(v.code == "recovery_stalled" for v in violations)
+                else "SATISFIED" if not gaps and not authorization_violations
+                    and any(f.recovery_phase == "RESUMABLE" and f.mission_allowed for f in frames)
+                else "INSUFFICIENT_EVIDENCE",
+            "scope": "仅连续且符合前提的已提交健康停车窗口；未出现合格窗口不代表完成恢复",
+            "sampling_gap_count": len(gaps),
+        },
+        "motion_envelope": {
+            "status": "INSUFFICIENT_EVIDENCE",
+            "missing_evidence": ["采集净距和年龄", "绑定的速度/制动策略参数", "独立运动观测与误差界"],
+        },
+        "source_authenticity": {
+            "status": "INSUFFICIENT_EVIDENCE",
+            "missing_evidence": ["受信来源认证", "完整单会话与采样序号证明"],
+        },
+    }
     return {
         "schema": "guardian-recovery-inspection/v1", "actuation": "none",
         "verdict": "VIOLATIONS" if violations else "NO_VIOLATIONS",
@@ -52,6 +76,7 @@ def inspect_recovery_trace(payload):
             for v in violations[:100]],
         "violations_truncated": len(violations) > 100,
         "liveness_gaps": len(gaps), "liveness_gap_indices": gaps,
+        "evidence_sufficiency": "PARTIAL", "property_assessments": properties,
         "oracle_config": {"liveness_sec": oracle.liveness_sec, "max_frame_gap_sec": oracle.max_frame_gap_sec},
         "limitations": "只检查提交的审计帧，无法认证日志来源或证明物理安全；未发现违规不等于安全认证。",
     }

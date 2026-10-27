@@ -32,6 +32,8 @@ _REQUIRED_SOURCES = (
         "recovery_graph.py", "independent_observation.py", "evidence_ledger.py",
         "predictive_envelope.py", "dashboard_recovery.py", "dashboard_code_security.py",
         "ros_graph_security.py",
+        "http_transport.py",
+        "static_ros_names.py",
     )),
 )
 _OPTIONAL_SOURCES = ("experiments/run_agent_review.py",)
@@ -270,6 +272,32 @@ def _validate_bundle(bundle):
     if not verify_sources(bundle["source_manifest"]):
         raise ValueError("source context has changed")
     return set(ids)
+
+
+def select_evidence(bundle, limit=8):
+    """Select a fixed visible set by severity and kind, never filename order alone.
+
+    This is selection, not an evidence-reading tool. The complete evidence remains
+    in the report and only these IDs may be cited by planning roles.
+    """
+    severity = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+    priority = {"trace_violation": 0, "static_finding": 1, "submitted_trace": 2,
+                "model_definition": 2, "source_file": 3}
+    ordered = sorted(enumerate(bundle["evidence"]), key=lambda row: (
+        priority.get(row[1]["kind"], 4),
+        severity.get(str(row[1].get("severity", "")).lower(), 5), row[0]))
+    # Keep a representative for every available type, then spend remaining slots
+    # on the highest-priority concrete findings.
+    chosen, kinds = [], set()
+    for index, row in ordered:
+        if row["kind"] not in kinds and len(chosen) < limit:
+            chosen.append(index)
+            kinds.add(row["kind"])
+    for index, _ in ordered:
+        if index not in chosen and len(chosen) < limit:
+            chosen.append(index)
+    selected = set(chosen)
+    return [row for index, row in ordered if index in selected]
 
 
 def approve_plan(role, proposals, bundle, goal_ids, seen=()):

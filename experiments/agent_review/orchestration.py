@@ -19,7 +19,7 @@ import time
 from typing import Annotated, TypedDict
 import operator
 
-from .contracts import approve_plan, digest, make_bundle, strict_loads, verify_sources
+from .contracts import approve_plan, digest, make_bundle, select_evidence, strict_loads, verify_sources
 from .prompts import ROLES, role_prompt
 
 MAX_INPUT = 2 * 1024 * 1024
@@ -322,6 +322,10 @@ def _run_graph(payload, replies, timeout_sec, emit, complete=None):
     calls, executions = 0, 0
     claimed = set()
     goals = []
+    visible_evidence = select_evidence(bundle)
+    visible_ids = [e["id"] for e in visible_evidence]
+    report["evidence_selection"] = {"strategy": "risk_and_kind/v1", "selected_ids": visible_ids,
+        "total": len(bundle["evidence"]), "additional_read_tool": False}
 
     def gaps(value):
         if not isinstance(value, list) or len(value) > 8 or any(not isinstance(item, str) or len(item) > 512 for item in value):
@@ -358,8 +362,17 @@ def _run_graph(payload, replies, timeout_sec, emit, complete=None):
                 "test_catalog": [{"test_id": key, "fixed_actions": list(value),
                                   "target": "guardian_recovery_virtual_model"}
                                  for key, value in SCENARIOS.items()],
+                "evidence_selection": report["evidence_selection"],
                 "evidence": [{k: v for k, v in e.items() if k not in {"filename", "file", "path", "source"}}
-                             for e in bundle["evidence"][:8]], "task": data}
+                             for e in visible_evidence], "task": data}
+            if name == "reviewer":
+                # Findings and comparisons in this batch are the reviewer's entire
+                # scope. Do not repeat unrelated evidence or execution summaries.
+                context.pop("evidence")
+                context.pop("test_catalog")
+                context["evidence_selection"] = {"strategy": "review_batch/v1",
+                    "selected_ids": [r for f in data["findings"] for r in f.get("evidence_refs", [])],
+                    "additional_read_tool": False}
             def public_data(value):
                 if isinstance(value, dict):
                     return {key: public_data(item) for key, item in value.items()
@@ -368,19 +381,23 @@ def _run_graph(payload, replies, timeout_sec, emit, complete=None):
                     return [public_data(item) for item in value]
                 return value
             context = public_data(context)
+            input_bytes = len(json.dumps(context, ensure_ascii=False).encode())
+            if name == "reviewer" and input_bytes >= 16384:
+                raise ValueError("review batch input too large")
             output = complete(name, context) if complete is not None else replies.get(name, default)
-            encoded = json.dumps(output, ensure_ascii=False, allow_nan=False).encode()
-            if len(encoded) > 16384:
+            encoded = json.dumps(output, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
+            if len(encoded) > (2048 if name == "reviewer" else 16384):
                 raise ValueError("role response too large")
             output = strict_loads(encoded.decode())
             report["role_events"].append({"role": name, "mode": "llm" if complete is not None else "fixture", "ordinal": calls,
                 "prompt_sha256": role_prompt(name)["sha256"], "input_digest": digest(data),
                 "prompt_version": role_prompt(name)["version"],
-                "output_digest": digest(output)})
+                "output_digest": digest(output), "input_bytes": input_bytes,
+                "output_bytes": len(encoded), "evidence_refs": context["evidence_selection"]["selected_ids"]})
             return output
 
     def goals_node(state):
-        refs = [e["id"] for e in bundle["evidence"]][:8]
+        refs = visible_ids
         out = role("goals", bundle["summary"], {"goals": [{"summary": "核对自有恢复模型的许可与上下文边界", "evidence_refs": refs}], "gaps": []})
         if not isinstance(out, dict) or set(out) != {"goals", "gaps"} or not isinstance(out["goals"], list) or not 1 <= len(out["goals"]) <= 6:
             raise ValueError("invalid goals response")
@@ -408,6 +425,9 @@ def _run_graph(payload, replies, timeout_sec, emit, complete=None):
         proposed = out["intents"]
         if not isinstance(proposed, list):
             raise ValueError("invalid intent list")
+        if any(not isinstance(row, dict) or not isinstance(row.get("evidence_refs"), list)
+                or any(ref not in visible_ids for ref in row["evidence_refs"]) for row in proposed):
+            raise ValueError("planner reference was not visible")
         # Validate before inserting the mandatory normal control.
         approved = approve_plan("planner", proposed, bundle, [g["goal_id"] for g in goals])
         if not any(i["test_id"] == "healthy_resume" for i in approved):
@@ -509,22 +529,63 @@ def _run_graph(payload, replies, timeout_sec, emit, complete=None):
                                 else "原始提交数据的确定性重算，保留违规；未在目标上重新触发"),
             "missing": "" if f["verification_kind"] == "REEXECUTION" else "无目标重新执行证据"}
             for f in report["findings"]]
-        out = role("reviewer", {"findings": report["findings"], "comparisons": comparisons,
-            "review_context": review_context}, {"reviews": expected})
-        if not isinstance(out, dict) or set(out) != {"reviews"} or not isinstance(out["reviews"], list) or len(out["reviews"]) != len(expected):
-            raise ValueError("invalid reviewer response")
-        expected_by_id = {r["finding_id"]: r for r in expected}
-        seen = set()
-        for row in out["reviews"]:
-            if not isinstance(row, dict) or set(row) != {"finding_id", "intent_id", "artifact_refs", "assessment", "counterevidence", "missing"}:
-                raise ValueError("invalid review fields")
-            trusted = expected_by_id.get(row["finding_id"])
-            if trusted is None or row["finding_id"] in seen or any(row[k] != trusted[k] for k in ("intent_id", "artifact_refs", "assessment")):
-                raise ValueError("unbound or forged review")
-            if any(not isinstance(row[k], str) or len(row[k]) > 512 for k in ("counterevidence", "missing")):
-                raise ValueError("review text invalid")
-            seen.add(row["finding_id"])
-        report["reviews"] = out["reviews"]
+        report["review_pending_ids"] = [row["finding_id"] for row in expected]
+        # Eight batches cover 128 findings while 2 planning + 6 worker + 8 review
+        # calls fit the unchanged 16-call ceiling. Short local indices avoid
+        # retransmitting long immutable IDs in the 2048-token provider response.
+        for start in range(0, max(1, len(expected)), 16):
+            batch = report["findings"][start:start + 16]
+            trusted_rows = expected[start:start + 16]
+            batch_intents = {f["intent_id"] for f in batch if f["intent_id"] is not None}
+            context = dict(review_context)
+            if batch:
+                context.update(intents=[row for row in report["intents"] if row["intent_id"] in batch_intents],
+                    executions=[execution_summary(row) for row in report["executions"] if row["intent_id"] in batch_intents],
+                    replays=[execution_summary(row) for row in replay_artifacts if row["intent_id"] in batch_intents])
+            default = {"reviews": [{"i": index, "a": row["assessment"],
+                "c": "逐规则帧重执行" if finding["verification_kind"] == "REEXECUTION" else "原始数据复核",
+                "m": "" if finding["verification_kind"] == "REEXECUTION" else "无运行证据"}
+                for index, (finding, row) in enumerate(zip(batch, trusted_rows))]}
+            out = role("reviewer", {"findings": batch,
+                "comparisons": {f["finding_id"]: comparisons[f["finding_id"]] for f in batch},
+                "batch": {"offset": start, "count": len(batch), "total": len(expected)},
+                "review_context": context}, default)
+            if (not isinstance(out, dict) or set(out) != {"reviews"}
+                    or not isinstance(out["reviews"], list) or len(out["reviews"]) != len(trusted_rows)):
+                raise ValueError("invalid reviewer response")
+            validated, seen = [], set()
+            expected_by_id = {row["finding_id"]: row for row in trusted_rows}
+            for row in out["reviews"]:
+                if not isinstance(row, dict):
+                    raise ValueError("invalid review fields")
+                if set(row) == {"i", "a", "c", "m"}:
+                    index = row["i"]
+                    if type(index) is not int or not 0 <= index < len(trusted_rows):
+                        raise ValueError("unbound or forged review")
+                    trusted = trusted_rows[index]
+                    if (any(type(row[key]) is not str for key in ("c", "m"))
+                            or len(row["c"]) + len(row["m"]) > 16):
+                        raise ValueError("review text invalid")
+                    if row["a"] != trusted["assessment"]:
+                        raise ValueError("unbound or forged review")
+                    row = {**trusted, "counterevidence": row["c"], "missing": row["m"]}
+                elif set(row) == {"finding_id", "intent_id", "artifact_refs", "assessment", "counterevidence", "missing"}:
+                    # Older clients' full rows use exactly the same binding and
+                    # byte checks. New prompts and fixtures use compact rows.
+                    trusted = expected_by_id.get(row["finding_id"])
+                    if trusted is None or any(row[k] != trusted[k] for k in ("intent_id", "artifact_refs", "assessment")):
+                        raise ValueError("unbound or forged review")
+                    if any(type(row[k]) is not str or len(row[k]) > 512 for k in ("counterevidence", "missing")):
+                        raise ValueError("review text invalid")
+                else:
+                    raise ValueError("invalid review fields")
+                if row["finding_id"] in seen:
+                    raise ValueError("unbound or forged review")
+                seen.add(row["finding_id"])
+                validated.append(row)
+            report["reviews"].extend(validated)
+            report["review_pending_ids"] = report["review_pending_ids"][len(validated):]
+            snapshot()
         return {}
 
     graph = StateGraph(_State)
@@ -552,4 +613,6 @@ def _run_graph(payload, replies, timeout_sec, emit, complete=None):
         # Barrier shutdown waits for bounded worker executions, retaining findings.
         report["role_calls"] = calls
         report["scenario_executions"] = executions
+        reviewed = {row["finding_id"] for row in report["reviews"]}
+        report["review_pending_ids"] = [row["finding_id"] for row in report["findings"] if row["finding_id"] not in reviewed]
     return report

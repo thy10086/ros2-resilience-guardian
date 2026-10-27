@@ -19,6 +19,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from .http_transport import request_bytes
+
 from .jev_advisor import (
     DEFAULT_ENDPOINT,
     DEFAULT_MODEL,
@@ -289,9 +291,7 @@ class JevDashboardService:
 
     @staticmethod
     def _default_transport(endpoint: str, headers: Mapping[str, str], body: bytes, timeout: float) -> bytes:
-        request = Request(endpoint, data=body, headers=dict(headers), method="POST")
-        with _HTTP_OPENER.open(request, timeout=timeout) as response:
-            return response.read(64 * 1024 + 1)
+        return request_bytes(endpoint, headers, body, timeout)
 
 
 __all__ = [

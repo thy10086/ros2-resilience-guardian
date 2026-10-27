@@ -21,6 +21,7 @@ class MotionSample:
     risk_rate: float = 0.0
     uncertainty: float = 0.0
     sensor_fresh: bool = True
+    observation_age_sec: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -69,12 +70,13 @@ class PredictiveEnvelope:
             "risk": sample.risk,
             "risk_rate": sample.risk_rate,
             "uncertainty": sample.uncertainty,
+            "observation_age_sec": sample.observation_age_sec,
         }
         if any(not math.isfinite(float(value)) for value in values.values()):
             return PredictiveDecision("SAFE_STOP", 0.0, False, 0.0, 1.0, "non-finite motion input")
         if not isinstance(sample.sensor_fresh, bool):
             return PredictiveDecision("SAFE_STOP", 0.0, False, 0.0, 1.0, "sensor freshness flag is invalid")
-        if any(float(value) < 0 for value in (sample.speed, sample.free_distance, sample.uncertainty)):
+        if any(float(value) < 0 for value in (sample.speed, sample.free_distance, sample.uncertainty, sample.observation_age_sec)):
             return PredictiveDecision("SAFE_STOP", 0.0, False, 0.0, 1.0, "negative motion input")
         risk = max(0.0, min(1.0, float(sample.risk)))
         if not 0.0 <= float(sample.risk) <= 1.0:
@@ -82,22 +84,31 @@ class PredictiveEnvelope:
         growth = max(0.0, float(sample.risk_rate))
         horizon = self.config.prediction_horizon_sec
         predicted_risk = min(1.0, risk + growth * horizon)
-        latency = self.config.control_latency_sec + self.config.sensor_latency_sec
+        age = sample.observation_age_sec
+        # Once a sample ages, its measured speed need not still be current.
+        # This bound assumes subsequent motion stays within the configured
+        # operating limit (or the higher speed already observed).
+        speed_bound = max(sample.speed, self.config.default_speed_limit)
+        speed = speed_bound if age > 0 else sample.speed
+        free_distance = max(0.0, sample.free_distance - speed_bound * age)
+        # Capture age already accounts for elapsed sensor/transport latency.
+        # Retain only the portion of the configured floor not covered by age.
+        latency = self.config.control_latency_sec + max(0.0, self.config.sensor_latency_sec - age)
         stop_distance = (
-            sample.speed * latency
-            + sample.speed ** 2 / (2.0 * self.config.braking_acceleration)
+            speed * latency
+            + speed ** 2 / (2.0 * self.config.braking_acceleration)
             + self.config.safety_margin
             + sample.uncertainty
             + predicted_risk * self.config.risk_distance_gain
         )
         if not sample.sensor_fresh:
             return PredictiveDecision("SAFE_STOP", 0.0, False, stop_distance, predicted_risk, "sensor data is stale")
-        if sample.free_distance <= self.config.safety_margin or predicted_risk >= self.config.stop_risk:
-            reason = "free distance is below safety margin" if sample.free_distance <= self.config.safety_margin else "predicted risk exceeds stop threshold"
+        if free_distance <= self.config.safety_margin or predicted_risk >= self.config.stop_risk:
+            reason = "free distance is below safety margin" if free_distance <= self.config.safety_margin else "predicted risk exceeds stop threshold"
             return PredictiveDecision("SAFE_STOP", 0.0, False, stop_distance, predicted_risk, reason)
-        if stop_distance > sample.free_distance:
+        if stop_distance > free_distance:
             return PredictiveDecision("SAFE_STOP", 0.0, False, stop_distance, predicted_risk, "current motion cannot stop within free distance")
-        remaining = sample.free_distance - self.config.safety_margin - sample.uncertainty - predicted_risk * self.config.risk_distance_gain
+        remaining = free_distance - self.config.safety_margin - sample.uncertainty - predicted_risk * self.config.risk_distance_gain
         if remaining <= 0:
             return PredictiveDecision("SAFE_STOP", 0.0, False, stop_distance, predicted_risk, "predicted stopping distance exceeds free distance")
         acceleration = self.config.braking_acceleration

@@ -70,6 +70,7 @@ class AmrSimulationModel:
         self._safety_adapter_id = self.command_adapter_id
         self._safety_profile_id = self.command_profile_id
         self._feedback_sequence = 0
+        self._attack_sequence = 7000
         self.isolated_components: set[str] = set()
         self._reset_scene()
 
@@ -116,16 +117,14 @@ class AmrSimulationModel:
             raise SimulationCommandError("type must be speed_abuse, replay or gripper_fault")
         self.attack_mode = str(attack_type)
         if attack_type == "speed_abuse":
-            self._pending_events.append(self._event_template("UNSAFE_COMMAND", "left_wheels", 7001))
+            self._pending_events.append(self._new_attack_event("UNSAFE_COMMAND", "left_wheels"))
         elif attack_type == "replay":
             self._replay_counter = 0
-            self._pending_events.extend([
-                self._event_template("UNSAFE_COMMAND", "left_wheels", 7001),
-                self._event_template("UNSAFE_COMMAND", "left_wheels", 7001),
-            ])
+            event = self._new_attack_event("UNSAFE_COMMAND", "left_wheels")
+            self._pending_events.extend([event, dict(event)])
         else:
             self.gripper_force = 0.0
-            self._pending_events.append(self._event_template("SEMANTIC_MISBEHAVIOR", "right_arm", 7003))
+            self._pending_events.append(self._new_attack_event("SEMANTIC_MISBEHAVIOR", "right_arm"))
 
     def update_safety(self, safety: dict[str, Any], *, source_age_sec: float = 0.0) -> None:
         now = self._check_authorization_leases()
@@ -336,10 +335,15 @@ class AmrSimulationModel:
             item = dict(event)
             item["timestamp"] = float(timestamp)
             if self.attack_mode == "replay":
-                item["event_id"] = f"{self.robot_id}-replay-{self._replay_counter}"
+                item["event_id"] = f"{self.robot_id}-replay-{item['sequence']}-{self._replay_counter}"
                 self._replay_counter += 1
             result.append(item)
         return result
+
+    def _new_attack_event(self, attack_type: str, component: str) -> dict[str, Any]:
+        # The source verifier survives scene reset; new incidents must too.
+        self._attack_sequence += 1
+        return self._event_template(attack_type, component, self._attack_sequence)
 
     def _event_template(self, attack_type: str, component: str, sequence: int) -> dict[str, Any]:
         return {

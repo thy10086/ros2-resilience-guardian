@@ -7,7 +7,7 @@ readonly ROS_ROOT="${GUARDIAN_ROS_ROOT:-/opt/ros}"
 
 usage() {
     cat >&2 <<'EOF'
-Usage: run_guardian.sh <build|test|dashboard|core|simulator|all>
+Usage: run_guardian.sh <build|test|dashboard|core|simulator|all|demo>
     [--distro auto|humble|jazzy] [--workspace PATH]
 EOF
 }
@@ -51,7 +51,7 @@ while (($# > 0)); do
 done
 
 case "$command_name" in
-    build|test|dashboard|core|simulator|all) ;;
+    build|test|dashboard|core|simulator|all|demo) ;;
     *)
         usage
         fail "unsupported command: $command_name"
@@ -174,5 +174,10 @@ case "$command_name" in
         ;;
     all)
         run_all
+        ;;
+    demo)
+        source_workspace
+        [[ -f "$workspace/deploy/run_local_demo.py" ]] || fail "local demo launcher is missing"
+        exec python3 "$workspace/deploy/run_local_demo.py" --config "$config_file"
         ;;
 esac

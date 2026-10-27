@@ -90,14 +90,22 @@
 
   function renderInspection(report) {
     const violated = report.violation_count > 0;
-    $('recovery-verdict').textContent = violated ? '发现断言违规' : '本轨迹未发现违规';
-    $('recovery-verdict').className = `pill ${violated ? 'error' : 'success'}`;
+    const partial = report.evidence_sufficiency === 'PARTIAL';
+    $('recovery-verdict').textContent = violated ? '发现断言违规' : partial ? '授权检查未见违规 · 证据不完整' : '本轨迹未发现违规';
+    $('recovery-verdict').className = `pill ${violated ? 'error' : partial ? '' : 'success'}`;
     $('recovery-frame-count').textContent = report.frame_count;
     $('recovery-violation-count').textContent = report.violation_count;
     $('recovery-trace-coverage').textContent = `${report.coverage.states} / ${report.coverage.transitions}`;
     $('recovery-gap-count').textContent = report.liveness_gaps;
     const codes = report.violation_codes.map(code => violationNames[code] || code).join('；');
-    $('recovery-check-summary').textContent = violated ? `检测到：${codes}。` : '所提交轨迹未触发恢复安全断言；这不代表安全认证。';
+    $('recovery-check-summary').textContent = violated ? `检测到：${codes}。` : partial ?
+      '提交帧未触发授权断言；当前日志缺少独立重算运动包络及认证来源的证据，这两项仍不可判定。' :
+      '所提交轨迹未触发恢复安全断言；这不代表安全认证。';
+    const propertyNames = {recovery_authorization: '恢复授权与上下文', bounded_recovery: '有界恢复窗口',
+      motion_envelope: '运动安全包络', source_authenticity: '日志来源与完整性'};
+    const propertyStates = {SATISFIED: '提交帧内符合检查', VIOLATED: '发现违规', INSUFFICIENT_EVIDENCE: '证据不足'};
+    $('recovery-property-assessments').innerHTML = Object.entries(report.property_assessments || {}).map(([key, item]) =>
+      `<tr><td>${esc(propertyNames[key] || key)}</td><td>${esc(propertyStates[item.status] || item.status)}</td><td>${esc(item.scope || (item.missing_evidence || []).join('、'))}</td></tr>`).join('');
     $('recovery-findings').innerHTML = report.violations.length ? report.violations.map(v =>
       `<tr><td>第 ${v.frame_index + 1} 帧<br>${Number(v.now).toFixed(3)} s</td><td><strong>${esc(violationNames[v.code] || v.code)}</strong><small class="code-security-raw">${esc(v.code)}</small></td><td>${esc(v.recovery_phase)}</td><td class="recovery-binding">图：${esc(v.graph_fingerprint)}<br>策略：${esc(v.policy_fingerprint)}<br>账本：${esc(v.ledger_anchor)}<br>消费许可：${esc(v.consumed_proof_id || '—')}</td></tr>`).join('') :
       '<tr><td colspan="4" class="empty">所提交帧未触发断言违规。</td></tr>';

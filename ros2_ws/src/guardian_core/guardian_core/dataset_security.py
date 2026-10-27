@@ -95,21 +95,27 @@ class DatasetSecurityError(ValueError):
 
 def _root(value: str | Path) -> Path:
     path = Path(value).expanduser()
+    if path.is_symlink():
+        raise DatasetSecurityError("数据集根目录不能是符号链接")
     if not path.exists() or not path.is_dir():
         raise DatasetSecurityError("数据集目录不存在或不是目录")
     resolved = path.resolve()
-    if resolved.is_symlink():
-        raise DatasetSecurityError("数据集根目录不能是符号链接")
     return resolved
 
 
 def _iter_files(root: Path) -> list[Path]:
     files: list[Path] = []
     for path in root.rglob("*"):
-        if not path.is_file():
-            continue
         relative_parts = path.relative_to(root).parts
         if any(part in SKIP_DIRECTORIES for part in relative_parts):
+            continue
+        # Validate the lexical entry before any stat/read follows its target.
+        if path.is_symlink():
+            raise DatasetSecurityError(f"数据集包含符号链接：{path.relative_to(root).as_posix()}")
+        resolved = path.resolve()
+        if root not in resolved.parents:
+            raise DatasetSecurityError("数据集文件超出根目录")
+        if not path.is_file():
             continue
         files.append(path)
     return sorted(files, key=lambda item: item.relative_to(root).as_posix().lower())
